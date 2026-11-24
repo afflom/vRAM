@@ -89,14 +89,14 @@ static int page_io(const char *path, char *out, const char *in, size_t len, off_
         size_t page = extent->first + pos / PAGE, start = pos % PAGE;
         size_t n = PAGE - start < len - done ? PAGE - start : len - done;
         bool whole = n == PAGE;
-        if (in) {
-            const uint8_t *payload = (const uint8_t *)in + done;
-            int rc = whole ? store_put(memory, page, payload) : store_patch(memory, page, start, payload, n);
-            if (rc) return -EIO;
-        } else if (whole) {
+        if (whole) {
             size_t pages = (len - done) / PAGE;
-            if (store_read_pages(memory, page, pages, (uint8_t *)out + done)) return -EIO;
+            int rc = in ? store_write_pages(memory, page, pages, (const uint8_t *)in + done)
+                        : store_read_pages(memory, page, pages, (uint8_t *)out + done);
+            if (rc) return -EIO;
             n = pages * PAGE;
+        } else if (in) {
+            if (store_patch(memory, page, start, (const uint8_t *)in + done, n)) return -EIO;
         } else {
             if (store_get(memory, page, scratch)) return -EIO;
             memcpy(out + done, scratch + start, n);

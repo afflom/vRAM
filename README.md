@@ -27,7 +27,7 @@ The platform ceiling comes from firmware (SMBIOS type 16 system-memory arrays) o
 
 `max` requests the smaller of the platform and guest ceilings. It fails before launch if that target exceeds the modeled envelope. The final allocation must successfully reserve the entire target plus one 4 KiB replacement slot. Quotas, competing allocations and QEMU's own mappings can further limit admission. With `--add-mib`, the reserved DIMM counts toward the total. Numeric `--ram-mib` continues to specify boot memory.
 
-In 0.5.3, the memory server batches full-page reads and applies partial-page updates atomically under concurrent requests. [Concurrency tests and profiling](docs/device-verification.md#concurrent-memory-file-requests)
+In 0.5.3, the memory server batches full-page reads and writes and applies partial-page updates atomically under concurrent requests. [Concurrency tests and profiling](docs/device-verification.md#concurrent-memory-file-requests)
 
 In 0.5.2, overwriting a shared dense page can reuse its immutable base even when an edit changes the lookup fingerprint. Converging overwrites also shrink the dictionary as bases retire. [Readback, I/O counts and benchmark methodology](docs/device-verification.md#ownership-aware-admission-in-052)
 

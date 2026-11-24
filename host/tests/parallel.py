@@ -70,6 +70,9 @@ for name in ("qemu", "kernel", "package", "result"):
 parser.add_argument("--baseline-package", type=Path, help="previous package built for the same runner")
 args = parser.parse_args()
 accel = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
+runner = dict(accelerator=accel, host_cpus=len(os.sched_getaffinity(0)), kernel=args.kernel.name,
+              qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0])
+print("VM runner", runner, flush=True)
 rows = []
 with tempfile.TemporaryDirectory() as temp:
     tmp = Path(temp)
@@ -117,8 +120,7 @@ with tempfile.TemporaryDirectory() as temp:
     if profile["vcpus"] != 8 or min(profile["times"].values()) <= 0 or not samples:
         raise ValueError(f"incomplete eight-vCPU diagnostic: {profile}")
     print("VM profile", profile, flush=True)
-args.result.write_text(json.dumps(dict(accelerator=accel, host_cpus=len(os.sched_getaffinity(0)),
-    kernel=args.kernel.name, qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
+args.result.write_text(json.dumps(dict(**runner,
     package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(), guest_mib=384,
     workload_mib=64, profile=profile, trials=rows,
     baseline_package_sha256=hashlib.sha256(args.baseline_package.read_bytes()).hexdigest() if args.baseline_package else None), indent=2) + "\n")

@@ -170,6 +170,13 @@ static int failed_writes(struct store *s, int fd)
         fprintf(stderr, "failed writes changed store charge from %lu to %lu bytes\n", before[4], after[4]);
         return 0;
     }
+    // The first page commits as a fill. The sealed file rejects the next dense page.
+    u8 batch[3 * PAGE];
+    memset(batch, 37, PAGE);
+    memcpy(batch + PAGE, other, PAGE);
+    memset(batch + 2 * PAGE, 57, PAGE);
+    if (store_put(s, 64, old) || !store_write_pages(s, 63, 3, batch) ||
+        !verify(s, 63, batch) || !verify(s, 64, old) || !verify(s, 65, zero)) return 0;
     return verify(s, 0, old);
 }
 

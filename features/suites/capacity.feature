@@ -125,3 +125,9 @@ Feature: capacity
     Given two writers updating disjoint byte ranges of the same page
     When the shared memory file accepts their writes
     Then both ranges remain exact and a failed replacement preserves the previous page
+
+  @VR-20 @open
+  Scenario: Write consecutive pages across a policy group boundary
+    Given a full-page write spanning two Verdant policy groups
+    When a later page fails to commit
+    Then the committed prefix is readable and the failing page retains its previous bytes

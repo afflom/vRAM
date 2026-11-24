@@ -437,6 +437,41 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
     put_locked(s, &mut s.write_directory(), page, data)
 }
 
+/// Commit full pages in address order, releasing the lock at each policy group boundary.
+/// A backing error preserves the failing page and leaves the committed prefix visible.
+#[no_mangle]
+pub unsafe extern "C" fn store_write_pages(
+    s: &Store,
+    first: usize,
+    count: usize,
+    data: *const u8,
+) -> c_int {
+    if count > isize::MAX as usize / PAGE || (count != 0 && data.is_null()) {
+        return -1;
+    }
+    let Some(end) = first.checked_add(count) else {
+        return -1;
+    };
+    let mut page = first;
+    loop {
+        let mut values = s.write_directory();
+        if end > values.count {
+            return -1;
+        }
+        let n = (end - page).min(directory::GROUP - page % directory::GROUP);
+        for _ in 0..n {
+            let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
+            if put_locked(s, &mut values, page, src) != 0 {
+                return -1;
+            }
+            page += 1;
+        }
+        if page == end {
+            return 0;
+        }
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn store_patch(
     s: &Store,
@@ -782,6 +817,28 @@ mod runtime_tests {
 #[cfg(test)]
 mod host_tests {
     use super::*;
+
+    #[test]
+    fn full_write_validates_extent_before_committing_and_crosses_groups() {
+        let store = unsafe { Box::from_raw(store_new(132)) };
+        let src: Vec<[u8; PAGE]> = (1..=69).map(|value| [value; PAGE]).collect();
+        let mut bytes = [0; PAGE];
+        unsafe {
+            assert_eq!(store_write_pages(&store, 63, 70, src.as_ptr().cast()), -1);
+            assert_eq!(store_write_pages(&store, 132, 0, ptr::null()), 0);
+            assert_eq!(store_write_pages(&store, 63, 1, ptr::null()), -1);
+            assert_eq!(store_get(&store, 63, &mut bytes), 0);
+            assert_eq!(bytes, [0; PAGE]);
+            assert_eq!(
+                store_write_pages(&store, 63, src.len(), src.as_ptr().cast()),
+                0
+            );
+            for (i, expected) in src.iter().enumerate() {
+                assert_eq!(store_get(&store, 63 + i, &mut bytes), 0);
+                assert_eq!(&bytes, expected);
+            }
+        }
+    }
 
     #[test]
     fn simultaneous_disjoint_patches_survive_group_reads() {
