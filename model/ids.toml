@@ -139,3 +139,10 @@ id = "VR-21"
 level = "open"
 suite = "capacity"
 statement = "A contended full-page write can fit a candidate outside the directory lock and uses it only while its selector and regional search inputs still match at commit"
+
+[[id]]
+id = "VR-22"
+level = "build"
+suite = "capacity"
+statement = "For equal verified work, modeled overlap improves makespan exactly when it exceeds additional critical-path cost; page latency and deadline misses have separate break-even conditions, and selection minimizes measured elapsed time among eligible alternatives"
+theorems = ["Performance.overlapBreakEven", "Performance.idealBreakEven", "Performance.pageBreakEven", "Performance.tailNonincrease", "Performance.bestAtDeadline", "Performance.attainable"]

@@ -41,6 +41,7 @@ The three honesty levels (R2):
 | `VR-19` | `open` | An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes |  |
 | `VR-20` | `open` | Concurrent partial writes to disjoint bytes of one page survive full readback and a failed patch preserves the committed page |  |
 | `VR-21` | `open` | A contended full-page write can fit a candidate outside the directory lock and uses it only while its selector and regional search inputs still match at commit |  |
+| `VR-22` | `build` | For equal verified work, modeled overlap improves makespan exactly when it exceeds additional critical-path cost; page latency and deadline misses have separate break-even conditions, and selection minimizes measured elapsed time among eligible alternatives | `Performance.overlapBreakEven`, `Performance.idealBreakEven`, `Performance.pageBreakEven`, `Performance.tailNonincrease`, `Performance.bestAtDeadline`, `Performance.attainable` |
 
 ## Cited authorities
 

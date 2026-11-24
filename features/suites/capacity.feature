@@ -137,3 +137,21 @@ Feature: capacity
     Given a candidate fitted against a snapshot of the incumbent selector and regional search state
     When a concurrent operation changes those inputs or creates a matching shared literal
     Then the commit uses the current inputs and exact literal admission and restores the submitted bytes
+
+  @VR-22 @build
+  Scenario: Compare schedules for the same verified work
+    Given a fit takes eight ticks and a second independent operation takes five
+    When their execution fully overlaps and revalidation adds four ticks on the critical path
+    Then the batch finishes earlier and adding five ticks would instead tie
+
+  @VR-22 @build
+  Scenario: A throughput improvement can still delay a page
+    Given a page avoids three ticks of waiting
+    When validation adds four ticks to that page
+    Then the page has higher latency even if the batch finishes earlier
+
+  @VR-22 @build
+  Scenario: Choose throughput subject to a measured latency ceiling
+    Given an incumbent satisfies a specified p99 ceiling on equal verified work
+    When a faster trial meets the ceiling exactly
+    Then the selected elapsed time is the faster trial's time

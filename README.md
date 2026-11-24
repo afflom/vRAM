@@ -141,6 +141,8 @@ The repository workflow builds the static Linux binary, runs calibration and upl
 
 ## Verification
 
+The device workflow reports the highest measured guest write throughput at each attainable p99 budget for the tested VM widths. It replays all four runs per width through the Prism performance model. [Timing assumptions, proofs and reproduction](docs/device-verification.md#latency-and-throughput-bounds)
+
 The Linux integration test loads the distribution's NBD module in a disposable QEMU VM, activates only Verdant swap, writes ordinary anonymous memory, forces reclaim in a cgroup, and checks every byte after swap-in. The mixed 32 MiB case stored 4,096 modeled and 4,096 literal pages in one store. Linux registered 7,168 swap reads. The remainder could be served from its swap cache. [Linux receipt](measurements/linux-host.json)
 
 In a separate test, a 512 MiB Linux VM ran a 2 GiB anonymous-memory workload in a 48 MiB cgroup, with the Verdant server outside that cgroup. The program wrote and checked every byte. Linux counted 523,170 swap reads. The store held 524,288 rank-two pages and charged 80,166,015 bytes including its directory. Swapoff and detach both completed. This test uses generated structured data. [2 GiB Linux receipt](measurements/linux-host-2gib.json)

@@ -1,0 +1,55 @@
+\begin{lexlean}{Performance}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: idealFaster, parameters: [fit : Nat, other : Nat, extra : Nat], result: Bool,
+  body: (((if (fit <? other) then other else fit) + extra) <? (fit + other)),
+  executable: true
+}
+definition{
+  name: pageFaster, parameters: [service : Nat, oldWait : Nat, newWait : Nat, extra : Nat], result: Bool,
+  body: (((service + newWait) + extra) <? (service + oldWait)), executable: true
+}
+definition{
+  name: disagree, parameters: [a : Bool, b : Bool], result: Bool,
+  body: ((a && (not b)) || (b && (not a)))
+}
+definition{
+  name: bestTime, parameters: [deadline : Nat, tail : Nat, candidate : Nat, incumbent : Nat], result: Nat,
+  body: (if ((tail <=? deadline) && (candidate <? incumbent)) then candidate else incumbent),
+  executable: true
+}
+theorem{
+  name: overlapBreakEven, parameters: [solo : Nat, overlap : Nat, extra : Nat],
+  statement: ((disagree (((solo + overlap) + extra) <? ((solo + overlap) + overlap)) (extra <? overlap)) = false),
+  proof: linear_arithmetic{definitions: [disagree]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: idealBreakEven, parameters: [fit : Nat, other : Nat, extra : Nat],
+  statement: ((disagree (idealFaster fit other extra) (extra <? (if (fit <? other) then fit else other))) = false),
+  proof: linear_arithmetic{definitions: [disagree, idealFaster]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: pageBreakEven, parameters: [service : Nat, oldWait : Nat, newWait : Nat, extra : Nat],
+  statement: ((disagree (pageFaster service oldWait newWait extra) ((newWait + extra) <? oldWait)) = false),
+  proof: linear_arithmetic{definitions: [disagree, pageFaster]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: tailNonincrease, parameters: [stillLate : Nat, newlyLate : Nat, rescued : Nat],
+  statement: ((disagree ((stillLate + newlyLate) <=? (stillLate + rescued)) (newlyLate <=? rescued)) = false),
+  proof: linear_arithmetic{definitions: [disagree]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: bestAtDeadline, parameters: [d : Nat, q : Nat, t : Nat, i : Nat],
+  statement: ((((bestTime d q t i) <=? i) && ((d <? q) || ((bestTime d q t i) <=? t))) = true),
+  proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: attainable, parameters: [d : Nat, q : Nat, t : Nat, i : Nat],
+  statement: ((((bestTime d q t i) =? i) || ((q <=? d) && ((bestTime d q t i) =? t))) = true),
+  proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

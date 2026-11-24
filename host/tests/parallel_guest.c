@@ -94,10 +94,23 @@ int main(void)
     uint64_t elapsed = now() - begin;
     for (unsigned i = 0; i < cpus; ++i)
         if (pthread_join(threads[i], NULL)) fail("join");
+    uint64_t lane_ns[MAX_CPUS] = {0};
+    for (unsigned id = 0; id < cpus; ++id)
+        for (unsigned i = PAGES * id / cpus; i < PAGES * (id + 1) / cpus; ++i)
+            lane_ns[id] += latency[i];
     qsort(latency, PAGES, sizeof(*latency), compare);
+    uint64_t p99 = latency[(PAGES * 99 + 99) / 100 - 1];
+    unsigned below = 0, equal = 0;
+    for (unsigned i = 0; i < PAGES; ++i) {
+        below += latency[i] < p99;
+        equal += latency[i] == p99;
+    }
     printf("PARALLEL_RESULT {\"vcpus\":%u,\"verified_pages\":%u,\"write_ns\":%" PRIu64
-           ",\"page_write_p99_ns\":%" PRIu64 "}\n", cpus, PAGES, elapsed,
-           latency[(PAGES * 99 + 99) / 100 - 1]);
+           ",\"page_write_p99_ns\":%" PRIu64 ",\"below_p99\":%u,\"at_p99\":%u,\"lane_write_ns\":[",
+           cpus, PAGES, elapsed, p99, below, equal);
+    for (unsigned id = 0; id < cpus; ++id)
+        printf("%s%" PRIu64, id ? "," : "", lane_ns[id]);
+    puts("]}");
     reboot(RB_POWER_OFF);
     return 1;
 }

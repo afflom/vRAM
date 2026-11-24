@@ -41,6 +41,15 @@ cat "/sys/fs/cgroup$group/memory.peak"
     row["cgroup_peak_bytes"] = receipt(proc.stdout, "CGROUP_PEAK")
     if row["verified_pages"] != 16384 or min(row["write_ns"], row["cgroup_peak_bytes"]) <= 0:
         raise ValueError(f"incomplete measurement: {row}")
+    lanes = row["lane_write_ns"]
+    pages, rank = row["verified_pages"], (99 * row["verified_pages"] + 99) // 100
+    below, equal = row["below_p99"], row["at_p99"]
+    if (len(lanes) != row["vcpus"] or not lanes or min(lanes) < 0
+            or not 0 < max(lanes) <= row["write_ns"] or not 0 <= below < rank <= below + equal <= pages
+            or not 0 <= row["page_write_p99_ns"] <= max(lanes)
+            or row["page_write_p99_ns"] * (pages - below) > sum(lanes)):
+        raise ValueError(f"inconsistent guest latency intervals: {row}")
+    row["observed_lane_ceiling_mib_s"] = 64e9 / max(lanes)
     row["write_mib_s"] = 64e9 / row["write_ns"]
     return row, proc.stdout
 
