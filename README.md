@@ -10,11 +10,11 @@ On a write, the store measures candidate representations, including fills, spars
 
 ## Install on a Linux computer
 
-Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.6_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.7_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.6.6_amd64.deb qemu-system-x86 fuse3
+sudo apt install ./vram-host_0.6.7_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Size a virtualized workstation to its configured maximum
@@ -36,6 +36,8 @@ vram-machine qualify --domain-xml workstation.xml --min-read-mib-s 100 --min-wri
 ```
 
 Rates measure calls to the Verdant store for 64-page sequential requests during this run. The receipt also gives the slowest observed request in each direction. Guest scheduling, changes in storage load, and other access patterns affect application performance.
+
+Version 0.6.7 reads adjacent literal slots together even when their guest pages are separated by selectors, fills or holes. Its Prism controller keeps reads inside a single backing extent. [Mixed read throughput and backing operations](https://afflom.github.io/vRAM/downloads/mixed-file-range.json)
 
 Version 0.5.9 coalesces DIMM range reads across consecutive backing slots. Ordinary guest memory reads use this automatically. A 1 GiB sequential readback of independent pages took 4,096 backing reads using 64-page requests. [Measurements and verification](docs/device-verification.md#range-reads-across-consecutive-file-slots)
 
@@ -100,7 +102,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.6_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.7_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

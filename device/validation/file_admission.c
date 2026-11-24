@@ -72,6 +72,39 @@ static int shared_range(struct store *s)
     return 1;
 }
 
+/* The compact read fills destinations 0 and 1 before the selector at 1
+ * is decoded. In reverse order, the later residual still sees its original base. */
+static int mixed_file_span(struct store *s, int fd)
+{
+    enum { N = 8 };
+    u8 want[N][PAGE] = {{0}}, out[N][PAGE];
+    expected(21, 'U', want[0]);
+    expected(23, 'S', want[1]);
+    expected(22, 'U', want[4]);
+    memcpy(want[3], want[0], PAGE);
+    want[3][125] ^= 7;
+    memcpy(want[6], want[4], PAGE);
+    want[6][129] ^= 15;
+    memset(want[5], 33, PAGE);
+    if (store_discard(s, 0, PAGES)) return 0;
+    for (unsigned i = 0; i < N; ++i)
+        if (i != 2 && i != 7 && store_put(s, i, want[i])) return 0;
+    uint64_t before, after, writes, selectors, initial, final;
+    store_selector_stats(s, &selectors, &initial);
+    store_file_stats(s, &before, &writes);
+    if (selectors != 1 || ftruncate(fd, PAGE + 100) ||
+        !store_read_pages(s, 0, N, out[0])) return 0;
+    store_file_stats(s, &after, &writes);
+    store_selector_stats(s, &selectors, &final);
+    if (after != before || final != initial ||
+        ftruncate(fd, (off_t)(PAGES + 1) * PAGE) || pwrite(fd, want[4], PAGE, PAGE) != PAGE)
+        return 0;
+    if (store_read_pages(s, 0, N, out[0]) || memcmp(out, want, sizeof(want))) return 0;
+    store_file_stats(s, &after, &writes);
+    store_selector_stats(s, &selectors, &final);
+    return after == before + 1 && final == initial + 1;
+}
+
 /* A short multi-slot read must fail even when the first slot was complete.
  * Restore the truncated slot and check that retry reconstructs every byte. */
 static int file_run_retry(struct store *s, int fd)
@@ -338,6 +371,10 @@ int main(void)
     if (!s) return 1;
     int fit = collisions(s);
     int ranges = shared_range(s);
+    if (!mixed_file_span(s, fd)) {
+        fprintf(stderr, "mixed span read, ordered recovery or selector count failed\n");
+        return 1;
+    }
     int retry = file_run_retry(s, fd);
     if (!retry) fprintf(stderr, "short range read, retry, or slot order differs\n");
     int admissions = shared_admissions(s);

@@ -17,6 +17,7 @@ def verify_packages():
         ("capacity", "138b38f73224bd3572a7ffa876ce156bc73f9888ed0333a754daeba592abaf2a"),
         ("block", "b083950fd6654115fbde2018f13f0df2d77e4a9663fe82a093c5bf633fc2b57c"),
         ("read", "aa17671a2ffa2129f4bb596efd30bacba14bcac8d76a86b70c6203be61952d40"),
+        ("mixed-read", "3e636c7536fadfb81baad9ff2bc8a1acf0fcb996e8eebf62fcbd53d5d9e23058"),
         ("index", "55e68570fb4a1d97c2f04e36c3007bfd1db92a8dad353798b7af725a46f5ca13"),
     ):
         directory = root / "proof" / policy
@@ -33,6 +34,7 @@ def verify_packages():
         ("proof/capacity/bundle", "5624d595a443a94b2f62d6ca5c8ce2f21caa188a3107599f6cef49f84a741f8f"),
         ("proof/block/bundle", "8bba8b4f185f24bfae921d79809604a247f331aa727ca7ccb98bc6a0630b685b"),
         ("proof/read/bundle", "3f644fb73cc8098276b6fbcfd509cdaf37f2da29180e406e91ac2263eb9a5203"),
+        ("proof/mixed-read/bundle", "8db838823ec410c065c13ab700783b60c27bb36c755f3702be89b3fda55fd424"),
         ("proof/index/bundle", "898ba65368d480525b2a742e5080577354dfecc8faea910222de70e945f5cd3f"),
         ("proof/host/bundle", "7809b584eaefbb34fb11efe12edf02232d287be713bde40ff1c3d401f0ee26f2"),
         ("proof/search/bundle", "45b658a8b20192b3a99246b765a30bc6258a922199ad7a340e47a0c0c7cba02e"),

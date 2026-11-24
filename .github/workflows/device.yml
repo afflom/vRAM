@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 4414e8a4b92d2e89fac51f2c73f5237037d35e75
+          ref: 2e4059a5148e4802f8f0fd2ef76ec2b2a3e123a1
           path: measurements/local/swap-control
       - name: Compare single-page swap latency with zram zstd
         run: |
@@ -154,6 +154,7 @@ jobs:
           python3 automation/test-qualification.py
           python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
+          python3 host/tests/file_scale.py --mib 64 --profile M --control measurements/local/swap-control --result dist/mixed-file-range.json
           python3 host/tests/file_scale.py --control measurements/local/control --result dist/file-range.json
           sudo modprobe fuse
           sudo python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
@@ -172,7 +173,7 @@ jobs:
       - name: Assemble the product site from the verified model and tested package
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
-          cp dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
+          cp dist/mixed-file-range.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)
           python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &

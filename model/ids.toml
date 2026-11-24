@@ -356,3 +356,16 @@ id = "VR-54"
 level = "open"
 suite = "capacity"
 statement = "The shipping block adapter uses the native Prism read window, preserves read failure framing and measures verified direct reads across request sizes"
+
+[[id]]
+id = "VR-55"
+level = "build"
+suite = "capacity"
+statement = "Local pages need no file source; file sources in a read span stay in one extent and repeat or advance by one slot"
+theorems = ["MixedReadPolicy.localPage", "MixedReadPolicy.extentBoundary", "MixedReadPolicy.slotAdmission", "Performance.compactReverseSafe", "Performance.compactStep"]
+
+[[id]]
+id = "VR-56"
+level = "open"
+suite = "capacity"
+statement = "The Verdant VM store gathers consecutive file slots across intervening modeled pages, restores ordered bytes and measures mixed range latency and throughput against the predecessor"

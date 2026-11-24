@@ -930,31 +930,37 @@ fn decode_file_run(
     first: &literal_file::Slot,
     values: &[Value],
     pages: &mut [[u8; PAGE]],
-) -> Result<usize, ()> {
-    const { assert!(directory::GROUP <= u8::MAX as usize + 1) }
+) -> Result<(usize, u64), ()> {
+    // Each file source fits in one byte; the spare tag identifies a locally decoded page.
+    const LOCAL: u8 = u8::MAX;
+    const { assert!(directory::GROUP <= LOCAL as usize) }
     let mut sources = [0u8; directory::GROUP];
     let limit = first.remaining_slots();
     let mut last_source = 0;
     let mut count = 1;
     for value in &values[1..] {
-        let Some(distance) = value
-            .literal_base()
-            .and_then(|base| base.file_slot())
-            .and_then(|slot| slot.distance_from(first))
-        else {
-            break;
-        };
-        if distance >= limit || (distance != last_source && distance != last_source + 1) {
-            break;
+        let slot = value.literal_base().and_then(|base| base.file_slot());
+        let distance = slot.and_then(|s| s.distance_from(first)).unwrap_or(limit);
+        match vram_mixed_read::run(slot.is_none(), distance < limit, last_source, distance) {
+            1 => sources[count] = LOCAL,
+            2 => {
+                sources[count] = distance as u8;
+                last_source = distance;
+            }
+            _ => break,
         }
-        sources[count] = distance as u8;
-        last_source = distance;
         count += 1;
     }
     first
         .read(pages[..=last_source as usize].as_flattened_mut())
         .map_err(|_| ())?;
+    let mut restores = 0;
     for i in (0..count).rev() {
+        if sources[i] == LOCAL {
+            values[i].decode(&mut pages[i])?;
+            restores += u64::from(values[i].selector_base().is_some());
+            continue;
+        }
         let source = usize::from(sources[i]);
         if source < i {
             let (before, after) = pages.split_at_mut(i);
@@ -965,7 +971,7 @@ fn decode_file_run(
             residual.apply(&mut pages[i]);
         }
     }
-    Ok(count)
+    Ok((count, restores))
 }
 // The caller holds a read guard for the entire group. A run can use its first
 // destination as the pristine base until every other page has received a copy.
@@ -977,7 +983,8 @@ fn decode_group(mut values: &[Value], mut pages: &mut [[u8; PAGE]]) -> Result<u6
             return Ok(restores + u64::from(first.selector_base().is_some()));
         }
         if let Some(slot) = first.literal_base().and_then(|base| base.file_slot()) {
-            let decoded = decode_file_run(slot, values, pages)?;
+            let (decoded, local_restores) = decode_file_run(slot, values, pages)?;
+            restores += local_restores;
             values = &values[decoded..];
             pages = &mut pages[decoded..];
             continue;

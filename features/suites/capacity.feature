@@ -419,3 +419,15 @@ Feature: capacity
     Given a running block adapter and requests spanning multiple frames
     When the guest reads an intact range or a range containing a failing page
     Then intact bytes arrive in order and the first failing page follows the block error policy
+
+  @VR-55 @build
+  Scenario: Keep local pages inside a file read span
+    Given a group containing modeled pages and file literals
+    When the controller tests the next page in a span
+    Then local pages require no source and file slots must repeat or advance by one within the extent
+
+  @VR-56 @open
+  Scenario: Restore mixed file and local values with a shared extent read
+    Given consecutive file slots, selectors, holes and edited shared literals
+    When a range crosses the intervening local values
+    Then the store verifies every byte, counts restored selectors and stops coalescing at a gap or file boundary

@@ -152,6 +152,7 @@ dependencies = [
  "vram_host_size",
  "vram_index_step",
  "vram_lifecycle",
+ "vram_mixed_read",
  "vram_range",
  "vram_read_window",
  "vram_representation",
@@ -765,6 +766,12 @@ name = "vram_lifecycle"
 version = "0.1.0"
 source = "sparse+http://127.0.0.1:17943/"
 checksum = "d5c6ecb800c1547aa145362ff661a73e64e716feb51792100fcac3e5cd1a3c7b"
+
+[[package]]
+name = "vram_mixed_read"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "ef35ad42ec67a2a09327092c97bcf152ea286d851a5878eb93ac3bd3a4d4cb5e"
 
 [[package]]
 name = "vram_range"

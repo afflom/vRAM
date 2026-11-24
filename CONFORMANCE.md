@@ -74,6 +74,8 @@ The three honesty levels (R2):
 | `VR-52` | `open` | An isolated guest compares local block completions with the default queue affinity using identical Verdant servers, the shipping request controller and byte-exact reads |  |
 | `VR-53` | `build` | The read window selects the largest feasible ordinary span, fits both counts, makes progress with space and selects exactly one page for failure recovery | `SwapPolicy.greatestReadWindow`, `ReadPolicy.bounded`, `ReadPolicy.progress`, `ReadPolicy.singleRecovery` |
 | `VR-54` | `open` | The shipping block adapter uses the native Prism read window, preserves read failure framing and measures verified direct reads across request sizes |  |
+| `VR-55` | `build` | Local pages need no file source; file sources in a read span stay in one extent and repeat or advance by one slot | `MixedReadPolicy.localPage`, `MixedReadPolicy.extentBoundary`, `MixedReadPolicy.slotAdmission`, `Performance.compactReverseSafe`, `Performance.compactStep` |
+| `VR-56` | `open` | The Verdant VM store gathers consecutive file slots across intervening modeled pages, restores ordered bytes and measures mixed range latency and throughput against the predecessor |  |
 
 ## Cited authorities
 

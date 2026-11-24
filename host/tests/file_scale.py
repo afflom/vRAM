@@ -1,4 +1,4 @@
-"""Verify independent pages with a preallocated filesystem reserve and a process address-space limit."""
+"""Verify independent or mixed pages with a preallocated filesystem reserve and a process address-space limit."""
 import argparse
 import hashlib
 import json
@@ -12,6 +12,8 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--result", required=True, type=Path)
 parser.add_argument("--mib", type=int, default=256)
 parser.add_argument("--control", type=Path, help="compare a built checkout in eight alternating pairs")
+parser.add_argument("--profile", choices=["U", "M"], default="U",
+                    help="independent literals or alternating selectors and independent literals")
 args = parser.parse_args()
 if args.mib < 64:
     parser.error("test at least 64 MiB")
@@ -31,14 +33,15 @@ def trial(binary, coalesced):
         reserved = (args.mib << 20) + 4096
         os.posix_fallocate(reserve.fileno(), 0, reserved)
         row = json.loads(subprocess.check_output(
-            [binary, str(args.mib), "64", "U", "49", str(reserve.fileno()), "range"],
+            [binary, str(args.mib), "64", args.profile, "49", str(reserve.fileno()), "range"],
             pass_fds=(reserve.fileno(),), preexec_fn=constrain))
     pages = args.mib * 256
+    literals = pages if args.profile == "U" else pages // 2
     reads = row["file_base_reads"] - row["admission_base_reads"]
     if (row["verified_pages"] != pages or row["range_pages"] != 64 or row["range_seconds"] <= 0
-            or row["file_base_writes"] != pages or not pages // 64 <= reads <= pages
+            or row["file_base_writes"] != literals or not pages // 64 <= reads <= literals
             or (coalesced and reads != pages // 64)):
-        raise RuntimeError(f"incomplete independent-page trial: {row}")
+        raise RuntimeError(f"incomplete {args.profile} range trial: {row}")
     return dict(row, reserve_bytes=reserved, address_space_limit_bytes=limit)
 
 
