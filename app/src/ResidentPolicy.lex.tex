@@ -41,5 +41,31 @@ theorem{ name: writeSpan, parameters: [], statement: ((span 1 true true true) = 
 theorem{ name: incompleteSpan, parameters: [op : Nat, inside : Bool], statement: ((span op true false inside) = 0), proof: reflexivity{} }
 theorem{ name: outsideSpan, parameters: [op : Nat], statement: ((span op true true false) = 0), proof: reflexivity{} }
 theorem{ name: unsupportedSpan, parameters: [], statement: ((span 2 true true true) = 0), proof: reflexivity{} }
+definition{ name: lockMask, parameters: [], result: Nat, body: 256, executable: true }
+definition{ name: slotBytes, parameters: [], result: Nat, body: 8, executable: true }
+definition{
+  name: heldWord, parameters: [payload : Nat], result: Nat,
+  body: (payload + (lockMask)), executable: true
+}
+theorem{
+  name: fillBelowLock, parameters: [byte : Nat],
+  statement: (((byte <? 256) && ((lockMask) <=? byte)) = false),
+  proof: linear_arithmetic{definitions: [lockMask]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: packedFillBelowFrame, parameters: [byte : Nat],
+  statement: (((byte <? 256) && (4096 <=? (heldWord byte))) = false),
+  proof: linear_arithmetic{definitions: [heldWord, lockMask]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: packedLiteralAboveFill, parameters: [address : Nat],
+  statement: (((4096 <=? address) && ((heldWord address) <? 4096)) = false),
+  proof: linear_arithmetic{definitions: [heldWord, lockMask]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: unlockSlotPayload, parameters: [payload : Nat],
+  statement: ((prim subtract (heldWord payload) (lockMask) : Nat) = payload),
+  proof: linear_arithmetic{definitions: [heldWord, lockMask]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

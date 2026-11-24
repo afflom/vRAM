@@ -473,3 +473,15 @@ Feature: capacity
     Given equal-capacity guest devices and identical data
     When direct requests grow from one to many pages
     Then each device returns the original bytes and records elapsed read and write times
+
+  @VR-63 @build
+  Scenario: Keep lock and payload distinguishable
+    Given a fill byte or the address of a nonzero aligned literal frame
+    When its slot carries the lock marker
+    Then classification is preserved and removing the marker yields the original payload
+
+  @VR-64 @open
+  Scenario: Recover packed entries after concurrent replacement
+    Given a packaged device with one directory word per logical page
+    When fills and literal frames replace each other under direct IO and swap reclaim
+    Then all bytes are recovered and the measured directory charge agrees with the slot count

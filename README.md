@@ -89,16 +89,16 @@ In 0.4.1, sparse edits to dense pages reuse the same base read for fitting and e
 
 ### Low-latency swap for directly booted Linux
 
-The amd64 DKMS package builds the Verdant Fill/literal driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.0_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+The amd64 DKMS package builds the Verdant Fill/literal driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.1_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.0_amd64.deb
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.1_amd64.deb
 sudo systemctl enable --now vram-kernel.service
 swapon --show
 ```
 
-The initial swap size is 64 MiB. Set `VRAM_KERNEL_SIZE_MIB` in `/etc/default/vram` before starting the service to select another capacity. A uniform page needs only a directory entry. Other pages retain one literal frame each, which Linux can release when the swap slot becomes free. Each configured GiB costs 4 MiB of directory on the tested kernel. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal. The service refuses to format a device owned by an already loaded instance. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
+The initial swap size is 64 MiB. Set `VRAM_KERNEL_SIZE_MIB` in `/etc/default/vram` before starting the service to select another capacity. A uniform page needs only a directory entry. Other pages retain one literal frame each, which Linux can release when the swap slot becomes free. Version 0.1.1 uses one 8-byte directory word per page on amd64. Each configured GiB costs 2 MiB of directory, half the charge in 0.1.0. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal. The service refuses to format a device owned by an already loaded instance. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
 
 ### NBD swap with the full Verdant representation set
 

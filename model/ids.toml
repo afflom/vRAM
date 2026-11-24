@@ -408,3 +408,16 @@ id = "VR-62"
 level = "open"
 suite = "capacity"
 statement = "The packaged kernel store restores Linux swap under reclaim, releases retired literal slots and measures verified direct range throughput alongside zram"
+
+[[id]]
+id = "VR-63"
+level = "build"
+suite = "capacity"
+statement = "Holding a packed slot lock keeps fill bytes below the first frame and leaves aligned literals distinguishable; releasing the lock recovers the payload"
+theorems = ["ResidentPolicy.fillBelowLock", "ResidentPolicy.packedFillBelowFrame", "ResidentPolicy.packedLiteralAboveFill", "ResidentPolicy.unlockSlotPayload"]
+
+[[id]]
+id = "VR-64"
+level = "open"
+suite = "capacity"
+statement = "The shipped amd64 store charges one machine word per page while retaining byte-exact concurrent access and Linux swap-slot release"

@@ -29,7 +29,17 @@ def transition(fd, buf):
         buf[:] = bytes([0x93]) * PAGE
         assert os.pwrite(fd, buf, offset) == PAGE
         assert int(parameter("literal_pages")) == 0
-    # Both processes reuse the same slot, with independent aligned I/O buffers.
+    # Overwrite literal frames with every possible Fill byte before timing.
+    for value in range(256):
+        offset = (256 + value) * PAGE
+        buf[:] = bytes([value]) * (PAGE - 1) + bytes([value ^ 1])
+        assert os.pwrite(fd, buf, offset) == PAGE
+        buf[:] = bytes([value]) * PAGE
+        assert os.pwrite(fd, buf, offset) == PAGE
+    for value in reversed(range(256)):
+        assert os.preadv(fd, [buf], (256 + value) * PAGE) == PAGE and buf[:] == bytes([value]) * PAGE
+    assert int(parameter("literal_pages")) == 0
+    # Race on one slot and update two adjacent descriptors in the same cache line.
     offset = 256 * PAGE
     fills = bytes([0x93]) * PAGE
     dense = fills[:-1] + b"U"
@@ -40,6 +50,7 @@ def transition(fd, buf):
                 for i in range(1024):
                     writer[:] = fills if i % 2 else dense
                     assert os.pwrite(fd, writer, offset) == PAGE
+                    assert os.pwrite(fd, writer, offset + PAGE) == PAGE
         except BaseException:
             os._exit(1)
         os._exit(0)
@@ -47,9 +58,13 @@ def transition(fd, buf):
     for _ in range(1024):
         buf[:] = other
         assert os.pwrite(fd, buf, offset) == PAGE
+        assert os.pwrite(fd, buf, offset + 2 * PAGE) == PAGE
         assert os.preadv(fd, [buf], offset) == PAGE and buf[:] in (other, fills, dense)
     assert os.waitpid(child, 0) == (child, 0)
+    assert os.preadv(fd, [buf], offset + PAGE) == PAGE and buf[:] == fills
+    assert os.preadv(fd, [buf], offset + 2 * PAGE) == PAGE and buf[:] == other
     buf[:] = fills
+    assert os.pwrite(fd, buf, offset + 2 * PAGE) == PAGE
     assert os.pwrite(fd, buf, offset) == PAGE and int(parameter("literal_pages")) == 0
     print("FILL_POLICY", parameter("policy"), flush=True)
 

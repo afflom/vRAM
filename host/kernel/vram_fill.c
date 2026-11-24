@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Specialization of the Verdant store to inline Fill and exact literal pages. */
 #include <linux/bio.h>
+#include <linux/bit_spinlock.h>
 #include <linux/blkdev.h>
 #include <linux/highmem.h>
 #include <linux/module.h>
@@ -14,13 +15,32 @@ static unsigned long capacity_mib = 64;
 module_param(capacity_mib, ulong, 0444);
 MODULE_PARM_DESC(capacity_mib, "Logical block capacity in MiB");
 static unsigned long slot_count;
-struct slot {
-	u8 *literal;
-	spinlock_t lock;
-	u8 fill;
-};
+/* A frame address has twelve zero low bits. An inline fill uses bits 0..7.
+ * Bit 8 serializes this slot independently in either representation. */
+static unsigned long *directory;
 
-static struct slot *directory;
+static unsigned long lock_slot(unsigned long *slot)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	bit_spin_lock(__ffs(VRAM_SLOT_LOCK), slot);
+	return flags;
+}
+
+static void unlock_slot(unsigned long *slot, unsigned long flags)
+{
+	/* All payload writers hold this lock, permitting the release-store variant. */
+	__bit_spin_unlock(__ffs(VRAM_SLOT_LOCK), slot);
+	local_irq_restore(flags);
+}
+
+static void replace_payload(unsigned long *slot, unsigned long payload)
+{
+	/* UP kernels can elide the lock bit. Preserve its actual held state. */
+	WRITE_ONCE(*slot, (READ_ONCE(*slot) & VRAM_SLOT_LOCK) | payload);
+}
+
 static struct gendisk *disk;
 static int major;
 static atomic_long_t retained = ATOMIC_LONG_INIT(0);
@@ -65,23 +85,24 @@ static bool uniform_page(struct bio *bio, struct bvec_iter page, u8 *value)
 	return !first;
 }
 
-static void transfer(struct slot *slot, struct bio *bio, struct bvec_iter page, bool read)
+static void transfer(unsigned long word, struct bio *bio, struct bvec_iter page, bool read)
 {
 	struct bvec_iter iter;
 	struct bio_vec vec;
+	u8 *literal = (u8 *)(word & PAGE_MASK);
 	size_t offset = 0;
 
 	__bio_for_each_segment(vec, bio, iter, page) {
 		void *mapped = bvec_kmap_local(&vec);
 
 		if (read) {
-			if (slot->literal)
-				memcpy(mapped, slot->literal + offset, vec.bv_len);
+			if (literal)
+				memcpy(mapped, literal + offset, vec.bv_len);
 			else
-				memset(mapped, slot->fill, vec.bv_len);
+				memset(mapped, (u8)word, vec.bv_len);
 			flush_dcache_page(vec.bv_page);
 		} else {
-			memcpy(slot->literal + offset, mapped, vec.bv_len);
+			memcpy(literal + offset, mapped, vec.bv_len);
 		}
 		kunmap_local(mapped);
 		offset += vec.bv_len;
@@ -90,41 +111,41 @@ static void transfer(struct slot *slot, struct bio *bio, struct bvec_iter page, 
 
 static bool transfer_page(struct bio *bio, struct bvec_iter page, unsigned int action)
 {
-	struct slot *slot;
-	unsigned long flags;
+	unsigned long *slot = &directory[page.bi_sector / SECTORS_PER_SLOT];
+	unsigned long flags, word;
 	u8 value = 0;
 	u8 *spare = NULL;
-	bool fill;
+	bool fill = action == 2 && inline_fill[uniform_page(bio, page, &value)];
 
-	slot = &directory[page.bi_sector / SECTORS_PER_SLOT];
-	fill = action == 2 && inline_fill[uniform_page(bio, page, &value)];
-	spin_lock_irqsave(&slot->lock, flags);
+	flags = lock_slot(slot);
+	word = READ_ONCE(*slot);
 	if (action == 1) {
-		transfer(slot, bio, page, true);
+		transfer(word, bio, page, true);
 	} else if (fill) {
-		spare = slot->literal;
-		slot->literal = NULL;
-		slot->fill = value;
+		spare = (u8 *)(word & PAGE_MASK);
+		replace_payload(slot, value);
 		if (spare)
 			atomic_long_dec(&retained);
 	} else {
-		if (!slot->literal) {
-			spin_unlock_irqrestore(&slot->lock, flags);
+		if (!(word & PAGE_MASK)) {
+			unlock_slot(slot, flags);
 			spare = (u8 *)__get_free_page(GFP_NOIO | __GFP_NORETRY | __GFP_NOWARN);
-			spin_lock_irqsave(&slot->lock, flags);
-			if (!slot->literal) {
+			flags = lock_slot(slot);
+			word = READ_ONCE(*slot);
+			if (!(word & PAGE_MASK)) {
 				if (!spare) {
-					spin_unlock_irqrestore(&slot->lock, flags);
+					unlock_slot(slot, flags);
 					return false;
 				}
-				slot->literal = spare;
+				word = (unsigned long)spare;
+				replace_payload(slot, word);
 				spare = NULL;
 				atomic_long_inc(&retained);
 			}
 		}
-		transfer(slot, bio, page, false);
+		transfer(word, bio, page, false);
 	}
-	spin_unlock_irqrestore(&slot->lock, flags);
+	unlock_slot(slot, flags);
 	if (spare)
 		free_page((unsigned long)spare);
 	return true;
@@ -162,20 +183,19 @@ static void fill_submit(struct bio *bio)
 
 static void release_swap_slot(struct block_device *bdev, unsigned long index)
 {
-	struct slot *slot;
+	unsigned long *slot;
 	unsigned long flags;
 	u8 *previous;
 
 	if (index >= slot_count)
 		return;
 	slot = &directory[index];
-	spin_lock_irqsave(&slot->lock, flags);
-	previous = slot->literal;
-	slot->literal = NULL;
-	slot->fill = 0;
+	flags = lock_slot(slot);
+	previous = (u8 *)(READ_ONCE(*slot) & PAGE_MASK);
+	replace_payload(slot, 0);
 	if (previous)
 		atomic_long_dec(&retained);
-	spin_unlock_irqrestore(&slot->lock, flags);
+	unlock_slot(slot, flags);
 	if (previous)
 		free_page((unsigned long)previous);
 }
@@ -195,10 +215,11 @@ static int __init fill_init(void)
 		.max_hw_sectors = 512,
 	};
 #endif
-	unsigned long i;
 	int rc;
 
-	BUILD_BUG_ON(PAGE_SIZE != SLOT);
+	BUILD_BUG_ON(PAGE_SIZE != SLOT || sizeof(*directory) != VRAM_SLOT_BYTES);
+	BUILD_BUG_ON(VRAM_SLOT_LOCK <= U8_MAX || VRAM_SLOT_LOCK >= SLOT ||
+		     (VRAM_SLOT_LOCK & (VRAM_SLOT_LOCK - 1)));
 	if (!capacity_mib || capacity_mib > UINT_MAX / (SZ_1M / SLOT))
 		return -EINVAL;
 	slot_count = capacity_mib * (SZ_1M / SLOT);
@@ -206,8 +227,6 @@ static int __init fill_init(void)
 	directory = vzalloc(directory_bytes);
 	if (!directory)
 		return -ENOMEM;
-	for (i = 0; i < slot_count; i++)
-		spin_lock_init(&directory[i].lock);
 	major = register_blkdev(0, "vramfill");
 	if (major < 0) {
 		rc = major;
@@ -254,8 +273,8 @@ static void __exit fill_exit(void)
 	put_disk(disk);
 	unregister_blkdev(major, "vramfill");
 	for (i = 0; i < slot_count; i++)
-		if (directory[i].literal)
-			free_page((unsigned long)directory[i].literal);
+		if (directory[i] & PAGE_MASK)
+			free_page(directory[i] & PAGE_MASK);
 	vfree(directory);
 }
 

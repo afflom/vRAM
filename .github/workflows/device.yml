@@ -97,6 +97,12 @@ jobs:
           persist-credentials: false
           ref: 2e4059a5148e4802f8f0fd2ef76ec2b2a3e123a1
           path: measurements/local/swap-control
+      - name: Check out the preceding DKMS release
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: 188acefd5913bcee2a8693ca640aadafac25b59f
+          path: measurements/local/kernel-control
       - name: Compare single-page swap latency with zram zstd
         run: |
           make -C measurements/local/swap-control/host build/vram-host LDFLAGS=-static
@@ -105,9 +111,17 @@ jobs:
           guest=(--accel "$accel" --qemu "$(command -v qemu-system-x86_64)" --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules")
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control measurements/local/swap-control/host/build/vram-host --read-windows --result measurements/local/swap-raw.json
           node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json --read-windows
+          prior=measurements/local/kernel-control
+          npm ci --prefix "$prior/automation" --ignore-scripts
+          (cd "$prior" && automation/node_modules/.bin/prism-code build .)
+          bash "$prior/host/kernel/package.sh" "$RUNNER_TEMP/vram-kernel-previous.deb"
+          baseline="$RUNNER_TEMP/kernel-previous"
+          bash "$prior/host/tests/kernel_literal/build-guest.sh" "$baseline" "$RUNNER_TEMP/vram-kernel-previous.deb"
+          sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$baseline/vram_literal.ko" --kernel-fill "$baseline/vram_fill.ko" --kernel-system "$baseline/kernel-system" --result measurements/local/kernel-previous-raw.json
+          node "$prior/automation/swap-latency.mjs" measurements/local/kernel-previous-raw.json measurements/local/kernel-previous.json --kernel-fill
           mkdir -p dist
-          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.0_amd64.deb
-          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.0_amd64.deb
+          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.1_amd64.deb
+          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.1_amd64.deb
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --result measurements/local/literal-raw.json
           node automation/swap-latency.mjs measurements/local/literal-raw.json measurements/local/kernel-literal.json --kernel-literal
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --kernel-fill "$RUNNER_TEMP/literal-module/vram_fill.ko" --kernel-system "$RUNNER_TEMP/literal-module/kernel-system" --result measurements/local/fill-raw.json
@@ -130,6 +144,10 @@ jobs:
               return json.loads((Path('measurements/local') / name).read_bytes())['server_sha256']
           paired = servers('swap-latency.json')
           assert servers('swap-path.json')['candidate'] == servers('completion-affinity.json')['candidate'] == paired['candidate']
+          current, previous = (json.loads((Path('measurements/local') / name).read_bytes()) for name in ('kernel-fill.json', 'kernel-previous.json'))
+          assert current['kernel_sha256'] == previous['kernel_sha256'] and current['accelerator'] == previous['accelerator']
+          assert current['literal_policy'] != previous['literal_policy']
+          assert current['fill_store'][0]['directory_bytes'] * 2 == previous['fill_store'][0]['directory_bytes']
           assert servers('kernel-fill.json')['kernel-literal'] == servers('kernel-literal.json')['kernel-literal']
           assert servers('kernel-literal.json')['vram-nbd'] == paired['candidate']
           assert servers('previous-swap-path.json')['candidate'] == paired['control']
@@ -172,7 +190,7 @@ jobs:
           sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --baseline-package "$RUNNER_TEMP/control.deb" --result dist/parallel-guest.json
           node automation/performance.mjs dist/parallel-guest.json dist/performance-frontier.json
-          cp measurements/local/managed-*.json measurements/local/kernel-fill.json measurements/local/kernel-literal.json measurements/local/swap-latency.json measurements/local/swap-path.json measurements/local/store-clock.json.gz measurements/local/completion-affinity.json measurements/local/previous-swap-path.json measurements/local/previous-store-clock.json.gz dist/
+          cp measurements/local/managed-*.json measurements/local/kernel-previous.json measurements/local/kernel-fill.json measurements/local/kernel-literal.json measurements/local/swap-latency.json measurements/local/swap-path.json measurements/local/store-clock.json.gz measurements/local/completion-affinity.json measurements/local/previous-swap-path.json measurements/local/previous-store-clock.json.gz dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json *.gz README.md > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -182,7 +200,7 @@ jobs:
       - name: Assemble the product site from the verified model and tested package
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
-          cp dist/mixed-file-range.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
+          cp dist/mixed-file-range.json dist/kernel-previous.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
           cmp dist/vram-kernel-dkms_*.deb product-public/downloads/vram-kernel-dkms_*.deb
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)

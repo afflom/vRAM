@@ -99,6 +99,9 @@ if (fill) {
         }
     }
     const slots = 16384;
+    const width = new TextDecoder().decode(await model.dispatch(Uint8Array.of(79, 1)));
+    if (!/^\d{5}$/.test(width) || !Number(width)) throw Error('Invalid Prism slot width');
+    const directoryBytes = Math.ceil(slots * Number(width) / receipt.page_bytes) * receipt.page_bytes;
     const expected = [
         ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 6 * 2048 + 320, []]),
         ['all_literal', slots, slots, ['literal']],
@@ -111,7 +114,7 @@ if (fill) {
         const row = rows[i];
         const directory = row.directory_bytes;
         if (row.stage !== stage || row.literal_pages !== literals || row.written_pages !== written ||
-            !Number.isSafeInteger(directory) || directory <= 0 || directory % 4096 || directory !== rows[0].directory_bytes ||
+            directory !== directoryBytes ||
             !Number.isSafeInteger(row.charged_bytes) || row.charged_bytes < 0 || row.charged_bytes > 0xffffffff ||
             row.net_saved_bytes !== written * 4096 - row.charged_bytes ||
             (kinds.length ? !row.read_p99_ns || !sameKeys(row.read_p99_ns, kinds) ||

@@ -5,7 +5,7 @@ src=$(cd "$(dirname "$0")" && pwd)
 out=$(realpath -m "${1:?expected output deb path}")
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
-target="$stage/usr/src/vram-fill-0.1.0"
+target="$stage/usr/src/vram-fill-0.1.1"
 mkdir -p "$target" "$stage/DEBIAN" "$(dirname "$out")"
 install -m 644 "$src"/{Kbuild,dkms.conf,page_io.h,vram_fill.c} "$target/"
 node "$src/../../automation/kernel-literal.mjs" "$target/literal_policy.h"
@@ -16,7 +16,7 @@ install -Dm644 "$src/../../LICENSE-MIT" "$stage/usr/share/doc/vram-kernel-dkms/c
 install -m644 /usr/share/common-licenses/GPL-2 "$stage/usr/share/doc/vram-kernel-dkms/copyright"
 cat > "$stage/DEBIAN/control" <<'CONTROL'
 Package: vram-kernel-dkms
-Version: 0.1.0
+Version: 0.1.1
 Architecture: amd64
 Maintainer: vRAM maintainers <noreply@github.com>
 Depends: dkms, kmod, systemd, util-linux, mount
