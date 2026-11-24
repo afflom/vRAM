@@ -84,7 +84,9 @@ if (fill) {
     if (reclaim?.capacity_mib !== 96 || reclaim.verified_bytes !== 24 * 1024 * 1024 ||
         !Number.isInteger(reclaim.evicted_pages) || reclaim.evicted_pages < 5376 || reclaim.evicted_pages > 6144 ||
         !Number.isInteger(reclaim.literal_pages_under_pressure) || reclaim.literal_pages_under_pressure < 1536 ||
-        reclaim.literal_pages_under_pressure > 6145 || reclaim.literal_pages_after_drain !== 1)
+        reclaim.literal_pages_under_pressure > 6145 || reclaim.literal_pages_after_drain !== 1 ||
+        !Number.isInteger(reclaim.repeated_bytes_under_pressure) || reclaim.repeated_bytes_under_pressure < 768 * 64 ||
+        reclaim.repeated_bytes_under_pressure > 1536 * 64 || reclaim.repeated_bytes_after_drain !== 0)
         throw Error('Invalid swap reclaim or slot release evidence');
     const ranges = receipt.range_throughput;
     if (!Array.isArray(ranges) || ranges.length !== 18) throw Error('Incomplete range throughput evidence');
@@ -109,7 +111,7 @@ if (fill) {
         geometry.literal_pages !== 16384 || geometry.literal_pages_after_release !== 0)
         throw Error('Invalid sparse device geometry evidence');
     const expected = [
-        ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 6 * 2048 + 320, []]),
+        ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 3 * 2048 + 320, []]),
         ['all_literal', slots, slots, ['literal']],
         ['half_fill', slots, slots / 2, ['fill', 'literal']],
         ['all_fill', slots, 0, ['fill']],
@@ -120,15 +122,15 @@ if (fill) {
         const row = rows[i];
         const directory = row.directory_bytes;
         if (row.stage !== stage || row.literal_pages !== literals || row.written_pages !== written ||
-            directory !== directoryBytes ||
+            directory !== directoryBytes || row.repeated_bytes !== (i < 3 ? 3 * 2048 * 64 : 0) ||
             !Number.isSafeInteger(row.charged_bytes) || row.charged_bytes < 0 || row.charged_bytes > 0xffffffff ||
             row.net_saved_bytes !== written * 4096 - row.charged_bytes ||
             (kinds.length ? !row.read_p99_ns || !sameKeys(row.read_p99_ns, kinds) ||
                 !kinds.every(k => Number.isSafeInteger(row.read_p99_ns[k]) && row.read_p99_ns[k] > 0) : row.read_p99_ns !== null))
             throw Error('Invalid Fill allocation evidence in ' + stage);
-        const packet = Buffer.alloc(13);
+        const packet = Buffer.alloc(17);
         packet.write('M');
-        [directory, literals, row.charged_bytes].forEach((v, j) => packet.writeUInt32BE(v, 1 + j * 4));
+        [directory, literals, row.repeated_bytes, row.charged_bytes].forEach((v, j) => packet.writeUInt32BE(v, 1 + j * 4));
         if (new TextDecoder().decode(await model.dispatch(packet)) !== 'yes')
             throw Error('Prism rejected the resident store charge in ' + stage);
     }

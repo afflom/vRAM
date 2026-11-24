@@ -1,1 +1,2 @@
 obj-m := vram_literal.o
+obj-m += vram_segments.o

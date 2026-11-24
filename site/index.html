@@ -122,9 +122,9 @@
         <pre tabindex="0"><code>sha256sum --ignore-missing -c SHA256SUMS
 sudo apt install ./vram-host_0.6.7_amd64.deb qemu-system-x86 fuse3</code></pre>
         <details><summary>Install low-latency host swap</summary>
-          <p>The kernel driver stores uniform pages inline and releases literal frames when Linux frees their swap slots. <a href="downloads/vram-kernel-dkms_0.1.1_amd64.deb">Download the amd64 DKMS package</a>.</p>
+          <p>The kernel driver stores uniform pages inline, folds exact repeated halves, and releases the payload when Linux frees a swap slot. <a href="downloads/vram-kernel-dkms_0.1.2_amd64.deb">Download the amd64 DKMS package</a>.</p>
           <pre tabindex="0"><code>sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.1_amd64.deb
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.2_amd64.deb
 sudo systemctl enable --now vram-kernel.service
 swapon --show</code></pre>
         </details>

@@ -101,7 +101,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 188acefd5913bcee2a8693ca640aadafac25b59f
+          ref: e12705d738e322d43f944d4e37d6bff0591398df
           path: measurements/local/kernel-control
       - name: Compare single-page swap latency with zram zstd
         run: |
@@ -117,11 +117,11 @@ jobs:
           bash "$prior/host/kernel/package.sh" "$RUNNER_TEMP/vram-kernel-previous.deb"
           baseline="$RUNNER_TEMP/kernel-previous"
           bash "$prior/host/tests/kernel_literal/build-guest.sh" "$baseline" "$RUNNER_TEMP/vram-kernel-previous.deb"
-          sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$baseline/vram_literal.ko" --kernel-fill "$baseline/vram_fill.ko" --kernel-system "$baseline/kernel-system" --result measurements/local/kernel-previous-raw.json
+          sudo python3 "$prior/host/tests/swap_latency.py" "${guest[@]}" --kernel-literal "$baseline/vram_literal.ko" --kernel-fill "$baseline/vram_fill.ko" --kernel-system "$baseline/kernel-system" --result measurements/local/kernel-previous-raw.json
           node "$prior/automation/swap-latency.mjs" measurements/local/kernel-previous-raw.json measurements/local/kernel-previous.json --kernel-fill
           mkdir -p dist
-          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.1_amd64.deb
-          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.1_amd64.deb
+          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.2_amd64.deb
+          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.2_amd64.deb
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --result measurements/local/literal-raw.json
           node automation/swap-latency.mjs measurements/local/literal-raw.json measurements/local/kernel-literal.json --kernel-literal
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --kernel-fill "$RUNNER_TEMP/literal-module/vram_fill.ko" --kernel-system "$RUNNER_TEMP/literal-module/kernel-system" --result measurements/local/fill-raw.json
@@ -147,7 +147,8 @@ jobs:
           current, previous = (json.loads((Path('measurements/local') / name).read_bytes()) for name in ('kernel-fill.json', 'kernel-previous.json'))
           assert current['kernel_sha256'] == previous['kernel_sha256'] and current['accelerator'] == previous['accelerator']
           assert current['literal_policy'] != previous['literal_policy']
-          assert current['fill_store'][0]['directory_bytes'] * 2 == previous['fill_store'][0]['directory_bytes']
+          assert current['fill_store'][0]['directory_bytes'] == previous['fill_store'][0]['directory_bytes']
+          assert current['fill_store'][0]['charged_bytes'] < previous['fill_store'][0]['charged_bytes']
           for report in (current, previous):
               geometry = report['kernel_geometry']
               assert geometry['capacity_bytes'] == 1 << 40 and geometry['verified_bytes'] == 128 << 20

@@ -17,6 +17,9 @@ def parameter(name):
 
 def transition(fd, buf):
     assert int(parameter("literal_pages")) == 0
+    assert int(parameter("repeated_bytes")) == 256
+    buf[:] = bytes(PAGE)
+    assert os.pwrite(fd, buf, 700 * PAGE) == PAGE and int(parameter("repeated_bytes")) == 0
     for slot in (0, SLOTS - 1):
         assert os.preadv(fd, [buf], slot * PAGE) == PAGE and buf[:] == bytes(PAGE)
     for i in (256, 257):
@@ -39,16 +42,42 @@ def transition(fd, buf):
     for value in reversed(range(256)):
         assert os.preadv(fd, [buf], (256 + value) * PAGE) == PAGE and buf[:] == bytes([value]) * PAGE
     assert int(parameter("literal_pages")) == 0
+    # Keep many small allocations live to exercise sub-page pointer offsets.
+    rng = random.Random(4112)
+    seeds = []
+    charge = 0
+    for i in range(256):
+        size = 1 << (1 + i % 11)
+        seed = bytearray(rng.randbytes(size))
+        seed[-1] = seed[size // 2 - 1] ^ 1
+        seeds.append(bytes(seed))
+        charge += max(32, size)
+        buf[:] = seed * (PAGE // size)
+        assert os.pwrite(fd, buf, (512 + i) * PAGE) == PAGE
+    assert int(parameter("repeated_bytes")) == charge and int(parameter("literal_pages")) == 0
+    for i in reversed(range(len(seeds))):
+        seed = seeds[i]
+        offset = (512 + i) * PAGE
+        assert os.preadv(fd, [buf], offset) == PAGE and buf[:] == seed * (PAGE // len(seed))
+        buf[-1] ^= 1
+        expected = buf[:]
+        assert os.pwrite(fd, buf, offset) == PAGE
+        assert os.preadv(fd, [buf], offset) == PAGE and buf[:] == expected
+        assert int(parameter("literal_pages")) == 1
+        buf[:] = bytes(PAGE)
+        assert os.pwrite(fd, buf, offset) == PAGE
+    assert int(parameter("repeated_bytes")) == int(parameter("literal_pages")) == 0
     # Race on one slot and update two adjacent descriptors in the same cache line.
     offset = 256 * PAGE
     fills = bytes([0x93]) * PAGE
     dense = fills[:-1] + b"U"
+    repeat = seeds[4] * (PAGE // len(seeds[4]))
     child = os.fork()
     if child == 0:
         try:
             with mmap.mmap(-1, PAGE) as writer:
                 for i in range(1024):
-                    writer[:] = fills if i % 2 else dense
+                    writer[:] = (dense, repeat, fills)[i % 3]
                     assert os.pwrite(fd, writer, offset) == PAGE
                     assert os.pwrite(fd, writer, offset + PAGE) == PAGE
         except BaseException:
@@ -59,11 +88,12 @@ def transition(fd, buf):
         buf[:] = other
         assert os.pwrite(fd, buf, offset) == PAGE
         assert os.pwrite(fd, buf, offset + 2 * PAGE) == PAGE
-        assert os.preadv(fd, [buf], offset) == PAGE and buf[:] in (other, fills, dense)
+        assert os.preadv(fd, [buf], offset) == PAGE and buf[:] in (other, fills, dense, repeat)
     assert os.waitpid(child, 0) == (child, 0)
-    assert os.preadv(fd, [buf], offset + PAGE) == PAGE and buf[:] == fills
+    assert os.preadv(fd, [buf], offset + PAGE) == PAGE and buf[:] == dense
     assert os.preadv(fd, [buf], offset + 2 * PAGE) == PAGE and buf[:] == other
     buf[:] = fills
+    assert os.pwrite(fd, buf, offset + PAGE) == PAGE
     assert os.pwrite(fd, buf, offset + 2 * PAGE) == PAGE
     assert os.pwrite(fd, buf, offset) == PAGE and int(parameter("literal_pages")) == 0
     print("FILL_POLICY", parameter("policy"), flush=True)
@@ -73,9 +103,10 @@ def snapshot(stage, written, expected_literals, read_p99=None):
     literal = int(parameter("literal_pages"))
     directory = int(parameter("directory_bytes"))
     assert literal == expected_literals
-    charged = directory + literal * PAGE
+    repeated = int(parameter("repeated_bytes"))
+    charged = directory + literal * PAGE + repeated
     print("FILL_STORE", json.dumps(dict(stage=stage, written_pages=written, literal_pages=literal,
-          directory_bytes=directory, charged_bytes=charged, net_saved_bytes=written * PAGE - charged,
+          directory_bytes=directory, repeated_bytes=repeated, charged_bytes=charged, net_saved_bytes=written * PAGE - charged,
           read_p99_ns=read_p99)), flush=True)
 
 

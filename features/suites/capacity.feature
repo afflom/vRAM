@@ -485,3 +485,15 @@ Feature: capacity
     Given a packaged device with one directory word per logical page
     When fills and literal frames replace each other under direct IO and swap reclaim
     Then all bytes are recovered and the measured directory charge agrees with the slot count
+
+  @VR-65 @build
+  Scenario: Reduce an exactly repeated prefix
+    Given two halves of the current kernel prefix
+    When equality is checked and the allocation class can shrink
+    Then only equal halves authorize a smaller prefix
+
+  @VR-66 @open
+  Scenario: Reuse and retire kernel repeat blocks
+    Given a page written through the installed swap device
+    When exact repetitions and near misses overwrite one another
+    Then every byte reads back and retired payload disappears from the store charge

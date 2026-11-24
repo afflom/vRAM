@@ -6,8 +6,8 @@ src=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$out/debs"
 package=$(realpath "${2:?expected kernel DKMS package}")
 dpkg-deb -x "$package" "$out/installed"
-cp "$out/installed/usr/src/vram-fill-0.1.1/"{page_io.h,literal_policy.h} "$out/"
-cp "$src/Kbuild" "$src/vram_literal.c" "$out/"
+cp "$out/installed/usr/src/vram-fill-0.1.2/"{page_io.h,literal_policy.h} "$out/"
+cp "$src/Kbuild" "$src/vram_literal.c" "$src/vram_segments.c" "$out/"
 while read -r filename sha256 snapshot; do
     pkg="$out/debs/$filename"
     curl --retry 3 -fsSL "https://deb.debian.org/debian/pool/main/l/linux/$filename" -o "$pkg" ||
@@ -26,7 +26,7 @@ docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:tr
     mkdir -p "/lib/modules/$release"
     ln -sfn "/usr/src/linux-headers-$release" "/lib/modules/$release/build"
     apt-get install -y --no-install-recommends /tmp/vram-kernel.deb
-    dkms status -m vram-fill -v 0.1.1 -k "$release" | grep -q ": installed"
+    dkms status -m vram-fill -v 0.1.2 -k "$release" | grep -q ": installed"
     make -C "/lib/modules/$release/build" M=/build modules
     module=$(find "/lib/modules/$release/updates" -name "vram_fill.ko*" -type f)
     case "$module" in

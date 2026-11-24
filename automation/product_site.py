@@ -60,7 +60,7 @@ downloads = out / "downloads"
 downloads.mkdir()
 shutil.copy2(package, downloads / package.name)
 digest = hashlib.sha256(package.read_bytes()).hexdigest()
-kernel_name = "vram-kernel-dkms_0.1.1_amd64.deb"
+kernel_name = "vram-kernel-dkms_0.1.2_amd64.deb"
 kernel_package = package.parent / kernel_name
 if kernel_package.is_file():
     shutil.copy2(kernel_package, downloads / kernel_name)

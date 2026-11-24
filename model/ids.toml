@@ -421,3 +421,16 @@ id = "VR-64"
 level = "open"
 suite = "capacity"
 statement = "The shipped amd64 store charges one machine word per page while retaining byte-exact concurrent access and Linux swap-slot release"
+
+[[id]]
+id = "VR-65"
+level = "build"
+suite = "capacity"
+statement = "The resident fold retains the current prefix on mismatch, halves an exact page and stops at the smallest kernel block class"
+theorems = ["ResidentPolicy.foldMismatch", "ResidentPolicy.exactFoldOneOrder", "ResidentPolicy.foldPage", "ResidentPolicy.foldFloor"]
+
+[[id]]
+id = "VR-66"
+level = "open"
+suite = "capacity"
+statement = "Linux swap reconstructs folded pages across allocation classes and reports the retained block bytes alongside literal frames"

@@ -74,6 +74,7 @@ with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(["cc", "-static", "-O2", "-Wall", "-Wextra", "-Werror", root / "host/tests/kernel_reclaim.c",
                         "-o", path / "kernel-reclaim"], check=True)
         files["kernel-reclaim"] = (path / "kernel-reclaim").read_bytes()
+        files["kernel-segments.ko"] = args.kernel_literal.with_name("vram_segments.ko").read_bytes()
         installed, = args.kernel_system.glob("lib/modules/*/updates/vram_fill.ko")
         if installed.read_bytes() != args.kernel_fill.read_bytes():
             parser.error("the timed module differs from the installed activation module")

@@ -6,8 +6,8 @@ remove|upgrade)
         systemctl stop vram-kernel.service
         systemctl disable vram-kernel.service
     fi
-    if [ -d /var/lib/dkms/vram-fill/0.1.1 ]; then
-        dkms remove -m vram-fill -v 0.1.1 --all
+    if [ -d /var/lib/dkms/vram-fill/0.1.2 ]; then
+        dkms remove -m vram-fill -v 0.1.2 --all
     fi
     ;;
 esac

@@ -36,4 +36,15 @@ async function layout(field) {
     if (!/^\d{5}$/.test(value)) throw Error('Invalid packed directory constant');
     return Number(value);
 }
-writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\n#define VRAM_SLOT_LOCK ${await layout(0)}UL\n#define VRAM_SLOT_BYTES ${await layout(1)}\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 resident_action[24] = {${await actions(78)}};\nstatic const u8 literal_action[24] = {${await actions(76)}};\n`);
+const folds = [];
+for (let order = 5; order <= 12; order++) {
+    const row = [];
+    for (const equal of [0, 1]) {
+        const reply = new TextDecoder().decode(await model.dispatch(Uint8Array.of(80, order, equal)));
+        if (!/^\d{5}$/.test(reply) || ![order, Math.max(5, order - 1)].includes(Number(reply)))
+            throw Error('Invalid kernel fold order');
+        row.push(Number(reply));
+    }
+    folds.push('{' + row.join(', ') + '}');
+}
+writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\n#define VRAM_SLOT_LOCK ${await layout(0)}UL\n#define VRAM_SLOT_BYTES ${await layout(1)}\nstatic const u8 fold_order[8][2] = {${folds.join(', ')}};\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 resident_action[24] = {${await actions(78)}};\nstatic const u8 literal_action[24] = {${await actions(76)}};\n`);

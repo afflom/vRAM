@@ -134,7 +134,7 @@ for trial in range(3):
                 print("MIXED_LATENCY", json.dumps([trial, label, name, op, statistics.median(samples),
                       sorted(samples)[(len(samples)*99+99)//100-1]]), flush=True)
     if fill:
-        swap_fill.snapshot("mixed" + str(trial), 6 * pages + 384, 6 * pages + 320)
+        swap_fill.snapshot("mixed" + str(trial), 6 * pages + 384, 3 * pages + 320)
 if fill:
     swap_fill.sweep(fill_fd, buf)
     swap_fill.ranges(devices)

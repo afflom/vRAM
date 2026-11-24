@@ -87,6 +87,7 @@ int main(int argc, char **argv) {
     if (fill) {
         load("/kernel-fill.ko", "");
         block_node("/sys/block/vramfill0/dev", "/dev/vramfill0");
+        load("/kernel-segments.ko", "");
     }
     for (int i = 1; i < nbd_end; ++i)
         if (mknod(paths[i], S_IFBLK | 0600, makedev(43, i-1))) fail("nbd node");

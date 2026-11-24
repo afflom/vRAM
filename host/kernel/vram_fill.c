@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Specialization of the Verdant store to inline Fill and exact literal pages. */
+/* Resident Verdant store with inline fills, exact folded blocks and literals. */
 #include <linux/bio.h>
 #include <linux/bit_spinlock.h>
 #include <linux/blkdev.h>
@@ -8,6 +8,7 @@
 #include <linux/version.h>
 #include <linux/vmalloc.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
 
 #include "page_io.h"
 
@@ -16,7 +17,7 @@ module_param(capacity_mib, ulong, 0444);
 MODULE_PARM_DESC(capacity_mib, "Logical block capacity in MiB");
 static unsigned long slot_count;
 /* A frame address has twelve zero low bits. An inline fill uses bits 0..7.
- * Bit 8 serializes this slot independently in either representation. */
+ * Bit 8 serializes this slot independently in every representation. */
 static unsigned long *directory;
 
 static unsigned long lock_slot(unsigned long *slot)
@@ -44,6 +45,7 @@ static void replace_payload(unsigned long *slot, unsigned long payload)
 static struct gendisk *disk;
 static int major;
 static atomic_long_t retained = ATOMIC_LONG_INIT(0);
+static atomic_long_t block_bytes = ATOMIC_LONG_INIT(0);
 static unsigned long directory_bytes;
 static char policy[] = VRAM_HOLO;
 module_param_string(policy, policy, sizeof(policy), 0444);
@@ -58,6 +60,13 @@ static int get_literals(char *buf, const struct kernel_param *kp)
 	return sysfs_emit(buf, "%ld\n", atomic_long_read(&retained));
 }
 
+static int get_blocks(char *buf, const struct kernel_param *kp)
+{
+	return sysfs_emit(buf, "%ld\n", atomic_long_read(&block_bytes));
+}
+
+static const struct kernel_param_ops block_ops = { .get = get_blocks };
+module_param_cb(repeated_bytes, &block_ops, NULL, 0444);
 static const struct kernel_param_ops directory_ops = { .get = get_directory };
 static const struct kernel_param_ops literal_ops = { .get = get_literals };
 module_param_cb(directory_bytes, &directory_ops, NULL, 0444);
@@ -85,24 +94,153 @@ static bool uniform_page(struct bio *bio, struct bvec_iter page, u8 *value)
 	return !first;
 }
 
-static void transfer(unsigned long word, struct bio *bio, struct bvec_iter page, bool read)
+/* The class occupies bits 9..11. A power-of-two kmalloc of at least 32
+ * bytes leaves five zero address bits, so its page offset fits in bits 0..6.
+ * The directory lock at bit 8 is independent of both fields. */
+#define MIN_ORDER 5
+#define PAGE_ORDER 12
+#define FOLD_SHIFT 9
+
+static unsigned int payload_size(unsigned long word)
+{
+	unsigned int tag = offset_in_page(word) >> FOLD_SHIFT;
+
+	if (!(word & PAGE_MASK))
+		return 0;
+	return tag ? 1U << (MIN_ORDER - 1 + tag) : SLOT;
+}
+
+static u8 *payload_address(unsigned long word)
+{
+	unsigned long base = word & PAGE_MASK;
+	unsigned long offset = word & ((SLOT >> MIN_ORDER) - 1);
+
+	return (u8 *)(base | (offset << MIN_ORDER));
+}
+
+static unsigned long allocate_payload(unsigned int size)
+{
+	gfp_t flags = GFP_NOIO | __GFP_NORETRY | __GFP_NOWARN;
+	unsigned long addr;
+	unsigned int tag;
+
+	if (size == SLOT)
+		return __get_free_page(flags);
+	addr = (unsigned long)kmalloc(size, flags);
+	if (!addr)
+		return 0;
+	tag = ilog2(size) - MIN_ORDER + 1;
+	return (addr & PAGE_MASK) | (offset_in_page(addr) >> MIN_ORDER) |
+	       (tag << FOLD_SHIFT);
+}
+
+static void free_payload(unsigned long word)
+{
+	unsigned int size = payload_size(word);
+
+	if (size == SLOT)
+		free_page(word & PAGE_MASK);
+	else if (size)
+		kfree(payload_address(word));
+}
+
+static void account_payload(unsigned int size, int delta)
+{
+	if (size == SLOT)
+		atomic_long_add(delta, &retained);
+	else if (size)
+		atomic_long_add((long)size * delta, &block_bytes);
+}
+
+/* bio segments may split either half at any byte. Compare the original
+ * source spans without allocating a temporary page under memory pressure. */
+static bool split_halves_equal(struct bio *bio, struct bvec_iter left, unsigned int half)
+{
+	struct bvec_iter right = left;
+	unsigned int remaining = half;
+
+	bio_advance_iter(bio, &right, half);
+	while (remaining) {
+		struct bio_vec a = bio_iter_iovec(bio, left);
+		struct bio_vec b = bio_iter_iovec(bio, right);
+		unsigned int n = min3(remaining, a.bv_len, b.bv_len);
+		void *x = bvec_kmap_local(&a);
+		void *y = bvec_kmap_local(&b);
+		bool equal = !memcmp(x, y, n);
+
+		kunmap_local(y);
+		kunmap_local(x);
+		if (!equal)
+			return false;
+		bio_advance_iter(bio, &left, n);
+		bio_advance_iter(bio, &right, n);
+		remaining -= n;
+	}
+	return true;
+}
+
+static unsigned int folded_size(struct bio *bio, struct bvec_iter page)
+{
+	struct bio_vec vec = bio_iter_iovec(bio, page);
+	const u8 *mapped = vec.bv_len == SLOT ? bvec_kmap_local(&vec) : NULL;
+	unsigned int order = PAGE_ORDER;
+
+	while (order > MIN_ORDER) {
+		unsigned int half = 1U << (order - 1);
+		bool equal = mapped ? !memcmp(mapped, mapped + half, half) :
+				      split_halves_equal(bio, page, half);
+		unsigned int next = fold_order[order - MIN_ORDER][equal];
+
+		if (next == order)
+			break;
+		order = next;
+	}
+	if (mapped)
+		kunmap_local(mapped);
+	return 1U << order;
+}
+
+static void repeat_into(u8 *out, unsigned int count, const u8 *block,
+			unsigned int size, unsigned int offset)
+{
+	unsigned int phase = offset & (size - 1);
+	unsigned int done = min(count, size - phase);
+	unsigned int wrap = min(count - done, phase);
+
+	memcpy(out, block + phase, done);
+	memcpy(out + done, block, wrap);
+	done += wrap;
+	while (done < count) {
+		unsigned int n = min(done, count - done);
+
+		memcpy(out + done, out, n);
+		done += n;
+	}
+}
+
+static void transfer(unsigned long word, unsigned int size, struct bio *bio,
+		     struct bvec_iter page, bool read)
 {
 	struct bvec_iter iter;
 	struct bio_vec vec;
-	u8 *literal = (u8 *)(word & PAGE_MASK);
-	size_t offset = 0;
+	u8 *data = payload_address(word);
+	unsigned int offset = 0;
 
+	if (!read)
+		page.bi_size = size;
 	__bio_for_each_segment(vec, bio, iter, page) {
 		void *mapped = bvec_kmap_local(&vec);
 
 		if (read) {
-			if (literal)
-				memcpy(mapped, literal + offset, vec.bv_len);
+			if (size == SLOT)
+				memcpy(mapped, data + offset, vec.bv_len);
+			else if (size)
+				repeat_into(mapped, vec.bv_len, data, size, offset);
 			else
 				memset(mapped, (u8)word, vec.bv_len);
 			flush_dcache_page(vec.bv_page);
 		} else {
-			memcpy(literal + offset, mapped, vec.bv_len);
+			memcpy(data + offset, mapped, vec.bv_len);
 		}
 		kunmap_local(mapped);
 		offset += vec.bv_len;
@@ -112,42 +250,59 @@ static void transfer(unsigned long word, struct bio *bio, struct bvec_iter page,
 static bool transfer_page(struct bio *bio, struct bvec_iter page, unsigned int action)
 {
 	unsigned long *slot = &directory[page.bi_sector / SECTORS_PER_SLOT];
-	unsigned long flags, word;
+	unsigned long flags, old, spare = 0;
+	unsigned int size = 0, previous;
 	u8 value = 0;
-	u8 *spare = NULL;
-	bool fill = action == 2 && inline_fill[uniform_page(bio, page, &value)];
 
-	flags = lock_slot(slot);
-	word = READ_ONCE(*slot);
-	if (action == 1) {
-		transfer(word, bio, page, true);
-	} else if (fill) {
-		spare = (u8 *)(word & PAGE_MASK);
-		replace_payload(slot, value);
-		if (spare)
-			atomic_long_dec(&retained);
-	} else {
-		if (!(word & PAGE_MASK)) {
+	if (action == 2 && !inline_fill[uniform_page(bio, page, &value)])
+		size = folded_size(bio, page);
+
+	/* A speculative class check avoids taking the slot lock across the
+	 * allocation decision. Only dereference a payload after rechecking it
+	 * under the lock, even when another writer installs the same class. */
+	if (size && payload_size(READ_ONCE(*slot)) == size) {
+		flags = lock_slot(slot);
+		old = READ_ONCE(*slot);
+		if (payload_size(old) == size) {
+			transfer(old, size, bio, page, false);
 			unlock_slot(slot, flags);
-			spare = (u8 *)__get_free_page(GFP_NOIO | __GFP_NORETRY | __GFP_NOWARN);
-			flags = lock_slot(slot);
-			word = READ_ONCE(*slot);
-			if (!(word & PAGE_MASK)) {
-				if (!spare) {
-					unlock_slot(slot, flags);
-					return false;
-				}
-				word = (unsigned long)spare;
-				replace_payload(slot, word);
-				spare = NULL;
-				atomic_long_inc(&retained);
-			}
+			return true;
 		}
-		transfer(word, bio, page, false);
+		unlock_slot(slot, flags);
 	}
+	if (size)
+		spare = allocate_payload(size);
+	flags = lock_slot(slot);
+	old = READ_ONCE(*slot);
+	previous = payload_size(old);
+	if (action == 1) {
+		transfer(old, previous, bio, page, true);
+		unlock_slot(slot, flags);
+		return true;
+	}
+	if (size && !spare && size != previous) {
+		/* An existing literal can take any write under allocation pressure. */
+		if (previous != SLOT) {
+			unlock_slot(slot, flags);
+			return false;
+		}
+		size = SLOT;
+	}
+	if (size != previous) {
+		unsigned long replacement = size ? spare : value;
+
+		replace_payload(slot, replacement);
+		account_payload(previous, -1);
+		account_payload(size, 1);
+		spare = old;
+		old = replacement;
+	} else if (!size) {
+		replace_payload(slot, value);
+	}
+	if (size)
+		transfer(old, size, bio, page, false);
 	unlock_slot(slot, flags);
-	if (spare)
-		free_page((unsigned long)spare);
+	free_payload(spare);
 	return true;
 }
 
@@ -185,19 +340,17 @@ static void release_swap_slot(struct block_device *bdev, unsigned long index)
 {
 	unsigned long *slot;
 	unsigned long flags;
-	u8 *previous;
+	unsigned long previous;
 
 	if (index >= slot_count)
 		return;
 	slot = &directory[index];
 	flags = lock_slot(slot);
-	previous = (u8 *)(READ_ONCE(*slot) & PAGE_MASK);
+	previous = READ_ONCE(*slot);
 	replace_payload(slot, 0);
-	if (previous)
-		atomic_long_dec(&retained);
+	account_payload(payload_size(previous), -1);
 	unlock_slot(slot, flags);
-	if (previous)
-		free_page((unsigned long)previous);
+	free_payload(previous);
 }
 
 static const struct block_device_operations fill_ops = {
@@ -218,8 +371,7 @@ static int __init fill_init(void)
 	int rc;
 
 	BUILD_BUG_ON(PAGE_SIZE != SLOT || sizeof(*directory) != VRAM_SLOT_BYTES);
-	BUILD_BUG_ON(VRAM_SLOT_LOCK <= U8_MAX || VRAM_SLOT_LOCK >= SLOT ||
-		     (VRAM_SLOT_LOCK & (VRAM_SLOT_LOCK - 1)));
+	BUILD_BUG_ON(VRAM_SLOT_LOCK != BIT(FOLD_SHIFT - 1) || SLOT != BIT(PAGE_ORDER));
 	if (!capacity_mib || capacity_mib > UINT_MAX / (SZ_1M / SLOT))
 		return -EINVAL;
 	slot_count = capacity_mib * (SZ_1M / SLOT);
@@ -273,12 +425,11 @@ static void __exit fill_exit(void)
 	put_disk(disk);
 	unregister_blkdev(major, "vramfill");
 	for (i = 0; i < slot_count; i++)
-		if (directory[i] & PAGE_MASK)
-			free_page(directory[i] & PAGE_MASK);
+		free_payload(directory[i]);
 	vfree(directory);
 }
 
 module_init(fill_init);
 module_exit(fill_exit);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Verdant resident Fill and literal swap device");
+MODULE_DESCRIPTION("Verdant resident folded-page swap device");

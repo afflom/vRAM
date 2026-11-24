@@ -23,17 +23,20 @@ static void setting(const char *path, const char *value)
 	if (fd < 0 || write(fd, value, strlen(value)) != (ssize_t)strlen(value)) fail(path);
 	close(fd);
 }
-static long literals(void)
+static long counter(const char *path)
 {
-	FILE *f = fopen("/sys/module/vram_fill/parameters/literal_pages", "r");
+	FILE *f = fopen(path, "r");
 	long value;
-	if (!f || fscanf(f, "%ld", &value) != 1) fail("literal_pages");
+	if (!f || fscanf(f, "%ld", &value) != 1) fail(path);
 	fclose(f);
 	return value;
 }
 static void expected(unsigned i, unsigned char *page)
 {
 	memset(page, (i % 254) + 1, PAGE);
+	if (i % 4 == 0) {
+		for (unsigned j = 0; j < PAGE; j += 64) memcpy(page + j, &i, sizeof(i));
+	}
 	if (i % 2) memcpy(page + PAGE - sizeof(i), &i, sizeof(i));
 }
 
@@ -61,7 +64,9 @@ int main(void)
 		present = 0;
 		for (unsigned i = 0; i < PAGES; i++) present += resident[i] & 1;
 	}
-	long peak = literals();
+	long peak = counter("/sys/module/vram_fill/parameters/literal_pages");
+	long blocks = counter("/sys/module/vram_fill/parameters/repeated_bytes");
+	if (blocks < PAGES / 8 * 64) fail("insufficient folded swap reclaim");
 	if (present > PAGES / 8 || peak < PAGES / 4) fail("insufficient kernel swap reclaim");
 	setting("/sys/fs/cgroup/reclaim/memory.max", "max");
 	for (unsigned i = 0; i < PAGES / 2; i++) {
@@ -73,10 +78,11 @@ int main(void)
 		expected(i, want);
 		if (memcmp(mem + i * PAGE, want, PAGE)) fail("drain readback");
 	}
-	long final = literals();
-	if (final != 1) fail("retired literals still resident");
+	long final = counter("/sys/module/vram_fill/parameters/literal_pages");
+	long final_blocks = counter("/sys/module/vram_fill/parameters/repeated_bytes");
+	if (final != 1 || final_blocks) fail("retired literals still resident");
 	printf("KERNEL_RECLAIM {\"capacity_mib\":96,\"verified_bytes\":%u,\"evicted_pages\":%u,"
-	       "\"literal_pages_under_pressure\":%ld,\"literal_pages_after_drain\":%ld}\n",
-	       PAGES * PAGE, PAGES - present, peak, final);
+	       "\"literal_pages_under_pressure\":%ld,\"literal_pages_after_drain\":%ld,\"repeated_bytes_under_pressure\":%ld,\"repeated_bytes_after_drain\":%ld}\n",
+	       PAGES * PAGE, PAGES - present, peak, final, blocks, final_blocks);
 	return 0;
 }

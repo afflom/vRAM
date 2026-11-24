@@ -67,5 +67,22 @@ theorem{
   statement: ((prim subtract (heldWord payload) (lockMask) : Nat) = payload),
   proof: linear_arithmetic{definitions: [heldWord, lockMask]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: foldStep, parameters: [order : Nat, equalHalves : Bool], result: Nat,
+  body: (if equalHalves then (if (5 <? order) then (prim subtract order 1 : Nat) else order) else order),
+  executable: true
+}
+theorem{ name: foldMismatch, parameters: [order : Nat], statement: ((foldStep order false) = order), proof: reflexivity{} }
+theorem{
+  name: exactFoldOneOrder, parameters: [extra : Nat],
+  statement: ((foldStep (extra + 6) true) = (extra + 5)),
+  proof: reflexivity{}
+}
+theorem{ name: foldPage, parameters: [], statement: ((foldStep 12 true) = 11), proof: reflexivity{} }
+theorem{ name: foldFloor, parameters: [], statement: ((foldStep 5 true) = 5), proof: reflexivity{} }
+definition{
+  name: foldedCharge, parameters: [directory : Nat, literals : Nat, blocks : Nat], result: Nat,
+  body: ((charged directory literals) + blocks), executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

@@ -84,6 +84,8 @@ The three honesty levels (R2):
 | `VR-62` | `open` | The packaged kernel store restores Linux swap under reclaim, releases retired literal slots and measures verified direct range throughput alongside zram |  |
 | `VR-63` | `build` | Holding a packed slot lock keeps fill bytes below the first frame and leaves aligned literals distinguishable; releasing the lock recovers the payload | `ResidentPolicy.fillBelowLock`, `ResidentPolicy.packedFillBelowFrame`, `ResidentPolicy.packedLiteralAboveFill`, `ResidentPolicy.unlockSlotPayload` |
 | `VR-64` | `open` | The shipped amd64 store charges one machine word per page while retaining byte-exact concurrent access and Linux swap-slot release |  |
+| `VR-65` | `build` | The resident fold retains the current prefix on mismatch, halves an exact page and stops at the smallest kernel block class | `ResidentPolicy.foldMismatch`, `ResidentPolicy.exactFoldOneOrder`, `ResidentPolicy.foldPage`, `ResidentPolicy.foldFloor` |
+| `VR-66` | `open` | Linux swap reconstructs folded pages across allocation classes and reports the retained block bytes alongside literal frames |  |
 
 ## Cited authorities
 
