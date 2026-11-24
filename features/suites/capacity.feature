@@ -233,3 +233,15 @@ Feature: capacity
     Given a complete batch has at least two rows and one to as many result tiles as rows
     When five rows are projected together
     Then the batch transfers fewer application bytes than restoring the page once, and a six-row batch transfers more
+
+  @VR-32 @open
+  Scenario: Read consecutive file slots with repeated bases and edits
+    Given a range contains repeated and consecutive immutable file slots within a group
+    When the DIMM restores the range
+    Then it uses one exact file read for that run and reconstructs each logical page in order
+
+  @VR-33 @build
+  Scenario: Expand a compact slot run from the end of the output
+    Given the source and destination start at zero and each destination advances one page
+    When the next source repeats or advances one slot
+    Then its index stays at or before the destination so later destinations can be written first

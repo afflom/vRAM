@@ -137,7 +137,15 @@ impl Arena {
 }
 
 impl Slot {
-    pub(super) fn read(&self, bytes: &mut [u8; PAGE]) -> io::Result<()> {
+    pub(super) fn distance_from(&self, first: &Self) -> Option<u64> {
+        if !Arc::ptr_eq(&self.arena, &first.arena) {
+            return None;
+        }
+        self.index.checked_sub(first.index)
+    }
+
+    // Range callers hold all participating slots through the directory read guard.
+    pub(super) fn read(&self, bytes: &mut [u8]) -> io::Result<()> {
         super::io_profile::measured(self.arena.profile.as_ref().map(|p| &p.pread_ns), || {
             self.arena
                 .file

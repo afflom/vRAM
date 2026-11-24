@@ -51,6 +51,8 @@ The three honesty levels (R2):
 | `VR-29` | `build` | For equal verified projections the model selects an available route with minimum measured elapsed time, considering resident CPU execution only when its input is resident | `Performance.projectionAvailable`, `Performance.projectionMinimum` |
 | `VR-30` | `open` | A guest can publish one stable DIMM page once per batch and stream signed projection rows through bounded multi-row Verdant contractions with exact ordered results |  |
 | `VR-31` | `build` | For a completed batch of at least two projection rows the port carries fewer application bytes than repeated scalar calls, and fewer than a single page restore exactly through five rows | `Performance.batchBelowScalar`, `Performance.batchRestoreCrossing` |
+| `VR-32` | `open` | Within a directory group a range restore reads a maximal run of repeated or consecutive immutable file slots with one exact read, applying each page's residual after expansion |  |
+| `VR-33` | `build` | In a compact file run the source starts at the first destination and remains at or before the destination after any repeat or consecutive-slot step, permitting reverse expansion in the output buffer | `Performance.compactStep`, `Performance.compactReverseSafe` |
 
 ## Cited authorities
 

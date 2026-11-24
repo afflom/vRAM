@@ -65,11 +65,44 @@ static int shared_range(struct store *s)
     store_file_stats(s, &before, &writes);
     if (store_read_pages(s, FIRST, COUNT, out[0]) || memcmp(out, want, sizeof(out))) return 0;
     store_file_stats(s, &after, &writes);
-    if (after - before != 4) {
-        fprintf(stderr, "range restore used %lu backing reads, expected 4\n", after - before);
+    if (after - before != 3) {
+        fprintf(stderr, "range restore used %lu backing reads, expected 3\n", after - before);
         return 0;
     }
     return 1;
+}
+
+/* A short multi-slot read must fail even when the first slot was complete.
+ * Restore the truncated slot and check that retry reconstructs every byte. */
+static int file_run_retry(struct store *s, int fd)
+{
+    enum { N = 6 };
+    u8 want[N][PAGE], out[N][PAGE];
+    unsigned slot[N] = {0, 0, 1, 2, 2, 1};
+    if (store_discard(s, 0, PAGES)) return 0;
+    for (unsigned i = 0; i < N; ++i) {
+        expected(20 + slot[i], 'U', want[i]);
+        if (i == 1 || i == 4) want[i][123] ^= 75;
+        if (store_put(s, i, want[i])) return 0;
+    }
+    uint64_t before, after, writes;
+    store_file_stats(s, &before, &writes);
+    if (ftruncate(fd, 2 * PAGE + 512) || !store_read_pages(s, 0, N, out[0])) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after != before || ftruncate(fd, (off_t)(PAGES + 1) * PAGE) ||
+        pwrite(fd, want[3], PAGE, 2 * PAGE) != PAGE) return 0;
+    if (store_read_pages(s, 0, N, out[0]) || memcmp(out, want, sizeof(out))) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after - before != 2) return 0;
+
+    /* A live slot between two requested slots belongs to another page. */
+    if (store_put(s, 64, want[0]) || store_put(s, 65, want[3]) ||
+        store_put(s, 66, want[2])) return 0;
+    store_file_stats(s, &before, &writes);
+    if (store_read_pages(s, 64, 3, out[0]) || memcmp(out[0], want[0], PAGE) ||
+        memcmp(out[1], want[3], PAGE) || memcmp(out[2], want[2], PAGE)) return 0;
+    store_file_stats(s, &after, &writes);
+    return after - before == 3;
 }
 
 static int shared_admissions(struct store *s)
@@ -270,6 +303,8 @@ int main(void)
     if (!s) return 1;
     int fit = collisions(s);
     int ranges = shared_range(s);
+    int retry = file_run_retry(s, fd);
+    if (!retry) fprintf(stderr, "short range read, retry, or slot order differs\n");
     int admissions = shared_admissions(s);
     int boundary = edit_limit(s);
     int convergence = converging_overwrites(s);
@@ -281,5 +316,5 @@ int main(void)
     int rollback = failed_writes(s, fd);
     store_free(s);
     close(fd);
-    return !(torn && fit && ranges && admissions && boundary && convergence && edits && projected && rollback);
+    return !(torn && fit && ranges && retry && admissions && boundary && convergence && edits && projected && rollback);
 }

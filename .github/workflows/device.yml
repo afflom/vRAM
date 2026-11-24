@@ -89,11 +89,11 @@ jobs:
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
-      - name: Check out the 0.5.7 guest benchmark control
+      - name: Check out the 0.5.8 guest benchmark control
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: ed3a0a82003c7231d1f8f1ff129f44f22288cf6e
+          ref: 3f27a941e5e56de6e2ad345527dcf3c85bfe66c8
           path: measurements/local/control
       - name: Build the control on the same distribution
         run: |
@@ -106,6 +106,7 @@ jobs:
           python3 host/package.py dist/
           python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
+          python3 host/tests/file_scale.py --control measurements/local/control --result dist/file-range.json
           sudo modprobe fuse
           sudo python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/linux-dimm.json

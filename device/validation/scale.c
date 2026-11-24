@@ -14,6 +14,7 @@ enum { PAGE = 4096 };
 /* The comparison harness also links releases predating literal statistics. */
 #pragma weak store_literal_stats
 #pragma weak store_new_file
+#pragma weak store_read_pages
 #pragma weak store_file_stats
 
 static long peak(void)
@@ -30,7 +31,9 @@ static double seconds(clockid_t clock)
 }
 int main(int argc, char **argv)
 {
-    if (argc != 5 && argc != 6) return 2;
+    int range = argc == 7 && !strcmp(argv[6], "range");
+    if (argc != 5 && argc != 6 && !range) return 2;
+    if (range && !store_read_pages) return 2;
     long mib = atol(argv[1]), budget = atol(argv[2]), nodes = atol(argv[4]);
     char profile = argv[3][0];
     if (mib < 1 || mib > 1048576 || budget < 1 || budget > 1048576 ||
@@ -38,7 +41,7 @@ int main(int argc, char **argv)
     size_t target = (size_t)mib * 256, count = 0, verified = 0;
     uint8_t original[PAGE], decoded[PAGE];
     struct store *s;
-    if (argc == 6) {
+    if (argc >= 6) {
         /* The caller owns an unlinked, already reserved file descriptor. */
         char *end;
         long fd = strtol(argv[5], &end, 10);
@@ -58,10 +61,29 @@ int main(int argc, char **argv)
     }
     double written = seconds(CLOCK_MONOTONIC), cpu_written = seconds(CLOCK_PROCESS_CPUTIME_ID);
     uint64_t admission_reads = 0, base_writes = 0;
-    if (argc == 6) store_file_stats(s, &admission_reads, &base_writes);
-    for (; verified < count; ++verified) {
-        expected(verified, profile, original);
-        if (store_get(s, verified, decoded) || memcmp(original, decoded, PAGE)) break;
+    if (argc >= 6) store_file_stats(s, &admission_reads, &base_writes);
+    double range_seconds = 0;
+    if (range) {
+        enum { WIDTH = 64 };
+        uint8_t (*pages)[PAGE] = malloc(WIDTH * sizeof(*pages));
+        if (!pages) return 4;
+        while (verified < count) {
+            size_t n = count - verified < WIDTH ? count - verified : WIDTH;
+            double begin = seconds(CLOCK_MONOTONIC);
+            if (store_read_pages(s, verified, n, pages[0])) return 4;
+            range_seconds += seconds(CLOCK_MONOTONIC) - begin;
+            for (size_t i = 0; i < n; ++i) {
+                expected(verified + i, profile, original);
+                if (memcmp(original, pages[i], PAGE)) return 4;
+            }
+            verified += n;
+        }
+        free(pages);
+    } else {
+        for (; verified < count; ++verified) {
+            expected(verified, profile, original);
+            if (store_get(s, verified, decoded) || memcmp(original, decoded, PAGE)) break;
+        }
     }
     double verified_at = seconds(CLOCK_MONOTONIC);
     uint64_t stats[5], refits, skips;
@@ -73,12 +95,13 @@ int main(int argc, char **argv)
            "\"write_seconds\":%.6f,\"read_seconds\":%.6f,\"write_cpu_seconds\":%.6f",
            mib, profile, nodes, count, verified, peak(), stats[4], stats[2], refits, skips,
            written - start, verified_at - written, cpu_written - cpu_start);
+    if (range) printf(",\"range_pages\":64,\"range_seconds\":%.6f", range_seconds);
     if (store_literal_stats) {
         uint64_t bases, hits, fast, residuals;
         store_literal_stats(s, &bases, &hits, &fast, &residuals);
         printf(",\"unique_literals\":%lu,\"literal_hits\":%lu,\"residual_captures\":%lu", bases, hits, residuals);
     }
-    if (argc == 6) {
+    if (argc >= 6) {
         uint64_t reads, writes;
         store_file_stats(s, &reads, &writes);
         printf(",\"file_base_reads\":%lu,\"file_base_writes\":%lu,\"admission_base_reads\":%lu",

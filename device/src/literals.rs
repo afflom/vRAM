@@ -18,6 +18,13 @@ pub(super) struct Literal {
     live: Arc<AtomicU64>,
 }
 impl Literal {
+    pub(super) fn file_slot(&self) -> Option<&literal_file::Slot> {
+        match &self.payload {
+            Payload::File(slot) => Some(slot),
+            Payload::Memory(_) => None,
+        }
+    }
+
     pub(super) fn read(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
         match &self.payload {
             Payload::Memory(data) => {

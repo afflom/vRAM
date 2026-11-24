@@ -204,3 +204,16 @@ level = "build"
 suite = "capacity"
 statement = "For a completed batch of at least two projection rows the port carries fewer application bytes than repeated scalar calls, and fewer than a single page restore exactly through five rows"
 theorems = ["Performance.batchBelowScalar", "Performance.batchRestoreCrossing"]
+
+[[id]]
+id = "VR-32"
+level = "open"
+suite = "capacity"
+statement = "Within a directory group a range restore reads a maximal run of repeated or consecutive immutable file slots with one exact read, applying each page's residual after expansion"
+
+[[id]]
+id = "VR-33"
+level = "build"
+suite = "capacity"
+statement = "In a compact file run the source starts at the first destination and remains at or before the destination after any repeat or consecutive-slot step, permitting reverse expansion in the output buffer"
+theorems = ["Performance.compactStep", "Performance.compactReverseSafe"]

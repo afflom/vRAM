@@ -9,6 +9,7 @@ uint64_t vram_capacity_ceiling(uint64_t platform_mib, uint64_t guest_mib, uint64
 struct store *store_new(size_t npages);
 /* fd is a private, preallocated, writable file of exactly (npages + 1) pages. */
 struct store *store_new_file(size_t npages, int fd);
+/* Successful exact backing operations. One range read can cover several slots. */
 void store_file_stats(struct store *, uint64_t *reads, uint64_t *writes);
 struct store *store_new_with_search(size_t npages, size_t node_budget);
 struct store *store_new_config(size_t npages, size_t node_budget, bool adaptive);

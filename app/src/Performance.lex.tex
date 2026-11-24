@@ -140,5 +140,19 @@ theorem{
   statement: (((validBatch r t) && (disagree ((batchWireBytes r t) <? 4372) (r <=? 5))) = false),
   proof: linear_arithmetic{definitions: [batchWireBytes, disagree, validBatch]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: nextSource, parameters: [source : Nat, advance : Bool], result: Nat,
+  body: (if advance then (source + 1) else source), executable: true
+}
+theorem{
+  name: compactReverseSafe, parameters: [source : Nat, dest : Nat, later : Nat],
+  statement: (((source <=? dest) && ((dest <? later) && (not (source <? later)))) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: compactStep, parameters: [source : Nat, dest : Nat, advance : Bool],
+  statement: (((source <=? dest) && (not ((nextSource source advance) <=? (dest + 1)))) = false),
+  proof: linear_arithmetic{definitions: [nextSource]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

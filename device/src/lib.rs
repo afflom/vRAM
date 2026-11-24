@@ -800,11 +800,64 @@ pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]
     }
     0
 }
+// Consecutive slots can be read directly into the first destinations. Expand
+// from the end so repeated slots and in-place edits never overwrite a source
+// that a lower destination still needs (Performance.compactStep).
+fn decode_file_run(
+    first: &literal_file::Slot,
+    values: &[Value],
+    pages: &mut [[u8; PAGE]],
+) -> Result<usize, ()> {
+    const { assert!(directory::GROUP <= u8::MAX as usize + 1) }
+    let mut sources = [0u8; directory::GROUP];
+    let mut last_source = 0;
+    let mut count = 1;
+    for value in &values[1..] {
+        let Some(distance) = value
+            .literal_base()
+            .and_then(|base| base.file_slot())
+            .and_then(|slot| slot.distance_from(first))
+        else {
+            break;
+        };
+        if distance != last_source && distance != last_source + 1 {
+            break;
+        }
+        sources[count] = distance as u8;
+        last_source = distance;
+        count += 1;
+    }
+    first
+        .read(pages[..=last_source as usize].as_flattened_mut())
+        .map_err(|_| ())?;
+    for i in (0..count).rev() {
+        let source = usize::from(sources[i]);
+        if source < i {
+            let (before, after) = pages.split_at_mut(i);
+            verdant_tensor::memory::copy_storage_block(&before[source], &mut after[0])
+                .map_err(|_| ())?;
+        }
+        if let Value::Residual(residual) = &values[i] {
+            residual.apply(&mut pages[i]);
+        }
+    }
+    Ok(count)
+}
 // The caller holds a read guard for the entire group. A run can use its first
 // destination as the pristine base until every other page has received a copy.
 fn decode_group(mut values: &[Value], mut pages: &mut [[u8; PAGE]]) -> Result<u64, ()> {
     let mut restores = 0;
     while let Some((first, rest)) = values.split_first() {
+        if rest.is_empty() {
+            first.decode(&mut pages[0])?;
+            return Ok(restores + u64::from(first.selector_base().is_some()));
+        }
+        if let Some(slot) = first.literal_base().and_then(|base| base.file_slot()) {
+            let decoded = decode_file_run(slot, values, pages)?;
+            values = &values[decoded..];
+            pages = &mut pages[decoded..];
+            continue;
+        }
         let (head, tail) = pages.split_first_mut().unwrap();
         if let Some(base) = first.literal_base() {
             base.read(head)?;
