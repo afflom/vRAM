@@ -89,11 +89,11 @@ jobs:
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
-      - name: Check out the 0.5.8 guest benchmark control
+      - name: Check out the 0.5.9 guest benchmark control
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 3f27a941e5e56de6e2ad345527dcf3c85bfe66c8
+          ref: b0d40626a23f69793a04d30c72a38af007a6e08b
           path: measurements/local/control
       - name: Build the control on the same distribution
         run: |
@@ -104,6 +104,15 @@ jobs:
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
           python3 host/package.py dist/
+          dpkg-deb -x dist/vram-host_*.deb "$RUNNER_TEMP/installed"
+          mkdir "$RUNNER_TEMP/reserve-a" "$RUNNER_TEMP/reserve-b"
+          sudo mount -t tmpfs -o size=64m,mode=1777 tmpfs "$RUNNER_TEMP/reserve-a"
+          trap 'sudo umount "$RUNNER_TEMP/reserve-a"' EXIT
+          (ulimit -f 614400
+           "$RUNNER_TEMP/installed/usr/bin/vram-machine" qualify --platform-max-mib 1024 --guest-max-mib 2048 --min-read-mib-s 1 --min-write-mib-s 1 \
+             --backing-dir "$RUNNER_TEMP/reserve-a" --backing-dir "$RUNNER_TEMP/reserve-b" > dist/full-capacity.json)
+          python3 -c 'import json; r=json.load(open("dist/full-capacity.json")); assert r["verified_bytes"] == 2**30 and len(r["reserved"]) == 2 and sum(e["files"] for e in r["reserved"]) == 3 and r["verdict"] == "complete"'
+          node automation/qualification.mjs dist/full-capacity.json
           python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
           python3 host/tests/file_scale.py --control measurements/local/control --result dist/file-range.json

@@ -53,6 +53,10 @@ The three honesty levels (R2):
 | `VR-31` | `build` | For a completed batch of at least two projection rows the port carries fewer application bytes than repeated scalar calls, and fewer than a single page restore exactly through five rows | `Performance.batchBelowScalar`, `Performance.batchRestoreCrossing` |
 | `VR-32` | `open` | Within a directory group a range restore reads a maximal run of repeated or consecutive immutable file slots with one exact read, applying each page's residual after expansion |  |
 | `VR-33` | `build` | In a compact file run the source starts at the first destination and remains at or before the destination after any repeat or consecutive-slot step, permitting reverse expansion in the output buffer | `Performance.compactStep`, `Performance.compactReverseSafe` |
+| `VR-34` | `open` | The installed virtual workstation requests the configured maximum by default and can reserve one Verdant store across backing directories, counting shared filesystem free space once and retaining one replacement page for the whole device |  |
+| `VR-35` | `build` | For aligned backing budgets expressed in pages, assigning as many as fit in the first reserve conserves the requested page count and the remainder fits the second reserve exactly when the pooled budget suffices | `Performance.reserveConservation`, `Performance.reserveFits` |
+| `VR-36` | `open` | An installed capacity qualification writes and verifies every page at the configured maximum through the pooled store and reports elapsed read and write service time for equal verified bytes |  |
+| `VR-37` | `build` | For a common throughput floor, two measured ranges that each meet their required work also meet it in aggregate when their work and service times are summed | `Performance.composeRateFloor`, refuses with `budget` |
 
 ## Cited authorities
 

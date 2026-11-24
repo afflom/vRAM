@@ -290,8 +290,43 @@ static int project_literal_rows(struct store *s)
     return store_project_rows(s, 0, 0, weights, output) < 0;
 }
 
+static int pooled_files(void)
+{
+    enum { N = 5 };
+    int fds[2] = {memfd_create("first", MFD_CLOEXEC | MFD_ALLOW_SEALING),
+                  memfd_create("second", MFD_CLOEXEC | MFD_ALLOW_SEALING)};
+    if (fds[0] < 0 || fds[1] < 0 || ftruncate(fds[0], 3 * PAGE) ||
+        ftruncate(fds[1], 3 * PAGE)) return 0;
+    int alias[2] = {fds[0], fds[0]};
+    if (store_new_files(N, alias, 2) || store_new_files(N + 1, fds, 2)) return 0;
+    struct store *s = store_new_files(N, fds, 2);
+    if (!s) return 0;
+    u8 want[N][PAGE], out[N][PAGE], next[PAGE];
+    for (size_t i = 0; i < N; ++i) expected(39 + i, 'U', want[i]);
+    if (store_write_pages(s, 0, N, want[0])) return 0;
+    uint64_t before, after, writes;
+    store_file_stats(s, &before, &writes);
+    if (store_read_pages(s, 0, N, out[0]) || memcmp(out, want, sizeof(out))) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after - before != 2 || writes != N) return 0;
+    /* Fill the spare in the second file, then reuse the freed first-file slot.
+       The next overwrite needs the now free slot in the sealed second file. */
+    expected(901, 'U', want[0]);
+    expected(902, 'U', want[4]);
+    if (store_put(s, 0, want[0]) || store_put(s, 4, want[4]) ||
+        fcntl(fds[1], F_ADD_SEALS, F_SEAL_WRITE)) return 0;
+    expected(903, 'U', next);
+    if (!store_put(s, 2, next) || store_read_pages(s, 0, N, out[0]) ||
+        memcmp(out, want, sizeof(out))) return 0;
+    store_free(s);
+    close(fds[0]);
+    close(fds[1]);
+    return 1;
+}
+
 int main(void)
 {
+    if (!pooled_files()) { fprintf(stderr, "pooled reserve boundary or rollback failed\n"); return 1; }
     int fd = memfd_create("vram-admission", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0 || ftruncate(fd, (off_t)(PAGES + 1) * PAGE)) return 1;
     struct store *s = store_new_file(PAGES, fd);

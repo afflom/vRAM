@@ -1,0 +1,53 @@
+{
+  "verified_bytes": 4294967296,
+  "request_pages": 64,
+  "write_ns": 6701579539,
+  "read_ns": 517559525,
+  "max_write_request_ns": 153718583,
+  "max_read_request_ns": 2429762,
+  "file_reads": 16384,
+  "file_writes": 1048576,
+  "read_mib_s": 7914.065536712903,
+  "min_read_mib_s": 100,
+  "write_mib_s": 611.1991920954205,
+  "min_write_mib_s": 50,
+  "capacity": {
+    "platform_max_mib": 4096,
+    "platform_source": "configuration",
+    "guest_max_mib": 8192,
+    "guest_source": "configuration",
+    "backing_directory": "/workspace/scratch",
+    "backing_pools": [
+      {
+        "directory": "/workspace/scratch",
+        "budget_bytes": 18949132288,
+        "max_file_bytes": 1610612736
+      }
+    ],
+    "filesystem_available_bytes": 18949132288,
+    "required_backing_bytes": 4294971392,
+    "backing_shortfall_bytes": 0,
+    "reserve_layout": [
+      {
+        "directory": "/workspace/scratch",
+        "bytes": 4294971392,
+        "max_file_bytes": 1610612736,
+        "files": 3
+      }
+    ],
+    "file_budget_bytes": 18949132288,
+    "address_space_limit_bytes": null,
+    "upper_bound_mib": 4096,
+    "configured_target_mib": 4096,
+    "feasible_mib": 4096
+  },
+  "reserved": [
+    {
+      "directory": "/workspace/scratch",
+      "bytes": 4294971392,
+      "files": 3
+    }
+  ],
+  "verdict": "complete",
+  "package_sha256": "ae904107ff096572a4bc37f3799ac5f31d983cad00f712ea7687d947c551db43"
+}

@@ -10,22 +10,28 @@ Get the amd64 package built for your distribution. The Ubuntu 24.04 build is in 
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.5.9_amd64.deb qemu-system-x86 fuse3
+sudo apt install ./vram-host_0.6.0_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Size a virtualized workstation to its configured maximum
 
-Read the capacity report before starting the VM. Supply the libvirt XML for the same guest configuration you intend to boot. The launcher reads its memory limit. Supply the usual QEMU disk, machine and firmware options when launching.
+The installed launcher uses the lower of the firmware maximum and the configured guest ceiling as its default RAM target. On systemd hosts the package publishes the SMBIOS type 16 total at boot so a regular user can read it. Use the domain XML for the OS you intend to boot. Its `maxMemory` sets the guest ceiling, with `memory` as the fallback. You can also supply a documented platform limit with `--platform-max-mib` or a QEMU and guest OS limit with `--guest-max-mib`. An unknown limit is reported as `null` and requires configuration before a maximum-size boot.
 
 ```sh
 vram-machine capacity --domain-xml workstation.xml
-vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib max --domain-xml workstation.xml -- \
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --domain-xml workstation.xml -- \
   -accel kvm -drive file=workstation.qcow2,format=qcow2
 ```
 
-The platform ceiling comes from firmware (SMBIOS type 16 system-memory arrays) or an explicit documented `--platform-max-mib`. The guest ceiling comes from `--guest-max-mib` or the domain's `maxMemory`, falling back to `memory`. Use a ceiling supported by that guest kernel and QEMU machine. Unknown bounds appear as `null`. The report also includes free filesystem bytes, the file-size limit folded into the backing budget, and the process address-space limit. `--backing-dir` selects the filesystem for both commands.
+`capacity` reports the target, the required backing bytes, the planned files and the byte shortfall. The default backing directory is the user cache. To pool disks, repeat `--backing-dir` with an existing directory on each filesystem, using the same options for planning, qualification and launch. The launcher counts each filesystem once and splits reserves at the operating system's per-file limit. It starts QEMU only after securing the full target plus one 4 KiB replacement page. The process address-space limit, actual quotas and QEMU's own mappings also affect admission. `--add-mib` reserves part of the total for hotplug. A numeric `--ram-mib` explicitly sets boot memory.
 
-`max` requests the smaller of the platform and guest ceilings. It fails before launch if that target exceeds the modeled envelope. The final allocation must successfully reserve the entire target plus one 4 KiB replacement slot. Quotas, competing allocations and QEMU's own mappings can further limit admission. With `--add-mib`, the reserved DIMM counts toward the total. Numeric `--ram-mib` continues to specify boot memory.
+To measure this configuration before boot, run the following command while the backing space is free. It temporarily allocates the entire reserve, writes distinct dense pages, verifies every byte and then releases the files. The optional rates below are example requirements in MiB/s. The command prints a JSON receipt and exits unsuccessfully if either floor is missed.
+
+```sh
+vram-machine qualify --domain-xml workstation.xml --min-read-mib-s 100 --min-write-mib-s 50
+```
+
+Rates measure calls to the Verdant store for 64-page sequential requests during this run. The receipt also gives the slowest observed request in each direction. Guest scheduling, changes in storage load, and other access patterns affect application performance.
 
 Version 0.5.9 coalesces DIMM range reads across consecutive backing slots. Ordinary guest memory reads use this automatically. A 1 GiB sequential readback of independent pages took 4,096 backing reads using 64-page requests. [Measurements and verification](docs/device-verification.md#range-reads-across-consecutive-file-slots)
 
@@ -69,7 +75,7 @@ vram-machine grow --state "$XDG_RUNTIME_DIR/workstation"
 
 In the virtualized OS, use `lsmem` and `grep MemTotal /proc/meminfo`. Linux onlines the DIMM according to its memory-hotplug policy. For guests configured to leave new memory offline, use the Linux boot option `memhp_default_state=online`. Repeating `grow` reports the same DIMM. Shut down through the guest normally.
 
-Both memory ranges map into one private Verdant store. Linux manages the shared mappings and their writeback. Verdant can represent a page as a tensor program, reuse a dense base, store its changed coordinates, or keep its exact literal bytes. Unique literal bases use a private, unlinked file. The launcher reserves the configured boot plus expansion capacity and one 4 KiB replacement slot before starting QEMU. The default filesystem is the user's cache directory. Supply `--backing-dir /path/to/local-ssd` to choose another. The operating system needs working DRAM for hot pages, page tables and the store's metadata. Disk reads and writes have storage latency. Guest shutdown releases the reserve.
+Both memory ranges map into one private Verdant store. Linux manages the shared mappings and their writeback. Verdant can represent a page as a tensor program, reuse a dense base, store its changed coordinates, or keep its exact literal bytes. Unique literal bases use the pooled private reserve. The launcher reserves the configured boot plus expansion capacity and one 4 KiB replacement slot before starting QEMU. The default filesystem is the user's cache directory. Supply `--backing-dir /path/to/local-ssd` to choose another. The operating system needs working DRAM for hot pages, page tables and the store's metadata. Disk reads and writes have storage latency. Guest shutdown releases the reserve.
 
 A native store trial wrote and restored 1 GiB of unique pseudorandom pages with a 64 MiB process address-space limit. All 262,144 pages used their own literal slots in the reserved file. Process RSS excludes filesystem page cache. [Independent-page measurement](measurements/file-backed-independent.json) · [Linux hot-add measurement](measurements/linux-virtual-dimm.json)
 
@@ -90,7 +96,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.5.9_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

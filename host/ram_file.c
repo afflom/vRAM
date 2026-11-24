@@ -198,6 +198,8 @@ static bool number(const char *s, uint64_t *out)
     *out = strtoull(s, &end, 10);
     return !errno && !*end;
 }
+#include "qualification.h"
+
 int main(int argc, char **argv)
 {
     if (argc == 3 && !strcmp(argv[1], "--serve-projection"))
@@ -209,8 +211,10 @@ int main(int argc, char **argv)
         printf("%" PRIu64 "\n", vram_capacity_ceiling(boot_mib, dimm_mib, budget));
         return 0;
     }
-    if (argc != 5 || !number(argv[1], &boot_mib) || !boot_mib ||
-        !number(argv[2], &dimm_mib) || sizeof(size_t) < 8 || sysconf(_SC_PAGESIZE) != PAGE)
+    bool qualify = argc >= 4 && !strcmp(argv[1], "--qualify");
+    dimm_mib = 0;
+    if ((!qualify && argc < 5) || !number(argv[qualify ? 2 : 1], &boot_mib) || !boot_mib ||
+        (!qualify && !number(argv[2], &dimm_mib)) || sizeof(size_t) < 8 || sysconf(_SC_PAGESIZE) != PAGE)
         return 2;
     /* Both FUSE extents and the extra replacement slot have signed file offsets. */
     uint64_t max_mib = vram_capacity_ceiling(UINT64_MAX, UINT64_MAX, INT64_MAX);
@@ -218,17 +222,30 @@ int main(int argc, char **argv)
     boot.bytes = boot_mib << 20;
     dimm.bytes = dimm_mib << 20;
     dimm.first = boot.bytes / PAGE;
-    char *end;
-    long fd = strtol(argv[3], &end, 10);
-    if (end == argv[3] || *end || fd < 0 || fd > INT_MAX) return 2;
-    memory = store_new_file((boot.bytes + dimm.bytes) / PAGE, (int)fd);
-    close((int)fd);
+    /* Keep the single-file invocation compatible. Extra reserve descriptors
+       precede the mount path and are ordered by logical slot address. */
+    size_t nfiles = (size_t)argc - (qualify ? 3 : 4);
+    int *fds = calloc(nfiles, sizeof(*fds));
+    if (!fds) return 1;
+    for (size_t i = 0; i < nfiles; ++i) {
+        uint64_t fd;
+        if (!number(argv[3 + i], &fd) || fd > INT_MAX) { free(fds); return 2; }
+        fds[i] = (int)fd;
+    }
+    memory = store_new_files((boot.bytes + dimm.bytes) / PAGE, fds, nfiles);
+    for (size_t i = 0; i < nfiles; ++i) close(fds[i]);
+    free(fds);
     if (!memory) return 1;
+    if (qualify) {
+        int rc = qualify_store(memory, boot.bytes / PAGE);
+        store_free(memory);
+        return rc;
+    }
     const struct fuse_operations ops = { .getattr = attributes, .readdir = list,
         .ioctl = ram_ioctl, .read = ram_read, .write = ram_write, .fsync = ram_sync, .utimens = ram_times, .init = initialize };
     const char *profile = getenv("VRAM_PROFILE_IO");
     profile_io = profile && !strcmp(profile, "1");
-    char *args[] = {argv[0], "-f", "-o", "default_permissions", argv[4]};
+    char *args[] = {argv[0], "-f", "-o", "default_permissions", argv[argc - 1]};
     int rc = fuse_main(5, args, &ops, NULL);
     uint64_t stats[5], disk_reads, disk_writes;
     store_file_stats(memory, &disk_reads, &disk_writes);

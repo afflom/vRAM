@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Boot a guest on Verdant memory and online its reserved DIMM at runtime."""
 import argparse
+from contextlib import ExitStack, contextmanager
 import errno
 import json
 import os
@@ -116,6 +117,48 @@ def dmi_capacity(table):
     return None
 
 
+DMI_TABLE = Path("/sys/firmware/dmi/tables/DMI")
+FIRMWARE_RECORD = Path("/run/vram-platform/capacity.json")
+BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
+
+
+def publish_platform():
+    # systemd creates the root-owned runtime directory. Publish only the
+    # aggregate capacity, atomically, so VM users never need the raw table.
+    total = dmi_capacity(DMI_TABLE.read_bytes())
+    if not total:
+        FIRMWARE_RECORD.unlink(missing_ok=True)
+        return
+    data = json.dumps(dict(boot_id=BOOT_ID.read_text().strip(), platform_max_mib=total))
+    with tempfile.NamedTemporaryFile(mode="w", dir=FIRMWARE_RECORD.parent, delete=False) as tmp:
+        name = Path(tmp.name)
+        try:
+            tmp.write(data)
+            tmp.flush()
+            os.fchmod(tmp.fileno(), 0o644)
+            name.replace(FIRMWARE_RECORD)
+        finally:
+            name.unlink(missing_ok=True)
+
+
+def firmware_capacity():
+    try:
+        return dmi_capacity(DMI_TABLE.read_bytes()), "SMBIOS type 16"
+    except FileNotFoundError:
+        return None, None
+    except PermissionError:
+        pass
+    try:
+        cached = json.loads(FIRMWARE_RECORD.read_text())
+        if isinstance(cached, dict) and cached.get("boot_id") == BOOT_ID.read_text().strip():
+            bound = cached.get("platform_max_mib")
+            if type(bound) is int and 0 < bound < 1 << 64:
+                return bound, "SMBIOS type 16 (boot record)"
+    except (FileNotFoundError, PermissionError, ValueError):
+        pass
+    return None, None
+
+
 def domain_limit(path):
     from xml.etree import ElementTree
     try:
@@ -138,10 +181,60 @@ def domain_limit(path):
     return int(element.text or "") * units[unit] // MIB
 
 
-def backing_path(args):
-    if args.backing_dir is not None:
-        return args.backing_dir
-    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "vram"
+def backing_pools(args):
+    default = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "vram"
+    paths = dict.fromkeys(p.resolve() for p in (args.backing_dir or [default]))
+    limit = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
+    per_file = MAX_OFFSET if limit == resource.RLIM_INFINITY else min(limit, MAX_OFFSET)
+    pools = []
+    available = {}
+    per_file = per_file // 4096 * 4096
+    nofile = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+    # Each live extent requires a descriptor. This is an upper bound; actual
+    # opens and the filesystem reservations must all succeed before launch.
+    files_left = MAX_OFFSET if nofile == resource.RLIM_INFINITY else nofile
+    for path in paths:
+        existing = path
+        if args.backing_dir and not path.is_dir():
+            raise ValueError(f"backing directory does not exist: {path}")
+        while not existing.exists():
+            existing = existing.parent
+        dev = existing.stat().st_dev
+        fs = os.statvfs(existing)
+        free = fs.f_bavail * fs.f_frsize
+        # Bind mounts and sibling directories can draw on the same free blocks.
+        if dev in available:
+            continue
+        available[dev] = free
+        pools.append(dict(directory=str(path), budget_bytes=0, max_file_bytes=per_file))
+    if per_file:
+        tails = []
+        for pool, free in zip(pools, available.values()):
+            full, tail = divmod(free // 4096 * 4096, per_file)
+            count = min(full, files_left)
+            pool["budget_bytes"] = count * per_file
+            files_left -= count
+            if tail:
+                tails.append((tail, pool))
+        # Under a descriptor limit, the largest partial extents contribute the
+        # most bytes. The subsequent placement retains directory preference.
+        for tail, pool in sorted(tails, key=lambda pair: -pair[0])[:files_left]:
+            pool["budget_bytes"] += tail
+    return pools, sum(available.values())
+
+
+def reserve_layout(pools, required):
+    layout = []
+    for pool in pools:
+        size = min(required, pool["budget_bytes"])
+        if size:
+            limit = pool["max_file_bytes"]
+            layout.append(dict(directory=pool["directory"], bytes=size, max_file_bytes=min(limit, size),
+                               files=(size + limit - 1) // limit))
+            required -= size
+        if not required:
+            break
+    return layout, required
 
 
 def ceiling(platform, guest, backing):
@@ -153,24 +246,15 @@ def ceiling(platform, guest, backing):
 
 
 def capacity(args):
-    backing = backing_path(args).resolve()
-    existing = backing
-    while not existing.exists():
-        existing = existing.parent
-    fs = os.statvfs(existing)
-    available = fs.f_bavail * fs.f_frsize
-    fsize = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
+    pools, available = backing_pools(args)
     address = resource.getrlimit(resource.RLIMIT_AS)[0]
-    budget = min(available, MAX_OFFSET, fsize if fsize != resource.RLIM_INFINITY else MAX_OFFSET)
+    budget = min(MAX_OFFSET, sum(pool["budget_bytes"] for pool in pools))
     platform = args.platform_max_mib
     source = "configuration" if platform is not None else None
     if platform is None:
-        try:
-            platform = dmi_capacity(Path("/sys/firmware/dmi/tables/DMI").read_bytes())
-        except (FileNotFoundError, PermissionError):
-            pass
-        if platform is not None:
-            source = "SMBIOS type 16"
+        platform, source = firmware_capacity()
+        if platform is None:
+            source = None
     guest = domain_limit(args.domain_xml) if args.domain_xml is not None else args.guest_max_mib
     for bound in (platform, guest):
         if bound is not None and not 0 < bound <= (1 << 64) - 1:
@@ -181,20 +265,121 @@ def capacity(args):
     unlimited = (1 << 64) - 1
     upper = ceiling(platform or unlimited, min(guest or unlimited, os_bound), budget)
     known = platform is not None and guest is not None
+    target = min(platform, guest) if known else None
+    required = target * MIB + 4096 if known else None
+    layout, shortfall = reserve_layout(pools, required) if known else (None, None)
     return dict(platform_max_mib=platform, platform_source=source, guest_max_mib=guest,
                 guest_source=("domain XML" if args.domain_xml else "configuration") if guest else None,
-                backing_directory=str(backing), filesystem_available_bytes=available,
+                backing_directory=pools[0]["directory"], backing_pools=pools, filesystem_available_bytes=available,
+                required_backing_bytes=required, backing_shortfall_bytes=shortfall, reserve_layout=layout,
                 file_budget_bytes=budget, address_space_limit_bytes=None if address == resource.RLIM_INFINITY else address,
-                upper_bound_mib=upper, configured_target_mib=min(platform, guest) if known else None,
+                upper_bound_mib=upper, configured_target_mib=target,
                 feasible_mib=upper if known else None)
 
 
 def sizing_options(parser):
-    parser.add_argument("--backing-dir", type=Path, help="filesystem used for the dense-page reserve")
+    parser.add_argument("--backing-dir", type=Path, action="append", help="reserve directory, repeat to pool capacity in order")
     parser.add_argument("--platform-max-mib", type=int, help="documented platform maximum, overriding SMBIOS")
     guest = parser.add_mutually_exclusive_group()
     guest.add_argument("--guest-max-mib", type=int, help="configured QEMU and guest OS limit in MiB")
     guest.add_argument("--domain-xml", type=Path, help="read the configured guest ceiling from a libvirt domain XML")
+
+
+def full_target(plan):
+    total = plan["configured_target_mib"]
+    if total is None:
+        raise ValueError("max needs a known platform and guest limit; inspect vram-machine capacity")
+    if plan["feasible_mib"] != total:
+        raise ValueError(f"configured target {total} MiB exceeds the current bound of {plan['feasible_mib']} MiB"
+                         f" (backing shortfall {plan['backing_shortfall_bytes']} bytes)")
+    return total
+
+
+def reserve_prefix(fd, requested):
+    # Some quotas and filesystem-specific file limits are visible only to
+    # fallocate. Retain the largest successful page-aligned prefix.
+    limited = (errno.ENOSPC, errno.EDQUOT, errno.EFBIG)
+    try:
+        os.posix_fallocate(fd, 0, requested)
+        return requested, None
+    except OSError as err:
+        if err.errno not in limited:
+            raise
+        reason = err.errno
+    os.ftruncate(fd, 0)
+    lo, hi = 0, requested // 4096
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        try:
+            os.posix_fallocate(fd, lo * 4096, (mid - lo) * 4096)
+            lo = mid
+        except OSError as err:
+            if err.errno not in limited:
+                raise
+            os.ftruncate(fd, lo * 4096)
+            hi = mid
+            reason = err.errno
+    os.ftruncate(fd, lo * 4096)
+    return lo * 4096, reason
+
+
+@contextmanager
+def open_reserves(args, pools, required):
+    with ExitStack() as stack:
+        fds, actual = [], []
+        for pool in pools:
+            wanted = min(required, pool["budget_bytes"])
+            if not wanted:
+                continue
+            directory = Path(pool["directory"])
+            if args.backing_dir is None:
+                directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+            count = allocated = 0
+            limit = pool["max_file_bytes"]
+            while allocated < wanted:
+                reserve = stack.enter_context(tempfile.TemporaryFile(dir=directory))
+                size, err = reserve_prefix(reserve.fileno(), min(wanted - allocated, limit))
+                if not size:
+                    reserve.close()
+                    break
+                count += 1
+                fds.append(reserve.fileno())
+                allocated += size
+                if err == errno.EFBIG:
+                    limit = size
+                elif err is not None:
+                    break
+            if allocated:
+                actual.append(dict(directory=str(directory), bytes=allocated, files=count))
+                required -= allocated
+            if not required:
+                break
+        if required:
+            raise ValueError(f"capacity mismatch: reservation short by {required} bytes")
+        yield fds, actual
+
+
+def qualify(args):
+    if min(args.min_read_mib_s, args.min_write_mib_s) < 0:
+        raise ValueError("minimum rates must be nonnegative")
+    plan = capacity(args)
+    target = full_target(plan)
+    with open_reserves(args, plan["backing_pools"], plan["required_backing_bytes"]) as (fds, actual):
+        run = subprocess.run([HELPER, "--qualify", str(target), *map(str, fds)], pass_fds=fds, stdout=subprocess.PIPE)
+        if run.returncode:
+            raise RuntimeError(f"full-capacity qualification failed (status {run.returncode})")
+    result = json.loads(run.stdout)
+    if result["verified_bytes"] != target * MIB:
+        raise RuntimeError("failed readback")
+    passed = True
+    for op, floor in (("read", args.min_read_mib_s), ("write", args.min_write_mib_s)):
+        ns = result[op + "_ns"]
+        result[op + "_mib_s"] = target * 10**9 / ns
+        result["min_" + op + "_mib_s"] = floor
+        passed &= target * 10**9 >= floor * ns
+    result.update(capacity=plan, reserved=actual, verdict="complete" if passed else "budget")
+    print(json.dumps(result, indent=2))
+    return 0 if passed else 1
 
 
 def run(args):
@@ -205,13 +390,10 @@ def run(args):
         raise ValueError("the projection port needs a reserved DIMM (--add-mib)")
     if args.add_mib < 0:
         raise ValueError("DIMM size must be nonnegative")
+    plan = None
     if args.ram_mib == "max":
         plan = capacity(args)
-        total = plan["configured_target_mib"]
-        if total is None:
-            raise ValueError("max needs a known platform and guest limit; inspect vram-machine capacity")
-        if plan["feasible_mib"] != total:
-            raise ValueError(f"configured target {total} MiB exceeds the current bound of {plan['feasible_mib']} MiB")
+        total = full_target(plan)
         args.ram_mib = total - args.add_mib
     else:
         args.ram_mib = int(args.ram_mib)
@@ -221,6 +403,10 @@ def run(args):
                 raise ValueError("requested RAM exceeds the configured capacity envelope")
     if args.ram_mib < 1 or total > ceiling(MAX_OFFSET, MAX_OFFSET, MAX_OFFSET):
         raise ValueError("boot RAM must be positive and its backing reserve must fit signed file offsets")
+    pools = plan["backing_pools"] if plan else backing_pools(args)[0]
+    _, missing = reserve_layout(pools, total * MIB + 4096)
+    if missing:
+        raise ValueError(f"capacity mismatch: backing shortfall {missing} bytes")
     state = args.state.resolve()
     if "," in str(state) or len(os.fsencode(state / "qmp")) >= 108:
         raise ValueError("use a shorter state path without commas")
@@ -237,14 +423,11 @@ def run(args):
     old = {sig: signal.signal(sig, forward) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
         mount.mkdir(mode=0o700)
-        backing = backing_path(args)
-        if args.backing_dir is None:
-            backing.mkdir(mode=0o700, parents=True, exist_ok=True)
-        with tempfile.TemporaryFile(dir=backing) as reserve:
-            os.posix_fallocate(reserve.fileno(), 0, ((args.ram_mib + args.add_mib) << 20) + 4096)
+        with open_reserves(args, pools, total * MIB + 4096) as (fds, actual):
             server = subprocess.Popen([HELPER, str(args.ram_mib), str(args.add_mib),
-                                       str(reserve.fileno()), mount], pass_fds=(reserve.fileno(),),
-                                      start_new_session=True)
+                                       *map(str, fds), mount], pass_fds=fds, start_new_session=True)
+        print("VRAM_CAPACITY " + json.dumps(dict(total_mib=total, boot_mib=args.ram_mib,
+              dimm_mib=args.add_mib, reserved=actual)), file=sys.stderr, flush=True)
         deadline = time.monotonic() + 20
         while not (mount / "boot").exists():
             if server.poll() is not None or time.monotonic() > deadline:
@@ -319,23 +502,33 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("publish-platform", help="refresh the firmware capacity record for this boot")
     launch = commands.add_parser("run", help="start a VM on Verdant RAM")
     launch.add_argument("--state", type=Path, required=True, help="private runtime directory to create")
-    launch.add_argument("--ram-mib", required=True, help="boot MiB, or max for the configured total less the reserved DIMM")
+    launch.add_argument("--ram-mib", default="max", help="boot MiB, or max for the configured total less the reserved DIMM")
     launch.add_argument("--add-mib", type=int, default=0, help="reserve this much hot-pluggable RAM")
     launch.add_argument("--projection", action="store_true", help="attach the DIMM projection virtio port")
     sizing_options(launch)
     inspect = commands.add_parser("capacity", help="report capacity bounds without reserving storage")
     sizing_options(inspect)
+    probe = commands.add_parser("qualify", help="reserve, write and verify the entire configured target")
+    sizing_options(probe)
+    probe.add_argument("--min-read-mib-s", type=int, default=0)
+    probe.add_argument("--min-write-mib-s", type=int, default=0)
     launch.add_argument("--qemu", default="qemu-system-x86_64")
     launch.add_argument("options", nargs=argparse.REMAINDER, help="QEMU guest, disk and accelerator options after --")
     add = commands.add_parser("grow", help="plug the reserved DIMM into the running VM")
     add.add_argument("--state", type=Path, required=True)
     args = parser.parse_args()
     try:
+        if args.command == "publish-platform":
+            publish_platform()
+            return 0
         if args.command == "capacity":
             print(json.dumps(capacity(args), indent=2))
             return 0
+        if args.command == "qualify":
+            return qualify(args)
         if args.command == "grow":
             grow(args.state)
             return 0

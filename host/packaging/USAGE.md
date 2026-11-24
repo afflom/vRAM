@@ -11,25 +11,31 @@ vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib 4096 --add-mib
 
 Run `vram-machine grow --state "$XDG_RUNTIME_DIR/workstation"` in a second terminal. Linux applications use the additional online System RAM through normal allocations. Check `lsmem` and `/proc/meminfo` inside the guest. The Linux boot option `memhp_default_state=online` selects automatic onlining. To have the entire capacity available from boot, set `--ram-mib 8192` and omit `--add-mib`.
 
-The launcher reserves the configured total plus 4 KiB in an unlinked temporary file before boot. Unique dense literal bases use that file. Choose a local disk with sufficient free space using `--backing-dir DIRECTORY` or use the default user cache. Active pages, kernel cache and model metadata consume hypervisor RAM. Shut down the guest normally to release the temporary file and mount. The guest's VM disk holds persistent data. Like other volatile memory, this device loses its contents if the memory server or machine stops.
+The launcher reserves the configured total plus 4 KiB in private unlinked files before boot. Unique dense literal bases use those files. Choose a local disk with sufficient free space using `--backing-dir DIRECTORY` or use the default user cache. Active pages, kernel cache and model metadata consume hypervisor RAM. Shut down the guest normally to release the temporary file and mount. The guest's VM disk holds persistent data. Like other volatile memory, this device loses its contents if the memory server or machine stops.
 
 ### Size a virtualized workstation to its configured maximum
 
-Read the capacity report before starting the VM. Supply the libvirt XML for the same guest configuration you intend to boot. The launcher reads its memory limit. Supply the usual QEMU disk, machine and firmware options when launching.
+The installed launcher uses the lower of the firmware maximum and the configured guest ceiling as its default RAM target. On systemd hosts the package publishes the SMBIOS type 16 total at boot so a regular user can read it. Use the domain XML for the OS you intend to boot. Its `maxMemory` sets the guest ceiling, with `memory` as the fallback. You can also supply a documented platform limit with `--platform-max-mib` or a QEMU and guest OS limit with `--guest-max-mib`. An unknown limit is reported as `null` and requires configuration before a maximum-size boot.
 
 ```sh
 vram-machine capacity --domain-xml workstation.xml
-vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib max --domain-xml workstation.xml -- \
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --domain-xml workstation.xml -- \
   -accel kvm -drive file=workstation.qcow2,format=qcow2
 ```
 
-The platform ceiling comes from firmware (SMBIOS type 16 system-memory arrays) or an explicit documented `--platform-max-mib`. The guest ceiling comes from `--guest-max-mib` or the domain's `maxMemory`, falling back to `memory`. Use a ceiling supported by that guest kernel and QEMU machine. Unknown bounds appear as `null`. The report also includes free filesystem bytes, the file-size limit folded into the backing budget, and the process address-space limit. `--backing-dir` selects the filesystem for both commands.
+`capacity` reports the target, the required backing bytes, the planned files and the byte shortfall. The default backing directory is the user cache. To pool disks, repeat `--backing-dir` with an existing directory on each filesystem, using the same options for planning, qualification and launch. The launcher counts each filesystem once and splits reserves at the operating system's per-file limit. It starts QEMU only after securing the full target plus one 4 KiB replacement page. The process address-space limit, actual quotas and QEMU's own mappings also affect admission. `--add-mib` reserves part of the total for hotplug. A numeric `--ram-mib` explicitly sets boot memory.
 
-`max` requests the smaller of the platform and guest ceilings. It fails before launch if that target exceeds the modeled envelope. The final allocation must successfully reserve the entire target plus one 4 KiB replacement slot. Quotas, competing allocations and QEMU's own mappings can further limit admission. With `--add-mib`, the reserved DIMM counts toward the total. Numeric `--ram-mib` continues to specify boot memory.
+To measure this configuration before boot, run the following command while the backing space is free. It temporarily allocates the entire reserve, writes distinct dense pages, verifies every byte and then releases the files. The optional rates below are example requirements in MiB/s. The command prints a JSON receipt and exits unsuccessfully if either floor is missed.
+
+```sh
+vram-machine qualify --domain-xml workstation.xml --min-read-mib-s 100 --min-write-mib-s 50
+```
+
+Rates measure calls to the Verdant store for 64-page sequential requests during this run. The receipt also gives the slowest observed request in each direction. Guest scheduling, changes in storage load, and other access patterns affect application performance.
 
 ## Directly booted Linux swap
 
-The package installs an amd64 server and a systemd service template. Services are enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.
+The package installs an amd64 server and a systemd service template. The swap service is enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.
 
 1. Check whether Linux zswap is active with `cat /sys/module/zswap/parameters/enabled`. vRAM can start when this reads N or the parameter is absent. If you choose to switch from zswap, use your distribution's boot configuration to set `zswap.enabled=0` and reboot. Existing ordinary swap devices can stay enabled.
 2. Start vRAM with `sudo systemctl enable --now vram@nbd0.service`. This loads NBD, attaches the Verdant store and activates swap at priority 100. The service reports readiness after swapon succeeds.

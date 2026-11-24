@@ -217,3 +217,31 @@ level = "build"
 suite = "capacity"
 statement = "In a compact file run the source starts at the first destination and remains at or before the destination after any repeat or consecutive-slot step, permitting reverse expansion in the output buffer"
 theorems = ["Performance.compactStep", "Performance.compactReverseSafe"]
+
+[[id]]
+id = "VR-34"
+level = "open"
+suite = "capacity"
+statement = "The installed virtual workstation requests the configured maximum by default and can reserve one Verdant store across backing directories, counting shared filesystem free space once and retaining one replacement page for the whole device"
+
+[[id]]
+id = "VR-35"
+level = "build"
+suite = "capacity"
+statement = "For aligned backing budgets expressed in pages, assigning as many as fit in the first reserve conserves the requested page count and the remainder fits the second reserve exactly when the pooled budget suffices"
+theorems = ["Performance.reserveConservation", "Performance.reserveFits"]
+
+[[id]]
+id = "VR-36"
+level = "open"
+suite = "capacity"
+statement = "An installed capacity qualification writes and verifies every page at the configured maximum through the pooled store and reports elapsed read and write service time for equal verified bytes"
+
+[[id]]
+id = "VR-37"
+level = "build"
+suite = "capacity"
+statement = "For a common throughput floor, two measured ranges that each meet their required work also meet it in aggregate when their work and service times are summed"
+theorems = ["Performance.composeRateFloor"]
+failure = "budget"
+negative = "VR-37"

@@ -387,14 +387,29 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
 /// preallocated regular file. The caller keeps ownership of the input fd.
 #[no_mangle]
 pub unsafe extern "C" fn store_new_file(count: usize, fd: c_int) -> *mut Store {
+    store_new_files(count, &fd, 1)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_new_files(count: usize, fds: *const c_int, n: usize) -> *mut Store {
     use std::os::fd::BorrowedFd;
-    if fd < 0 {
+    if fds.is_null() || n == 0 || n > isize::MAX as usize / size_of::<c_int>() {
         return ptr::null_mut();
     }
-    let Ok(owned) = BorrowedFd::borrow_raw(fd).try_clone_to_owned() else {
+    let mut files = Vec::new();
+    if files.try_reserve(n).is_err() {
         return ptr::null_mut();
-    };
-    let Some(arena) = literal_file::Arena::new(owned.into(), count) else {
+    }
+    for &fd in slice::from_raw_parts(fds, n) {
+        if fd < 0 {
+            return ptr::null_mut();
+        }
+        let Ok(owned) = BorrowedFd::borrow_raw(fd).try_clone_to_owned() else {
+            return ptr::null_mut();
+        };
+        files.push(owned.into());
+    }
+    let Some(arena) = literal_file::Arena::from_files(files, count) else {
         return ptr::null_mut();
     };
     let store = store_new(count);
@@ -810,6 +825,7 @@ fn decode_file_run(
 ) -> Result<usize, ()> {
     const { assert!(directory::GROUP <= u8::MAX as usize + 1) }
     let mut sources = [0u8; directory::GROUP];
+    let limit = first.remaining_slots();
     let mut last_source = 0;
     let mut count = 1;
     for value in &values[1..] {
@@ -820,7 +836,7 @@ fn decode_file_run(
         else {
             break;
         };
-        if distance != last_source && distance != last_source + 1 {
+        if distance >= limit || (distance != last_source && distance != last_source + 1) {
             break;
         }
         sources[count] = distance as u8;

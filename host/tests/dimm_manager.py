@@ -3,13 +3,22 @@ import json
 import mmap
 import struct
 import os
+import resource
 from pathlib import Path
 import subprocess
 
 
 def exercise(cli, state, qemu, bios, kernel, initrd, accelerator):
-    command = [cli, "run", "--qemu", qemu, "--backing-dir", state.parent, "--state", state,
-               "--ram-mib", "max", "--platform-max-mib", "512", "--guest-max-mib", "320",
+    sizing = ["--platform-max-mib", "512", "--guest-max-mib", "320",
+              "--backing-dir", state.parent]
+    def limit_file():
+        resource.setrlimit(resource.RLIMIT_FSIZE, (192 << 20, 192 << 20))
+    plan = json.loads(subprocess.check_output([cli, "capacity", *sizing], preexec_fn=limit_file))
+    if ([(e["files"], e["bytes"], e["max_file_bytes"]) for e in plan["reserve_layout"]] != [(2, (320 << 20) + 4096, 192 << 20)]
+            or plan["feasible_mib"] != 320):
+        raise ValueError("installed launcher did not plan both backing files")
+    print("CAPACITY_PLAN " + json.dumps(plan), flush=True)
+    command = [cli, "run", "--qemu", qemu, "--state", state, *sizing,
                "--add-mib", "128", "--projection", "--", "-accel", accelerator, *(["-L", bios] if bios else []),
                "-kernel", kernel, "-initrd", initrd, "-append",
                "console=ttyS0 quiet nokaslr nmi_watchdog=0 rdinit=/init memhp_default_state=online panic=-1",
@@ -17,7 +26,7 @@ def exercise(cli, state, qemu, bios, kernel, initrd, accelerator):
     def grow():
         return json.loads(subprocess.check_output([cli, "grow", "--state", state]))
 
-    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as child:
+    with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, preexec_fn=limit_file) as child:
         try:
             for line in child.stdout:
                 print(line.rstrip(), flush=True)

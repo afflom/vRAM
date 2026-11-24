@@ -1,6 +1,7 @@
 \begin{lexlean}{Performance}
 \useglossary{lexlean.std.bool@1.2.0}
 \useglossary{lexlean.std.nat@1.2.0}
+\importmodule{CapacityPolicy}
 \title{Natural number}
 \begin{semanticmodule}
 definition{
@@ -153,6 +154,33 @@ theorem{
   name: compactStep, parameters: [source : Nat, dest : Nat, advance : Bool],
   statement: (((source <=? dest) && (not ((nextSource source advance) <=? (dest + 1)))) = false),
   proof: linear_arithmetic{definitions: [nextSource]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+definition{
+  name: reserveRemainder, parameters: [need : Nat, available : Nat], result: Nat,
+  body: (prim subtract need (CapacityPolicy::smaller need available) : Nat), executable: true
+}
+theorem{
+  name: reserveConservation, parameters: [n : Nat, a : Nat],
+  statement: (((CapacityPolicy::smaller n a) + (reserveRemainder n a)) = n),
+  proof: linear_arithmetic{definitions: [CapacityPolicy::smaller, reserveRemainder]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: reserveFits, parameters: [n : Nat, a : Nat, b : Nat],
+  statement: (((((reserveRemainder n a) <=? b) && (not (n <=? (a + b)))) || ((n <=? (a + b)) && (not ((reserveRemainder n a) <=? b)))) = false),
+  proof: linear_arithmetic{definitions: [CapacityPolicy::smaller, reserveRemainder]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+definition{
+  name: coversWork, parameters: [supplied : Nat, required : Nat], result: Bool,
+  body: (required <=? supplied), executable: true
+}
+definition{
+  name: rateFloor, parameters: [mib : Nat, ns : Nat, floor : Nat], result: Bool,
+  body: (coversWork (prim multiply mib 1000000000 : Nat) (prim multiply ns floor : Nat)), executable: true
+}
+theorem{
+  name: composeRateFloor, parameters: [a : Nat, b : Nat, x : Nat, y : Nat],
+  statement: (((coversWork a x) && ((coversWork b y) && (not (coversWork (a + b) (x + y))))) = false),
+  proof: linear_arithmetic{definitions: [coversWork]}, axioms: [Classical.choice, Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -93,8 +93,13 @@ with tempfile.TemporaryDirectory() as folder:
             or not store["file_base_writes"] or not store["file_base_reads"]
             or guest["verified_on_dimm_bytes"] < 1 << 20):
         raise RuntimeError("missing Linux or Verdant memory traffic")
-    result = dict(guest=guest, store=store, dimm_mib=128, initial_mib=192,
-                  sizing="max", platform_max_mib=512, guest_max_mib=320,
+    live = row("VRAM_CAPACITY")
+    if (live["total_mib"] != 320 or live["boot_mib"] != 192 or live["dimm_mib"] != 128 or
+            sum(x["bytes"] for x in live["reserved"]) != (320 << 20) + 4096 or
+            sum(x["files"] for x in live["reserved"]) != 2):
+        raise RuntimeError("actual capacity reservation differs from target")
+    result = dict(capacity_admission=live, guest=guest, store=store, dimm_mib=128, initial_mib=192,
+                  sizing="max", capacity_plan=row("CAPACITY_PLAN"), platform_max_mib=512, guest_max_mib=320,
                   acceleration="KVM on emulated AMD SVM" if args.svm_modules else (cmd[-1].upper() if args.native else "nested TCG"),
                   qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
                   kernel=args.kernel.name, package_sha256=digest)

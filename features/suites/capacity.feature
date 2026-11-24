@@ -245,3 +245,39 @@ Feature: capacity
     Given the source and destination start at zero and each destination advances one page
     When the next source repeats or advances one slot
     Then its index stays at or before the destination so later destinations can be written first
+
+  @VR-34 @open
+  Scenario: Boot to the configured ceiling with two bounded backing files
+    Given the hardware and OS configuration define a target and no individual file can hold the reserve
+    When the supplied directories together can reserve that target plus its replacement page
+    Then the launcher starts at the configured total using one Verdant store covering both files
+
+  @VR-35 @build
+  Scenario: Split a required page count across backing volumes
+    Given a first volume can hold three pages and a second can hold two
+    When the device reserves five pages including its replacement slot
+    Then the first reserve contributes three and the remaining two fit exactly
+
+  @VR-36 @open
+  Scenario: Qualify a workstation at its configured maximum
+    Given backing for every page in the configured target and one replacement slot
+    When the installed qualification writes distinct dense pages and reads the whole target
+    Then every byte is verified and separate read and write rates cover the full target
+
+  @VR-34 @open
+  Scenario: Discover firmware capacity as the workstation user
+    Given only root can read the SMBIOS table and the boot service has published its numeric capacity
+    When the workstation user requests a capacity report
+    Then the launcher can use the current boot's firmware maximum without exposing the table
+
+  @VR-37 @build
+  Scenario: Combine full-capacity service measurements
+    Given each range supplies at least the work required by its measured time and the common throughput floor
+    When both ranges contribute their work and time to the whole-device measurement
+    Then the combined work satisfies the combined requirement
+
+  @VR-37 @build @rejects
+  Scenario: Refuse an unmet full-capacity throughput floor
+    Given a verified one MiB extent and a one MiB per second read floor
+    When reading takes one nanosecond longer than a second
+    Then qualification returns "budget"

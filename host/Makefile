@@ -19,7 +19,7 @@ build/vram-scale: $(DEVICE)/validation/scale.c $(DEVICE)/validation/capacity_pat
 FUSE_CFLAGS ?= $(shell pkg-config --cflags fuse3)
 FUSE_LIBS ?= $(shell pkg-config --libs fuse3)
 
-build/vram-ram-file: ram_file.c projection.c projection_ioctl.h projection.h $(DEVICE)/native/pager.h runtime
+build/vram-ram-file: ram_file.c qualification.h projection.c projection_ioctl.h projection.h $(DEVICE)/native/pager.h runtime
 	mkdir -p build
 	$(CC) $(CFLAGS) -Wall -Wextra -O2 $(FUSE_CFLAGS) -I$(DEVICE)/native $< projection.c $(LIB) $(RAM_FILE_LDFLAGS) $(FUSE_LIBS) $(LDLIBS) -o $@
 
@@ -33,6 +33,9 @@ install:
 
 # A local source installation keeps the administrator's existing configuration.
 install-service: install
+	install -d $(DESTDIR)/etc/systemd/system/multi-user.target.wants
+	sed 's|/usr/bin/vram-machine|$(PREFIX)/bin/vram-machine|' packaging/vram-platform.service > $(DESTDIR)/etc/systemd/system/vram-platform.service
+	ln -sf ../vram-platform.service $(DESTDIR)/etc/systemd/system/multi-user.target.wants/vram-platform.service
 	install -d $(DESTDIR)/etc/systemd/system $(DESTDIR)/etc/default
 	sed 's|/usr/sbin/vram-host|$(PREFIX)/sbin/vram-host|' packaging/vram@.service > $(DESTDIR)/etc/systemd/system/vram@.service.new
 	chmod 644 $(DESTDIR)/etc/systemd/system/vram@.service.new

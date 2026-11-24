@@ -3,7 +3,7 @@
 use super::PAGE;
 use std::fs::File;
 use std::io;
-use std::os::unix::fs::FileExt;
+use std::os::unix::fs::{FileExt, MetadataExt};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -79,9 +79,15 @@ impl Slots {
     }
 }
 
+struct Extent {
+    file: File,
+    first: u64,
+    end: u64,
+}
+
 pub(super) struct Arena {
     pub(super) profile: Option<Arc<super::io_profile::Profile>>,
-    file: File,
+    extents: Box<[Extent]>,
     capacity: u64,
     slots: Mutex<Slots>,
     pub(super) reads: AtomicU64,
@@ -94,15 +100,34 @@ pub(super) struct Slot {
 }
 
 impl Arena {
+    #[cfg(test)]
     pub(super) fn new(file: File, pages: usize) -> Option<Arc<Self>> {
-        // The previous page remains valid until its replacement commits.
+        Self::from_files(vec![file], pages)
+    }
+
+    pub(super) fn from_files(files: Vec<File>, pages: usize) -> Option<Arc<Self>> {
         let capacity = (pages as u64).checked_add(1)?;
-        let metadata = file.metadata().ok()?;
-        if !metadata.is_file() || metadata.len() != capacity.checked_mul(PAGE as u64)? {
+        let mut extents = Vec::new();
+        let mut identities = std::collections::HashSet::new();
+        let mut first = 0u64;
+        for file in files {
+            let meta = file.metadata().ok()?;
+            if !meta.is_file()
+                || meta.len() == 0
+                || meta.len() % PAGE as u64 != 0
+                || !identities.insert((meta.dev(), meta.ino()))
+            {
+                return None;
+            }
+            let end = first.checked_add(meta.len() / PAGE as u64)?;
+            extents.push(Extent { file, first, end });
+            first = end;
+        }
+        if first != capacity {
             return None;
         }
         Some(Arc::new(Self {
-            file,
+            extents: extents.into_boxed_slice(),
             capacity,
             slots: Mutex::default(),
             profile: (std::env::var_os("VRAM_PROFILE_IO").as_deref()
@@ -113,13 +138,18 @@ impl Arena {
         }))
     }
 
+    fn extent(&self, index: u64) -> &Extent {
+        &self.extents[self.extents.partition_point(|e| e.end <= index)]
+    }
+
     pub(super) fn store(self: &Arc<Self>, bytes: &[u8; PAGE]) -> Option<Slot> {
         let mut slots = self.slots.lock().unwrap();
         let index = slots.vacant(self.capacity)?;
         // A partial write or ledger allocation failure affects only an unowned
         // slot. Its bytes are overwritten in full before a reader can see it.
         super::io_profile::measured(self.profile.as_ref().map(|p| &p.pwrite_ns), || {
-            self.file.write_all_at(bytes, index * PAGE as u64)
+            let e = self.extent(index);
+            e.file.write_all_at(bytes, (index - e.first) * PAGE as u64)
         })
         .ok()?;
         slots.claim(index, self.capacity)?;
@@ -132,11 +162,16 @@ impl Arena {
 
     pub(super) fn metadata_bytes(&self) -> usize {
         std::mem::size_of::<Self>()
+            + std::mem::size_of_val(&*self.extents)
             + self.slots.lock().unwrap().words.capacity() * std::mem::size_of::<SlotWord>()
     }
 }
 
 impl Slot {
+    pub(super) fn remaining_slots(&self) -> u64 {
+        self.arena.extent(self.index).end - self.index
+    }
+
     pub(super) fn distance_from(&self, first: &Self) -> Option<u64> {
         if !Arc::ptr_eq(&self.arena, &first.arena) {
             return None;
@@ -147,9 +182,9 @@ impl Slot {
     // Range callers hold all participating slots through the directory read guard.
     pub(super) fn read(&self, bytes: &mut [u8]) -> io::Result<()> {
         super::io_profile::measured(self.arena.profile.as_ref().map(|p| &p.pread_ns), || {
-            self.arena
-                .file
-                .read_exact_at(bytes, self.index * PAGE as u64)
+            let e = self.arena.extent(self.index);
+            e.file
+                .read_exact_at(bytes, (self.index - e.first) * PAGE as u64)
         })?;
         self.arena.reads.fetch_add(1, Ordering::Relaxed);
         Ok(())

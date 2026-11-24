@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory() as directory:
         ("projection.h", "usr/include/vram/projection.h", 0o644),
         ("vram-machine", "usr/bin/vram-machine", 0o755),
         ("build/vram-host", "usr/sbin/vram-host", 0o755),
+        ("packaging/vram-platform.service", "usr/lib/systemd/system/vram-platform.service", 0o644),
         ("packaging/vram@.service", "usr/lib/systemd/system/vram@.service", 0o644),
         ("packaging/vram.default", "etc/default/vram", 0o644),
         ("packaging/USAGE.md", "usr/share/doc/vram-host/README.md", 0o644),
@@ -25,6 +26,9 @@ with tempfile.TemporaryDirectory() as directory:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(host / source, target)
         target.chmod(mode)
+    wants = root / "usr/lib/systemd/system/multi-user.target.wants"
+    wants.mkdir()
+    (wants / "vram-platform.service").symlink_to("../vram-platform.service")
     arch = subprocess.check_output(["dpkg", "--print-architecture"], text=True).strip()
     if arch != "amd64":
         parser.error("package builds are validated on amd64")
@@ -38,18 +42,21 @@ with tempfile.TemporaryDirectory() as directory:
             ["dpkg-shlibdeps", "-O", "-e" + str(root / "usr/lib/vram/vram-ram-file")],
             cwd=build_dir, text=True).strip().removeprefix("shlibs:Depends=")
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.5.9\nArchitecture: amd64\n"
+        "Package: vram-host\nVersion: 0.6.0\nArchitecture: amd64\n"
         f"Maintainer: vRAM maintainers <noreply@github.com>\nDepends: {shlibs}, systemd, kmod, python3\nRecommends: fuse3, qemu-system-x86\n"
         "Description: Verdant tensor-backed Linux swap and virtual machine system RAM\n"
         "Homepage: https://github.com/afflom/vRAM\n")
     (meta / "conffiles").write_text("/etc/default/vram\n")
     prerm = meta / "prerm"
     prerm.write_text('#!/bin/sh\nset -e\nif [ "$1" = remove ] && [ -d /run/systemd/system ]; then\n'
-                     '    systemctl stop "vram@*.service"\nfi\n')
+                     '    systemctl stop "vram@*.service" vram-platform.service\nfi\n')
     prerm.chmod(0o755)
     for name in ("postinst", "postrm"):
         path = meta / name
-        path.write_text('#!/bin/sh\nset -e\nif [ -d /run/systemd/system ]; then systemctl daemon-reload; fi\n')
+        refresh = "systemctl daemon-reload"
+        if name == "postinst":
+            refresh += "; systemctl start vram-platform.service || echo 'Firmware record unavailable' >&2"
+        path.write_text(f"#!/bin/sh\nset -e\nif [ -d /run/systemd/system ]; then {refresh}; fi\n")
         path.chmod(0o755)
     # mkdtemp honors the builder's umask. dpkg requires traversable package directories.
     for folder in [root, *root.rglob("*")]:
