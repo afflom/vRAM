@@ -1,0 +1,25 @@
+{
+  "input_sha256": "428f6dde1710b4e88b526a9eb4e3103443df1a5d63e717d31eec27a1891c4c76",
+  "model": "blake3:532b83cfe80473d9f4b4fba7937093665a9011226c18be7ccd31daba074ec81a",
+  "package_sha256": "587c52204a79fbfcf0bfb999c3f3038904d524865132fb397184d953a8f299ac",
+  "accelerator": "KVM on emulated AMD SVM",
+  "stats": {
+    "packed": {
+      "total_ns": 161202444,
+      "median_ns": 5920840.5,
+      "max_ns": 15599602
+    },
+    "restore_cpu": {
+      "total_ns": 169805145,
+      "median_ns": 6841889.5,
+      "max_ns": 12951282
+    },
+    "resident_cpu": {
+      "total_ns": 1595951,
+      "median_ns": 16244.5,
+      "max_ns": 499708
+    }
+  },
+  "explicit_request": "packed",
+  "resident_available": "resident"
+}

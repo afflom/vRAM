@@ -1,0 +1,176 @@
+{
+  "guest": {
+    "before_kib": 85752,
+    "after_kib": 216824,
+    "swap_kib": 0,
+    "verified_bytes": 99614720,
+    "verified_on_dimm_bytes": 99614720
+  },
+  "store": {
+    "read_pages": 70169,
+    "write_pages": 133299,
+    "file_base_reads": 26478,
+    "file_base_writes": 48027,
+    "store_bytes": 152934223
+  },
+  "dimm_mib": 128,
+  "initial_mib": 192,
+  "sizing": "max",
+  "platform_max_mib": 512,
+  "guest_max_mib": 320,
+  "acceleration": "KVM on emulated AMD SVM",
+  "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+  "kernel": "vmlinuz-6.12.117+deb13-amd64",
+  "package_sha256": "587c52204a79fbfcf0bfb999c3f3038904d524865132fb397184d953a8f299ac",
+  "projection": {
+    "port": "org.verdant.project.1",
+    "columns": 64,
+    "verified_trials": 24,
+    "trials": [
+      {
+        "trial": 0,
+        "packed_ns": 9751661,
+        "restore_cpu_ns": 8482811,
+        "resident_cpu_ns": 14572
+      },
+      {
+        "trial": 1,
+        "packed_ns": 8854699,
+        "restore_cpu_ns": 5343211,
+        "resident_cpu_ns": 140650
+      },
+      {
+        "trial": 2,
+        "packed_ns": 5841006,
+        "restore_cpu_ns": 4836361,
+        "resident_cpu_ns": 15744
+      },
+      {
+        "trial": 3,
+        "packed_ns": 4709001,
+        "restore_cpu_ns": 8761619,
+        "resident_cpu_ns": 16445
+      },
+      {
+        "trial": 4,
+        "packed_ns": 3160502,
+        "restore_cpu_ns": 4716842,
+        "resident_cpu_ns": 14332
+      },
+      {
+        "trial": 5,
+        "packed_ns": 3711568,
+        "restore_cpu_ns": 4704764,
+        "resident_cpu_ns": 128943
+      },
+      {
+        "trial": 6,
+        "packed_ns": 6305341,
+        "restore_cpu_ns": 6504159,
+        "resident_cpu_ns": 14221
+      },
+      {
+        "trial": 7,
+        "packed_ns": 10408004,
+        "restore_cpu_ns": 7011498,
+        "resident_cpu_ns": 133771
+      },
+      {
+        "trial": 8,
+        "packed_ns": 7649633,
+        "restore_cpu_ns": 6689066,
+        "resident_cpu_ns": 16274
+      },
+      {
+        "trial": 9,
+        "packed_ns": 5203241,
+        "restore_cpu_ns": 8402652,
+        "resident_cpu_ns": 16215
+      },
+      {
+        "trial": 10,
+        "packed_ns": 4533418,
+        "restore_cpu_ns": 12087123,
+        "resident_cpu_ns": 14332
+      },
+      {
+        "trial": 11,
+        "packed_ns": 4468521,
+        "restore_cpu_ns": 7376365,
+        "resident_cpu_ns": 88002
+      },
+      {
+        "trial": 12,
+        "packed_ns": 5393766,
+        "restore_cpu_ns": 4780017,
+        "resident_cpu_ns": 14181
+      },
+      {
+        "trial": 13,
+        "packed_ns": 5068929,
+        "restore_cpu_ns": 4942040,
+        "resident_cpu_ns": 144797
+      },
+      {
+        "trial": 14,
+        "packed_ns": 6126383,
+        "restore_cpu_ns": 4829191,
+        "resident_cpu_ns": 15743
+      },
+      {
+        "trial": 15,
+        "packed_ns": 4839196,
+        "restore_cpu_ns": 6994713,
+        "resident_cpu_ns": 15904
+      },
+      {
+        "trial": 16,
+        "packed_ns": 15599602,
+        "restore_cpu_ns": 9510255,
+        "resident_cpu_ns": 24918
+      },
+      {
+        "trial": 17,
+        "packed_ns": 5596860,
+        "restore_cpu_ns": 12951282,
+        "resident_cpu_ns": 89423
+      },
+      {
+        "trial": 18,
+        "packed_ns": 9701281,
+        "restore_cpu_ns": 4734889,
+        "resident_cpu_ns": 14451
+      },
+      {
+        "trial": 19,
+        "packed_ns": 9715782,
+        "restore_cpu_ns": 4786026,
+        "resident_cpu_ns": 499708
+      },
+      {
+        "trial": 20,
+        "packed_ns": 6886992,
+        "restore_cpu_ns": 6143775,
+        "resident_cpu_ns": 15533
+      },
+      {
+        "trial": 21,
+        "packed_ns": 6658520,
+        "restore_cpu_ns": 9530771,
+        "resident_cpu_ns": 16305
+      },
+      {
+        "trial": 22,
+        "packed_ns": 6000675,
+        "restore_cpu_ns": 7308743,
+        "resident_cpu_ns": 14331
+      },
+      {
+        "trial": 23,
+        "packed_ns": 5017863,
+        "restore_cpu_ns": 8376972,
+        "resident_cpu_ns": 117156
+      }
+    ]
+  }
+}
