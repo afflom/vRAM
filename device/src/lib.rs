@@ -13,7 +13,7 @@ use std::{
     ptr, slice,
     sync::{
         atomic::{AtomicU64, Ordering},
-        OnceLock, RwLock,
+        Arc, OnceLock, RwLock,
     },
 };
 use verdant_tensor::{
@@ -67,13 +67,33 @@ enum Value {
     Sparse(Box<Exceptions>),
     Packed(Box<Packed>),
     Raw(Box<[u8; PAGE]>),
-    Shared(std::sync::Arc<literals::Literal>),
+    Shared(Arc<literals::Literal>),
     Residual(Box<literals::Residual>),
     Selector(Box<Selector>),
     Corrected(Box<Corrected>),
 }
 
 impl Value {
+    fn literal_base(&self) -> Option<&Arc<literals::Literal>> {
+        match self {
+            Self::Shared(base) => Some(base),
+            Self::Residual(residual) => Some(&residual.base),
+            _ => None,
+        }
+    }
+
+    fn replace(&mut self, next: Self, pool: &mut literals::Pool) {
+        // The directory write lock excludes changes to logical ownership.
+        // A next value referring to this same base already owns a strong reference.
+        let retires_base = self
+            .literal_base()
+            .is_some_and(|base| Arc::strong_count(base) == 1);
+        *self = next;
+        if retires_base {
+            pool.resize_for_live_bases();
+        }
+    }
+
     fn selector_base(&self) -> Option<&Selector> {
         match self {
             Self::Selector(model) => Some(model),
@@ -408,8 +428,8 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
     let (group, literals) = values.write_group(page);
     let slot = &mut group.values[page % directory::GROUP];
     let hash = literals.active().then(|| literals.fingerprint(data));
-    if let Some(shared) = hash.and_then(|h| literals.lookup(h, data)) {
-        *slot = shared;
+    if let Some(shared) = hash.and_then(|h| literals.lookup(h, data, slot.literal_base())) {
+        slot.replace(shared, literals);
         return 0;
     }
     let credits = group.literal_credits;
@@ -441,8 +461,7 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
             Value::Raw(bytes) => literals::Capture::Owned(bytes),
             modeled => {
                 group.literal_credits = 0;
-                *slot = modeled;
-                literals.resize_for_live_bases();
+                slot.replace(modeled, literals);
                 return 0;
             }
         }
@@ -454,7 +473,7 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
         }
         return -1;
     };
-    *slot = Value::Shared(base);
+    slot.replace(Value::Shared(base), literals);
     group.literal_credits = vram_advance::run(!fast, credits);
     if fast {
         s.literal_skips.fetch_add(1, Ordering::Relaxed);

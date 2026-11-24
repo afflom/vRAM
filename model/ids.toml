@@ -115,3 +115,15 @@ id = "VR-17"
 level = "open"
 suite = "capacity"
 statement = "Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents"
+
+[[id]]
+id = "VR-18"
+level = "open"
+suite = "capacity"
+statement = "A converging overwrite applies the existing index policy when it retires the last owner of a dense base"
+
+[[id]]
+id = "VR-19"
+level = "open"
+suite = "capacity"
+statement = "An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes"

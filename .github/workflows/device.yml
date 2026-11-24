@@ -98,6 +98,8 @@ jobs:
           sudo modprobe fuse
           python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/linux-dimm.json
+          sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
+            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/parallel-guest.json
           cp measurements/local/managed-*.json dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)

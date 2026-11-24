@@ -1,0 +1,142 @@
+{
+  "previous_commit": "88d7a68fa55ecba1ed344072d53a819ef8e088a3",
+  "backing": "preallocated temporary file, 4096-byte pages",
+  "trials": {
+    "previous": [
+      {
+        "probe": "index-reclamation",
+        "verified_pages": 16384,
+        "phases": {
+          "independent": {
+            "live": 16384,
+            "store_bytes": 68720480,
+            "hits": 0,
+            "residuals": 0
+          },
+          "collapsed": {
+            "live": 1,
+            "store_bytes": 1615712,
+            "hits": 16383,
+            "residuals": 0
+          },
+          "after untouched page discard": {
+            "live": 1,
+            "store_bytes": 283112,
+            "hits": 16383,
+            "residuals": 0
+          }
+        }
+      },
+      {
+        "probe": "index-reclamation",
+        "verified_pages": 65536,
+        "phases": {
+          "independent": {
+            "live": 65536,
+            "store_bytes": 274879400,
+            "hits": 0,
+            "residuals": 0
+          },
+          "collapsed": {
+            "live": 1,
+            "store_bytes": 6448040,
+            "hits": 65535,
+            "residuals": 0
+          },
+          "after untouched page discard": {
+            "live": 1,
+            "store_bytes": 1118768,
+            "hits": 65535,
+            "residuals": 0
+          }
+        }
+      },
+      {
+        "probe": "single-byte-edits",
+        "offset": 100,
+        "live": 4096,
+        "residuals": 4096,
+        "file_writes": 4096,
+        "charge": 17364128,
+        "checked": 8192
+      },
+      {
+        "probe": "single-byte-edits",
+        "offset": 0,
+        "live": 8192,
+        "residuals": 0,
+        "file_writes": 8192,
+        "charge": 34361568,
+        "checked": 8192
+      }
+    ],
+    "current": [
+      {
+        "probe": "index-reclamation",
+        "verified_pages": 16384,
+        "phases": {
+          "independent": {
+            "live": 16384,
+            "store_bytes": 68718688,
+            "hits": 0,
+            "residuals": 0
+          },
+          "collapsed": {
+            "live": 1,
+            "store_bytes": 283584,
+            "hits": 16383,
+            "residuals": 0
+          },
+          "after untouched page discard": {
+            "live": 1,
+            "store_bytes": 283584,
+            "hits": 16383,
+            "residuals": 0
+          }
+        }
+      },
+      {
+        "probe": "index-reclamation",
+        "verified_pages": 65536,
+        "phases": {
+          "independent": {
+            "live": 65536,
+            "store_bytes": 274884136,
+            "hits": 0,
+            "residuals": 0
+          },
+          "collapsed": {
+            "live": 1,
+            "store_bytes": 1119176,
+            "hits": 65535,
+            "residuals": 0
+          },
+          "after untouched page discard": {
+            "live": 1,
+            "store_bytes": 1119176,
+            "hits": 65535,
+            "residuals": 0
+          }
+        }
+      },
+      {
+        "probe": "single-byte-edits",
+        "offset": 100,
+        "live": 4096,
+        "residuals": 4096,
+        "file_writes": 4096,
+        "charge": 17365856,
+        "checked": 8192
+      },
+      {
+        "probe": "single-byte-edits",
+        "offset": 0,
+        "live": 4096,
+        "residuals": 4096,
+        "file_writes": 4096,
+        "charge": 17363680,
+        "checked": 8192
+      }
+    ]
+  }
+}

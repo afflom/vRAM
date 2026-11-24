@@ -86,16 +86,27 @@ impl Pool {
     pub(super) fn active(&self) -> bool {
         !self.buckets.is_empty()
     }
-    pub(super) fn lookup(&mut self, hash: u64, data: &[u8; PAGE]) -> Option<super::Value> {
+    pub(super) fn lookup(
+        &mut self,
+        hash: u64,
+        data: &[u8; PAGE],
+        incumbent: Option<&Arc<Literal>>,
+    ) -> Option<super::Value> {
         let bucket = &self.buckets[hash as usize & (self.buckets.len() - 1)];
+        let indexed = bucket
+            .iter()
+            .filter(|(tag, _)| *tag == hash)
+            .map(|(_, weak)| weak);
+        // Count owners before upgrading weak entries for this search.
+        let exclusive = incumbent.filter(|base| Arc::strong_count(base) == 1);
+        let extra = incumbent.filter(|base| {
+            exclusive.is_none()
+                && !indexed
+                    .clone()
+                    .any(|weak| weak.as_ptr() == Arc::as_ptr(base))
+        });
         let mut best: Option<Residual> = None;
-        for (tag, weak) in bucket {
-            if *tag != hash {
-                continue;
-            }
-            let Some(page) = weak.upgrade() else {
-                continue;
-            };
+        for page in indexed.filter_map(Weak::upgrade).chain(extra.cloned()) {
             let mut scratch = [0; PAGE];
             let Some(bytes) = page.view(&mut scratch) else {
                 continue;
@@ -110,6 +121,11 @@ impl Pool {
             if verdict == UorcChallengerVerdict::AdmitChallenger {
                 self.hits += 1;
                 return Some(super::Value::Shared(page));
+            }
+            // Replacing the last owner with a residual keeps an entire literal
+            // alive solely for that edit. Exact reuse above still costs no write.
+            if exclusive.is_some_and(|base| Arc::ptr_eq(base, &page)) {
+                continue;
             }
             let limit = best
                 .as_ref()
@@ -229,7 +245,7 @@ pub(super) fn diverse_axes(data: &[u8; PAGE]) -> bool {
 }
 
 pub(super) struct Residual {
-    base: Arc<Literal>,
+    pub(super) base: Arc<Literal>,
     edits: Box<[(u16, u8)]>,
 }
 impl Residual {
@@ -241,7 +257,7 @@ impl Residual {
         data: &[u8; PAGE],
         limit: usize,
     ) -> Option<Self> {
-        // Skip the shared fingerprint prefix. Each differing word in the sample
+        // Each differing word in this inexpensive sample
         // requires at least one edit, regardless of differences elsewhere.
         let unequal_words = bytes[8..]
             .chunks_exact(8)
@@ -321,13 +337,13 @@ mod tests {
         let tag = pool.fingerprint(&a);
         let _first = pool.insert(Some(tag), Capture::Borrowed(&a)).unwrap();
         let second = pool.insert(Some(tag), Capture::Borrowed(&b)).unwrap();
-        let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near) else {
+        let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near, None) else {
             panic!("expected a sparse residual");
         };
         assert!(Arc::ptr_eq(&residual.base, &second));
         assert_eq!(residual.edits.len(), 30);
         assert!(
-            matches!(pool.lookup(tag, &b), Some(super::super::Value::Shared(exact)) if Arc::ptr_eq(&exact, &second))
+            matches!(pool.lookup(tag, &b, None), Some(super::super::Value::Shared(exact)) if Arc::ptr_eq(&exact, &second))
         );
     }
 
@@ -342,7 +358,7 @@ mod tests {
         }
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap()),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None),
                 Some(super::super::Value::Shared(_))
             ));
         }
@@ -351,7 +367,7 @@ mod tests {
         pool.try_rebuild(usize::MAX);
         assert_eq!(pool.buckets.len(), full);
         assert!(pool
-            .lookup(1024, owners[1024].view(&mut [0; PAGE]).unwrap())
+            .lookup(1024, owners[1024].view(&mut [0; PAGE]).unwrap(), None)
             .is_some());
         owners.truncate(257);
         pool.resize_for_live_bases();
@@ -362,7 +378,7 @@ mod tests {
         );
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap()),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None),
                 Some(super::super::Value::Shared(_))
             ));
         }

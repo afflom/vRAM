@@ -57,6 +57,61 @@ static int edit_limit(struct store *s)
     return bases == 2 && after == before + 1 && verify(s, 1, near) && verify(s, 2, far);
 }
 
+static int converging_overwrites(struct store *s)
+{
+    enum { N = 4096 };
+    u8 page[PAGE];
+    if (store_discard(s, 0, PAGES)) return 0;
+    for (int i = 0; i < N; ++i) {
+        expected(i, 'U', page);
+        if (store_put(s, i, page)) return 0;
+    }
+    expected(0, 'U', page);
+    for (int i = 1; i < N; ++i)
+        if (store_put(s, i, page)) return 0;
+    uint64_t before[5], after[5];
+    store_stats(s, before);
+    if (store_discard(s, N, 1)) return 0;
+    store_stats(s, after);
+    if (before[4] != after[4]) return 0;
+    for (int i = 0; i < N; ++i)
+        if (!verify(s, i, page)) return 0;
+    return 1;
+}
+
+static int incumbent_edits(struct store *s)
+{
+    u8 base[PAGE], page[PAGE], independent[PAGE];
+    expected(29, 'U', base);
+    expected(30, 'U', independent);
+    memcpy(page, base, PAGE);
+    if (store_discard(s, 0, PAGES) || store_put(s, 0, base) || store_put(s, 1, base)) return 0;
+    uint64_t initial_reads, initial_writes, reads, writes;
+    store_file_stats(s, &initial_reads, &initial_writes);
+    /* An indexed match and two successive fingerprint misses must each read the
+     * original immutable base exactly once, including when the incumbent is a residual. */
+    size_t offsets[] = {100, 0, PAGE - 1};
+    for (size_t i = 0; i < sizeof(offsets) / sizeof(*offsets); ++i) {
+        page[offsets[i]] ^= 1;
+        if (store_put(s, 1, page)) return 0;
+    }
+    store_file_stats(s, &reads, &writes);
+    if (reads != initial_reads + 3 || writes != initial_writes ||
+        !verify(s, 0, base) || !verify(s, 1, page)) return 0;
+    if (store_discard(s, 0, 1) || !verify(s, 1, page)) return 0;
+    /* A sole-owned base with a different fingerprint needs no nomination read. */
+    store_file_stats(s, &initial_reads, &initial_writes);
+    if (store_put(s, 1, independent)) return 0;
+    store_file_stats(s, &reads, &writes);
+    if (reads != initial_reads || writes != initial_writes + 1 || !verify(s, 1, independent)) return 0;
+    /* With the same fingerprint, an exact hit is allowed but retaining an
+     * exclusive base solely for a residual would cost more than a new literal. */
+    independent[100] ^= 1;
+    if (store_put(s, 1, independent)) return 0;
+    store_file_stats(s, &reads, &writes);
+    return writes == initial_writes + 2 && verify(s, 1, independent);
+}
+
 /* Run on a fresh file so the spare slot is known to start at byte PAGE. */
 static int partial_write(struct store *s, int fd)
 {
@@ -130,8 +185,12 @@ int main(void)
     if (!s) return 1;
     int fit = collisions(s);
     int boundary = edit_limit(s);
+    int convergence = converging_overwrites(s);
+    int edits = incumbent_edits(s);
+    if (!convergence) fprintf(stderr, "dictionary shrink was deferred after convergence\n");
+    if (!edits) fprintf(stderr, "incumbent ownership or admission I/O differs\n");
     int rollback = failed_writes(s, fd);
     store_free(s);
     close(fd);
-    return !(torn && fit && boundary && rollback);
+    return !(torn && fit && boundary && convergence && edits && rollback);
 }

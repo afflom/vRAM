@@ -107,3 +107,15 @@ Feature: capacity
     Given a full arena ending in a partial word and live literals in alternating slots
     When the other slots retire and new literals fill their places
     Then the release uses no additional slot metadata and every surviving literal restores its bytes
+
+  @VR-18 @open
+  Scenario: Converge independent pages onto one shared literal
+    Given a populated file-backed dictionary
+    When its pages are overwritten with the first page's exact contents
+    Then discarding an untouched page has no further effect on the store charge
+
+  @VR-19 @open
+  Scenario: Edit an indexed coordinate of a shared dense page
+    Given two pages sharing an immutable literal
+    When the first byte of one page is modified
+    Then the unchanged base and edited page restore exactly with one backing write

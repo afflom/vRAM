@@ -37,6 +37,8 @@ The three honesty levels (R2):
 | `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, refuses with `capacity mismatch` |
 | `VR-16` | `open` | An untouched virtual extent has constant directory cost and range discard skips unallocated leaves |  |
 | `VR-17` | `open` | Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents |  |
+| `VR-18` | `open` | A converging overwrite applies the existing index policy when it retires the last owner of a dense base |  |
+| `VR-19` | `open` | An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes |  |
 
 ## Cited authorities
 
