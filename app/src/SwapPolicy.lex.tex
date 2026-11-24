@@ -53,5 +53,21 @@ theorem{
       && (((ready =? 0) || (missing =? 0)) || (0 <? n)))))) = true),
   proof: linear_arithmetic{definitions: [copyCount]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: duration, parameters: [start : Nat, finish : Nat], result: Nat,
+  body: (prim subtract finish start : Nat)
+}
+theorem{
+  name: nestedIntervals, parameters: [start : Nat, enter : Nat, leave : Nat, finish : Nat],
+  statement: ((((start <=? enter) && ((enter <=? leave) && (leave <=? finish))) &&
+    (not ((duration start finish) =? (((duration start enter) + (duration enter leave)) + (duration leave finish))))) = false),
+  proof: linear_arithmetic{definitions: [duration]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: minimumOutsideSaving, parameters: [outside : Nat, budget : Nat, saved : Nat],
+  statement: ((Performance::disagree ((prim subtract outside saved : Nat) <=? budget)
+    ((prim subtract outside budget : Nat) <=? saved)) = false),
+  proof: linear_arithmetic{definitions: [Performance::disagree]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

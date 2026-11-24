@@ -182,4 +182,4 @@ The earlier native rank-two trial wrote and read back 4,194,304 distinct page po
 
 The native scale receipts measure the store in isolation. Linux swap receipts exercise the kernel path. The QEMU receipts measure the guest backend. [Native and Linux measurements](measurements) · [Proof scope and fault injection](docs/device-verification.md)
 
-Release verification also compares queue-depth-one 4 KiB reads and writes against zram with zstd, with a separate mixed-overwrite suite and a Prism verdict for each workload. [Single-page measurements](https://afflom.github.io/vRAM/downloads/swap-latency.json) · [Latency contract](docs/device-verification.md#single-page-swap-latency)
+Release verification also compares queue-depth-one 4 KiB reads and writes against zram with zstd, with a separate mixed-overwrite suite and a Prism verdict for each workload. [Single-page measurements](https://afflom.github.io/vRAM/downloads/swap-latency.json) · [Time inside and outside the store](https://afflom.github.io/vRAM/downloads/swap-path.json) · [Latency contract](docs/device-verification.md#single-page-swap-latency)

@@ -65,6 +65,8 @@ The three honesty levels (R2):
 | `VR-43` | `build` | A three-run median meets a latency bound exactly when at least two run medians meet it | `SwapPolicy.majorityMedian` |
 | `VR-44` | `build` | An exact factor cheaper than a lower bound on alternative storage is cheaper than every alternative meeting the bound | `SwapPolicy.factorDominance` |
 | `VR-45` | `build` | Restoring a verified prefix consumes a strictly positive bounded part of the remaining copy budget, with exact byte accounting | `SwapPolicy.copyBudget` |
+| `VR-46` | `build` | Nested timestamps partition a request exactly and the outside-store time above a deadline is the minimum required outside saving with zero service cost | `SwapPolicy.nestedIntervals`, `SwapPolicy.minimumOutsideSaving` |
+| `VR-47` | `open` | Queue-depth-one requests are matched to the timed Verdant store invocation and replayed against a same-guest zram reference |  |
 
 ## Cited authorities
 

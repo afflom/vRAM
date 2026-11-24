@@ -21,7 +21,7 @@ definition{
 }
 definition{
   name: swapPageLatency, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
-  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "SwapPolicy::parity", title := "Single-page swap latency", text := "Replay the three-run median verdict for each operator and mixed-overwrite workload against zram with zstd at queue depth one.", evidence := (cons "host/tests/swap_latency.py" (cons "automation/swap-latency.mjs" (nil String)))})
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "SwapPolicy::parity", title := "Single-page swap latency", text := "Replay queue-depth-one swap latency against zram with zstd and measure time inside and outside the store for each matched request.", evidence := (cons "host/tests/swap_latency.py" (cons "automation/swap-latency.mjs" (cons "automation/swap-path.mjs" (nil String))))})
 }
 \end{semanticmodule}
 \end{lexlean}

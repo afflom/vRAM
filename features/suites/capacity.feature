@@ -353,3 +353,15 @@ Feature: capacity
     Given a verified displacement and a nonempty prefix of reconstructed bytes
     When the decoder copies the smaller of the available bytes and the remaining bytes
     Then every step stays inside the initialized prefix and consumes exactly that many remaining bytes
+
+  @VR-46 @build
+  Scenario: Partition an observed request and test a fixed deadline
+    Given ordered timestamps for the system call and the nested store invocation
+    When the two outside intervals and the store interval are added
+    Then they equal the full duration and removing store time leaves the outside saving required above the deadline
+
+  @VR-47 @open
+  Scenario: Replay the timing of the same verified page request
+    Given a diagnostic build of the current server and an uninstrumented build in the same guest
+    When every sampled page is written and read back under the operator and mixed workloads
+    Then the receipt accounts for every request and compares the observed outside-store medians with zram

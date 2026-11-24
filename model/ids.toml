@@ -298,3 +298,16 @@ level = "build"
 suite = "capacity"
 statement = "Restoring a verified prefix consumes a strictly positive bounded part of the remaining copy budget, with exact byte accounting"
 theorems = ["SwapPolicy.copyBudget"]
+
+[[id]]
+id = "VR-46"
+level = "build"
+suite = "capacity"
+statement = "Nested timestamps partition a request exactly and the outside-store time above a deadline is the minimum required outside saving with zero service cost"
+theorems = ["SwapPolicy.nestedIntervals", "SwapPolicy.minimumOutsideSaving"]
+
+[[id]]
+id = "VR-47"
+level = "open"
+suite = "capacity"
+statement = "Queue-depth-one requests are matched to the timed Verdant store invocation and replayed against a same-guest zram reference"

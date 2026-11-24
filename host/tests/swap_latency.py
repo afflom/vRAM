@@ -1,5 +1,6 @@
 """Compare queue-depth-one 4 KiB block I/O on fresh zram and vRAM devices in a disposable VM."""
 import argparse
+import gzip
 import hashlib
 import json
 import lzma
@@ -22,6 +23,7 @@ parser.add_argument("--candidate", type=Path, default=root / "host/build/vram-ho
 parser.add_argument("--bios-dir", type=Path)
 parser.add_argument("--accel", choices=["kvm", "tcg"], required=True)
 parser.add_argument("--require-parity", action="store_true", help="exit unsuccessfully if any median exceeds zram")
+parser.add_argument("--trace-output", type=Path, help="write matched timestamps from the diagnostic control server as gzip JSON")
 args = parser.parse_args()
 servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
 def python_files():
@@ -45,6 +47,9 @@ with tempfile.TemporaryDirectory() as tmp:
     files = dict(servers, init=(path / "init").read_bytes())
     files.update(python_files())
     files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
+    if args.trace_output:
+        files["store-clock"] = bytes(5 * 8)
+        files["swap_clock.py"] = (root / "host/tests/swap_clock.py").read_bytes()
     for name in ("nbd", "zram", "lz4_compress", "lz4hc_compress"):
         module, = args.modules.rglob(name + ".ko.xz")
         files[name + ".ko"] = lzma.decompress(module.read_bytes())
@@ -102,6 +107,13 @@ result = dict(accelerator=args.accel, kernel=args.kernel.name, kernel_sha256=has
               workloads=summary, mixed_overwrites=mixed, mixed_pages_per_family_per_round=64,
               mixed_verified_bytes_per_backend=3*384*4096)
 result["meets_parity"] = result["operator_parity"] and result["held_out_parity"]
+if args.trace_output:
+    batches = [json.loads(line) for line in re.findall(r"^PATH_SAMPLES (.+)$", log, re.M)]
+    if not batches:
+        sys.exit("Missing store timing samples")
+    payload = gzip.compress(json.dumps(batches, separators=(",", ":")).encode(), mtime=0)
+    args.trace_output.write_bytes(payload)
+    result["trace_sha256"] = hashlib.sha256(payload).hexdigest()
 args.result.write_text(json.dumps(result, indent=2) + "\n")
 print({k:v["median_ns"] for k,v in summary.items()})
 if args.require_parity and not result["meets_parity"]:

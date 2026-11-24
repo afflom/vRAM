@@ -14,11 +14,19 @@ buf = mmap.mmap(-1, size)
 devices = [(label, os.open(path, os.O_RDWR | os.O_DIRECT | os.O_EXCL))
            for label, path in (("zram-zstd", "/dev/zram0"), ("vram", "/dev/nbd1"), ("control", "/dev/nbd0"))]
 print("INTERPRETER", sys.version.split()[0], flush=True)
+clock = None
+if os.path.exists("/store-clock"):
+    # -I excludes the guest script directory from the interpreter import path.
+    sys.path.insert(0, "/")
+    from swap_clock import StoreClock
+    clock = StoreClock()
+
 for trial in range(3):
     for k, profile in enumerate(("patterned", "dense")):
         blocks = [os.urandom(64)*64 if k == 0 else os.urandom(size) for _ in order]
         base = 256 + pages * (trial*2 + k)
         for label, fd in devices[trial:] + devices[:trial]:
+            tracing = clock is not None and label == "control"
             writes, reads = [], []
             for index, page in enumerate(blocks):
                 buf[:] = page
@@ -27,12 +35,16 @@ for trial in range(3):
                 count = os.pwrite(fd, buf, offset)
                 writes.append(time.perf_counter_ns() - t)
                 assert count == size
+                if tracing:
+                    clock.add(trial, profile, "write", base + index, t, writes[-1])
             for index in order:
                 offset = (base + index)*size
                 t = time.perf_counter_ns()
                 count = os.preadv(fd, [buf], offset)
                 reads.append(time.perf_counter_ns() - t)
                 assert count == size and buf[:] == blocks[index]
+                if tracing:
+                    clock.add(trial, profile, "read", base + index, t, reads[-1])
             for op, samples in (("write", writes), ("read", reads)):
                 print("PAGE_LATENCY", json.dumps([trial, label, profile, op, statistics.median(samples),
                       sorted(samples)[(len(samples)*99+99)//100-1]]), flush=True)
@@ -66,6 +78,7 @@ for trial in range(3):
             page = bytes([rng.randrange(256)]) * size
         blocks.append(bytes(page))
     for label, fd in devices[trial:] + devices[:trial]:
+        tracing = clock is not None and label == "control"
         for op in ("write", "read"):
             times = {name: [] for name in families}
             for i in (range(len(blocks)) if op == "write" else mixed_order):
@@ -79,9 +92,15 @@ for trial in range(3):
                     count = os.preadv(fd, [buf], offset)
                 elapsed = time.perf_counter_ns() - t
                 assert count == size and (op == "write" or buf[:] == blocks[i])
-                times[families[(i + trial) % len(families)]].append(elapsed)
+                family = families[(i + trial) % len(families)]
+                times[family].append(elapsed)
+                if tracing:
+                    clock.add(trial, family, op, 14000 + i, t, elapsed)
             for name, samples in times.items():
                 print("MIXED_LATENCY", json.dumps([trial, label, name, op, statistics.median(samples),
                       sorted(samples)[(len(samples)*99+99)//100-1]]), flush=True)
 for _, fd in devices:
     os.close(fd)
+
+if clock is not None:
+    clock.emit()

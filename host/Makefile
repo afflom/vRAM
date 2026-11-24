@@ -45,3 +45,9 @@ install-service: install
 	test -e $(DESTDIR)/etc/default/vram || install -m644 packaging/vram.default $(DESTDIR)/etc/default/vram
 
 .PHONY: install-service
+
+# Same server and store as the release, with an observation at the two store calls.
+build/vram-host-clock: vram_host.c managed.h tests/swap_clock.c $(DEVICE)/native/pager.h runtime
+	mkdir -p build
+	$(CC) $(CFLAGS) -Wall -Wextra -O2 -I$(DEVICE)/native $< tests/swap_clock.c $(LIB) $(LDFLAGS) \
+		-Wl,--wrap=store_get,--wrap=store_put $(LDLIBS) -o $@
