@@ -1,0 +1,545 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "d4c447e8f28a6a32c05f9f11c3ff241832bff129a970da605917e785a9775f7f",
+  "guest_image_sha256": "b8b61b1baae5f88e4fc68b5712d1fe2964599ef92854fbce95492d14e3af8e74",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 192,
+  "inner_vcpus": 1,
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "limit_bytes": 268435456,
+      "peak_bytes": 202833920,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "limit_bytes": 268435456,
+      "peak_bytes": 199069696,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    }
+  ],
+  "trials": [
+    {
+      "before_reclaim": {
+        "rss_kib": 204280,
+        "pss_kib": 203317,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 204280,
+        "pss_kib": 203317,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204284,
+        "pss_kib": 203321,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 200392704
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 204284,
+        "pss_kib": 203321,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 204284,
+        "pss_kib": 203321,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204288,
+        "pss_kib": 203325,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 200654848
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 202702848
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 202833920
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 202833920
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 202833920
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 6,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "selector pages",
+      "cgroup_peak_bytes_to_readback": 202833920
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 206344,
+        "pss_kib": 205381,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 7,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "one byte changed per 17 selector pages",
+      "cgroup_peak_bytes_to_readback": 202833920
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200940,
+        "pss_kib": 199977,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 200936,
+        "pss_kib": 199973,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200952,
+        "pss_kib": 199989,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196681728,
+      "discarded_before_resume": 2,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 2,
+      "backend_faults_during_readback": 2
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203000,
+        "pss_kib": 202037,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 202112,
+        "pss_kib": 201149,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203144,
+        "pss_kib": 202181,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 198848512,
+      "discarded_before_resume": 256,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 256,
+      "backend_faults_during_readback": 256
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203144,
+        "pss_kib": 202181,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 199048,
+        "pss_kib": 198085,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203144,
+        "pss_kib": 202181,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 199061504,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 199052,
+        "pss_kib": 198089,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 199061504,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 199052,
+        "pss_kib": 198089,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 199061504,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 199052,
+        "pss_kib": 198089,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 199069696,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 203148,
+        "pss_kib": 202185,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 186764,
+        "pss_kib": 185801,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203244,
+        "pss_kib": 202281,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 6,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "selector pages",
+      "cgroup_peak_bytes_to_readback": 199069696,
+      "backing_before_readback": {
+        "selector-pages": 4096,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 14,
+        "resident-pages": 19943,
+        "plan-refits": 1195,
+        "clean-drops": 4354,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 28498,
+        "searches": 217,
+        "backing-bytes": 1362040,
+        "captures": 8450,
+        "search-skips": 1916,
+        "edit-count": 0,
+        "write-tracking": true,
+        "selector-restores": 0,
+        "program-bytes": 0
+      },
+      "backing_after_readback": {
+        "selector-pages": 4096,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 14,
+        "resident-pages": 19943,
+        "plan-refits": 1195,
+        "clean-drops": 8450,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 28498,
+        "searches": 217,
+        "backing-bytes": 1362040,
+        "captures": 8450,
+        "search-skips": 1916,
+        "edit-count": 0,
+        "write-tracking": true,
+        "selector-restores": 4096,
+        "program-bytes": 0
+      },
+      "discarded_before_resume": 4096,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 4096,
+      "backend_faults_during_readback": 4096
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 187824,
+        "pss_kib": 186861,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 186860,
+        "pss_kib": 185897,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 203244,
+        "pss_kib": 202281,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 7,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "one byte changed per 17 selector pages",
+      "cgroup_peak_bytes_to_readback": 199069696,
+      "backing_before_readback": {
+        "selector-pages": 4096,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 255,
+        "resident-pages": 19943,
+        "plan-refits": 1195,
+        "clean-drops": 8450,
+        "raw-pages": 0,
+        "corrected-pages": 241,
+        "search-nodes": 28498,
+        "searches": 217,
+        "backing-bytes": 1366860,
+        "captures": 8691,
+        "search-skips": 1916,
+        "edit-count": 241,
+        "write-tracking": true,
+        "selector-restores": 4337,
+        "program-bytes": 0
+      },
+      "backing_after_readback": {
+        "selector-pages": 4096,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 255,
+        "resident-pages": 19943,
+        "plan-refits": 1195,
+        "clean-drops": 12546,
+        "raw-pages": 0,
+        "corrected-pages": 241,
+        "search-nodes": 28498,
+        "searches": 217,
+        "backing-bytes": 1366860,
+        "captures": 8691,
+        "search-skips": 1916,
+        "edit-count": 241,
+        "write-tracking": true,
+        "selector-restores": 8433,
+        "program-bytes": 0
+      },
+      "discarded_before_resume": 241,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 4096,
+      "backend_faults_during_readback": 4096
+    }
+  ]
+}

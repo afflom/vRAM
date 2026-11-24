@@ -1,0 +1,184 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "46be99d08de4269a435efb7c548b0f816a3808d600a7604b5f67c05a057e3dc9",
+  "guest_image_sha256": "6caddafb0c07877b37ba2f53efb14c5364e865737bc97b4117ba5ba41f9d7d8f",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "S",
+    "hot_mib": 16,
+    "maximum_mib": 64,
+    "budget_mib": 32,
+    "order": [
+      "ordinary",
+      "vram"
+    ],
+    "geometric": false
+  },
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 18,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "130",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "vram",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 14,
+      "last_fully_verified_mib": 8,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "19",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.09948471100000233,
+      "group_current": 17412096,
+      "group_peak": 17412096,
+      "charge_bytes": {
+        "anon": 16838656,
+        "file": 0,
+        "kernel": 290816,
+        "pagetables": 163840,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.6121702619999994,
+      "group_current": 19509248,
+      "group_peak": 19509248,
+      "charge_bytes": {
+        "anon": 18935808,
+        "file": 0,
+        "kernel": 294912,
+        "pagetables": 167936,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 1.1222434690000007,
+      "group_current": 23703552,
+      "group_peak": 23703552,
+      "charge_bytes": {
+        "anon": 23130112,
+        "file": 0,
+        "kernel": 303104,
+        "pagetables": 176128,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 16,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 2.845437339,
+      "group_current": 32096256,
+      "group_peak": 32096256,
+      "charge_bytes": {
+        "anon": 31518720,
+        "file": 0,
+        "kernel": 319488,
+        "pagetables": 192512,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.17591397799999697,
+      "group_current": 14782464,
+      "group_peak": 14876672,
+      "charge_bytes": {
+        "anon": 14295040,
+        "file": 0,
+        "kernel": 319488,
+        "pagetables": 163840,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.46277250300000006,
+      "group_current": 17928192,
+      "group_peak": 18063360,
+      "charge_bytes": {
+        "anon": 17440768,
+        "file": 0,
+        "kernel": 323584,
+        "pagetables": 167936,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 16,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.8936920750000041,
+      "group_current": 27766784,
+      "group_peak": 28966912,
+      "charge_bytes": {
+        "anon": 27353088,
+        "file": 0,
+        "kernel": 331776,
+        "pagetables": 176128,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    }
+  ]
+}

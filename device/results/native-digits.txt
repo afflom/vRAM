@@ -1,0 +1,8 @@
+held_out=597 correct=522 encoded_and_index_B=23952 dense_padded_B=40960 packed_tiles=10
+trial=0 dense_ns=139976 device_ns=589711
+trial=1 dense_ns=128313 device_ns=554801
+trial=2 dense_ns=125331 device_ns=548282
+trial=3 dense_ns=124274 device_ns=535618
+trial=4 dense_ns=134010 device_ns=560763
+trial=5 dense_ns=129853 device_ns=566633
+trial=6 dense_ns=125671 device_ns=530912

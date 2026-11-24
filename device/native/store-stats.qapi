@@ -1,0 +1,72 @@
+
+##
+# @VramStoreStats:
+#
+# @selector-pages: backing pages represented by two row values and a column selector
+#
+# @selector-restores: successful restorations using the verified word kernel for the packed contraction
+#
+# @program-pages: backing pages using synthesized tensor programs
+#
+# @program-bytes: accounted bytes of synthesized programs
+#
+# @plan-refits: admitted fresh programs using a cached shape
+#
+# @search-skips: eligible captures skipped between scheduled probes
+#
+# @searches: captures which ran the candidate search
+#
+# @search-nodes: tile subproblems evaluated across captures
+#
+# @raw-pages: backing pages stored verbatim
+#
+# @backing-bytes: accounted representation and directory bytes across the backend
+#
+# @corrected-pages: selector backings with exact byte edits
+#
+# @edit-count: number of stored edits
+#
+# @resident-pages: currently populated guest frames
+#
+# @clean-drops: discards using the existing authoritative backing
+#
+# @captures: successful stores from writable frames
+#
+# @protected-writes: write protection faults serviced
+#
+# @automatic-drops: frames reclaimed by the host governor
+#
+# @write-tracking: userfaultfd write tracking active
+#
+# Since: 9.2
+##
+{ 'struct': 'VramStoreStats', 'if': 'CONFIG_LINUX',
+  'data': { 'selector-pages': 'uint64', 'selector-restores': 'uint64',
+            'corrected-pages': 'uint64',
+            'edit-count': 'uint64',
+            'resident-pages': 'uint64',
+            'clean-drops': 'uint64',
+            'captures': 'uint64',
+            'protected-writes': 'uint64',
+            'automatic-drops': 'uint64',
+            'write-tracking': 'bool',
+            'program-pages': 'uint64', 'program-bytes': 'uint64',
+            'plan-refits': 'uint64', 'search-skips': 'uint64',
+            'searches': 'uint64', 'search-nodes': 'uint64',
+            'raw-pages': 'uint64', 'backing-bytes': 'uint64' } }
+
+##
+# @x-query-vram-store:
+#
+# @id: vRAM backend object ID
+#
+# Returns: backing representation statistics at a paused checkpoint
+#
+# Features:
+#
+# @unstable: experimental vRAM telemetry
+#
+# Since: 9.2
+##
+{ 'command': 'x-query-vram-store', 'data': { 'id': 'str' },
+  'returns': 'VramStoreStats', 'if': 'CONFIG_LINUX', 'features': ['unstable'] }

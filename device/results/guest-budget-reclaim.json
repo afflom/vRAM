@@ -1,0 +1,357 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 192,
+  "inner_vcpus": 1,
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "limit_bytes": 268435456,
+      "peak_bytes": 200609792,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "limit_bytes": 268435456,
+      "peak_bytes": 193536000,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    }
+  ],
+  "trials": [
+    {
+      "before_reclaim": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 198234112
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 202024,
+        "pss_kib": 201041,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 198479872
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 202040,
+        "pss_kib": 201057,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 202040,
+        "pss_kib": 201057,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204092,
+        "pss_kib": 203109,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 200470528
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 204100,
+        "pss_kib": 203117,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 204100,
+        "pss_kib": 203117,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204100,
+        "pss_kib": 203117,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 200470528
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 204100,
+        "pss_kib": 203117,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 204100,
+        "pss_kib": 203117,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204104,
+        "pss_kib": 203121,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 200609792
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 204104,
+        "pss_kib": 203121,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 204104,
+        "pss_kib": 203121,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 204104,
+        "pss_kib": 203121,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 200609792
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 197260,
+        "pss_kib": 196249,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 193486848,
+      "discarded_before_resume": 2,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 2,
+      "backend_faults_during_readback": 2
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 196244,
+        "pss_kib": 195233,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 193486848,
+      "discarded_before_resume": 256,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 256,
+      "backend_faults_during_readback": 256
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 193172,
+        "pss_kib": 192161,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 193486848,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 193172,
+        "pss_kib": 192161,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 193536000,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 193172,
+        "pss_kib": 192161,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 193536000,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 193172,
+        "pss_kib": 192161,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 197268,
+        "pss_kib": 196257,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 193536000,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    }
+  ]
+}

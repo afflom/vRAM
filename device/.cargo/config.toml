@@ -1,0 +1,15 @@
+[registries.verdant]
+index = "sparse+http://127.0.0.1:17943/"
+
+[source.crates-io]
+replace-with = "offline-crates-io"
+
+[source."sparse+http://127.0.0.1:17943/"]
+registry = "sparse+http://127.0.0.1:17943/"
+replace-with = "offline-verdant"
+
+[source.offline-crates-io]
+local-registry = "third_party/crates-io"
+
+[source.offline-verdant]
+local-registry = "third_party/verdant"

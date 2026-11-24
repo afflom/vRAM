@@ -1,0 +1,268 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "d4c447e8f28a6a32c05f9f11c3ff241832bff129a970da605917e785a9775f7f",
+  "guest_image_sha256": "219922a06c157ec2de19c3500bda5a62969a9629732701b692a425d90de64a04",
+  "acceleration": "Linux KVM on TCG-emulated AMD SVM",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "F",
+    "hot_mib": 1,
+    "maximum_mib": 32,
+    "budget_mib": 32,
+    "guest_ram_mib": 132,
+    "order": [
+      "ordinary",
+      "vram"
+    ],
+    "accel": "kvm",
+    "geometric": true,
+    "resident_mib": 4,
+    "search_nodes": 0,
+    "adaptive": true,
+    "no_reserve": false
+  },
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 19,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "37",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "vram",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 25,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "19",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.026101361999998574,
+      "group_current": 16236544,
+      "group_peak": 16236544,
+      "charge_bytes": {
+        "anon": 15212544,
+        "file": 0,
+        "kernel": 770048,
+        "pagetables": 147456,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.0464519929999998,
+      "group_current": 18333696,
+      "group_peak": 18333696,
+      "charge_bytes": {
+        "anon": 17309696,
+        "file": 0,
+        "kernel": 774144,
+        "pagetables": 151552,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.10494155000000127,
+      "group_current": 22528000,
+      "group_peak": 22528000,
+      "charge_bytes": {
+        "anon": 21504000,
+        "file": 0,
+        "kernel": 782336,
+        "pagetables": 159744,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.32637444100000046,
+      "group_current": 30916608,
+      "group_peak": 30916608,
+      "charge_bytes": {
+        "anon": 29892608,
+        "file": 0,
+        "kernel": 802816,
+        "pagetables": 176128,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.014517766999999182,
+      "group_current": 13598720,
+      "group_peak": 13737984,
+      "charge_bytes": {
+        "anon": 12668928,
+        "file": 0,
+        "kernel": 802816,
+        "pagetables": 151552,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 0,
+        "resident-pages": 258,
+        "plan-refits": 0,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 0,
+        "searches": 0,
+        "backing-bytes": 540792,
+        "captures": 0,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.12161266300000051,
+      "group_current": 16973824,
+      "group_peak": 17022976,
+      "charge_bytes": {
+        "anon": 15814656,
+        "file": 0,
+        "kernel": 806912,
+        "pagetables": 155648,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 4,
+        "program-pages": 0,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 0,
+        "clean-drops": 0,
+        "raw-pages": 3,
+        "corrected-pages": 0,
+        "search-nodes": 0,
+        "searches": 0,
+        "backing-bytes": 553240,
+        "captures": 4,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 5.803989892000001,
+      "group_current": 22085632,
+      "group_peak": 23957504,
+      "charge_bytes": {
+        "anon": 20955136,
+        "file": 0,
+        "kernel": 815104,
+        "pagetables": 163840,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 3081,
+        "program-pages": 0,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 0,
+        "clean-drops": 0,
+        "raw-pages": 2049,
+        "corrected-pages": 0,
+        "search-nodes": 0,
+        "searches": 0,
+        "backing-bytes": 8933660,
+        "captures": 3081,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 11.505394677999998,
+      "group_current": 29315072,
+      "group_peak": 31748096,
+      "charge_bytes": {
+        "anon": 28278784,
+        "file": 0,
+        "kernel": 847872,
+        "pagetables": 196608,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 9237,
+        "program-pages": 0,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 0,
+        "clean-drops": 0,
+        "raw-pages": 4097,
+        "corrected-pages": 0,
+        "search-nodes": 0,
+        "searches": 0,
+        "backing-bytes": 17322268,
+        "captures": 9237,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 0
+      }
+    }
+  ]
+}

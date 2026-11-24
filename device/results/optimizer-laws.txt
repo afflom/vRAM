@@ -1,0 +1,3 @@
+'Vram.SearchLaws.publication' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Vram.SearchLaws.probe_on_expiration' does not depend on any axioms
+'Vram.SearchLaws.credits_decrease' depends on axioms: [propext, Quot.sound]

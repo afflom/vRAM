@@ -12,3 +12,10 @@
 
 # What prism-code records about the last check and build, per machine.
 **/session.json
+
+target/
+__pycache__/
+*.pyc
+/host/build/
+/measurements/local/
+node_modules/

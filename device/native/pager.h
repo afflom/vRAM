@@ -1,0 +1,54 @@
+#ifndef VERDANT_PAGER_H
+#define VERDANT_PAGER_H
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
+struct store;
+struct pager;
+struct store *store_new(size_t npages);
+struct store *store_new_with_search(size_t npages, size_t node_budget);
+struct store *store_new_config(size_t npages, size_t node_budget, bool adaptive);
+void store_feedback_stats(struct store *, uint64_t *refits, uint64_t *skips);
+void store_search_stats(struct store *, uint64_t *pages, uint64_t *bytes, uint64_t *searches, uint64_t *nodes);
+void store_free(struct store *);
+int store_put(struct store *, size_t page, const uint8_t *bytes4096);
+int store_get(struct store *, size_t page, uint8_t *bytes4096);
+int store_project(struct store *, size_t page, const int32_t *weights64, int64_t *output64);
+void store_selector_stats(struct store *, uint64_t *pages, uint64_t *restores);
+void store_stats(struct store *, uint64_t counters[5]);
+
+/* Caller owns the private, anonymous, initially untouched 4 KiB-page mapping
+ * and the store. Quiesce all access before checkpoint or detach. For direct
+ * queries checkpoint first, then keep the covered pages quiescent. */
+enum vram_action { VRAM_SKIP, VRAM_RESTORE_CLEAN, VRAM_RESTORE_DIRTY, VRAM_WRITABLE,
+                   VRAM_CAPTURE, VRAM_DISCARD, VRAM_RELEASE, VRAM_RETAIN, VRAM_TRIM, VRAM_ALLOW };
+uint32_t vram_fault(bool wp, bool write, bool tracking);
+uint32_t vram_reclaim(bool present, bool dirty);
+uint32_t vram_captured(bool success);
+uint32_t vram_discarded(bool success);
+bool vram_trim(uint64_t limit, uint64_t resident);
+bool vram_permitted(bool opted, bool quiescent, bool tcg, bool kvm, bool capture_all, bool migration_idle);
+uint64_t vram_membership(uint64_t word, uint64_t bit, bool present);
+bool vram_range(uint64_t offset, uint64_t length, uint64_t extent);
+void store_edits(struct store *, uint64_t *pages, uint64_t *entries);
+struct pager_metrics {
+    uint64_t resident, clean_drops, captures, writes, automatic_drops;
+    bool write_tracking;
+};
+void pager_metrics(struct pager *, struct pager_metrics *);
+bool pager_over_target(struct pager *, uint64_t target_pages);
+int pager_trim(struct pager *, uint64_t target_pages);
+struct pager *pager_attach(void *base, size_t bytes, struct store *store);
+struct pager *pager_attach_vm(void *base, size_t bytes, struct store *store, bool track_writes,
+                              bool index_residents);
+bool pager_tracks_writes(struct pager *);
+struct reclaim_result {
+    uint64_t discarded;
+    uint64_t resident_after;
+};
+int pager_checkpoint_range(struct pager *, uint64_t offset, uint64_t bytes,
+                           struct reclaim_result *);
+int pager_checkpoint(struct pager *);
+uint64_t pager_faults(struct pager *);
+void pager_detach(struct pager *);
+#endif

@@ -1,0 +1,122 @@
+{
+  "clock": "CLOCK_PROCESS_CPUTIME_ID",
+  "machine": "x86_64",
+  "library_sha256": {
+    "previous": "61775591e19b10aca53e5f8b0448170897034fc425491765dd2c4fca1942d179",
+    "current": "5d0d0d9642e35819d81c1cbb27cc6ab271b5dcdaca25f4aae26bdc468027e3fa"
+  },
+  "trials": [
+    {
+      "pair": 0,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 618082390
+    },
+    {
+      "pair": 0,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3460127
+    },
+    {
+      "pair": 1,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3932032
+    },
+    {
+      "pair": 1,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 577376574
+    },
+    {
+      "pair": 2,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 528541064
+    },
+    {
+      "pair": 2,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3464563
+    },
+    {
+      "pair": 3,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3543925
+    },
+    {
+      "pair": 3,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 549833071
+    },
+    {
+      "pair": 4,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 530657230
+    },
+    {
+      "pair": 4,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3549179
+    },
+    {
+      "pair": 5,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 5654977
+    },
+    {
+      "pair": 5,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 543250936
+    },
+    {
+      "pair": 6,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 695536555
+    },
+    {
+      "pair": 6,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3562872
+    },
+    {
+      "pair": 7,
+      "version": "current",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 3695156
+    },
+    {
+      "pair": 7,
+      "version": "previous",
+      "verified_pages": 16640,
+      "timed_pages": 16384,
+      "cpu_ns": 555236236
+    }
+  ]
+}

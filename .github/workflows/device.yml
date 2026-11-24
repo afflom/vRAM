@@ -1,0 +1,66 @@
+name: vRAM device
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Workload (S for two-class pages, F for tiled factors, U for pseudorandom, M for mixed)
+        default: F
+        type: choice
+        options: [S, F, U, M]
+      ceiling:
+        description: Logical ceiling in MiB
+        default: '256'
+        type: string
+      budget:
+        description: Native runner RSS budget in MiB
+        default: '192'
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PRISM_CODE_TIER: offline
+      PRISM_LEXLEAN_FETCH: '0'
+      PRISM_TELEMETRY: '0'
+      PROFILE: ${{ inputs.profile || 'F' }}
+      CEILING: ${{ inputs.ceiling || '8' }}
+      BUDGET: ${{ inputs.budget || '96' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Install locked build tools
+        run: |
+          npm ci --prefix automation --ignore-scripts
+          rustup toolchain install 1.97.1 --profile minimal
+          echo RUSTUP_TOOLCHAIN=1.97.1 >> "$GITHUB_ENV"
+      - name: Check and build the Prism model
+        run: |
+          automation/node_modules/.bin/prism-code check .
+          automation/node_modules/.bin/prism-code build .
+          git diff --exit-code -- CONFORMANCE.md
+      - name: Verify and build both frontends
+        run: |
+          (cd device && cargo test --locked --offline)
+          make -C host LDFLAGS=-static
+      - name: Calibrate the optimizer and check every restored page
+        run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
+      - name: Package Linux host software and receipt
+        run: |
+          mkdir -p dist
+          cp host/build/vram-host measurements/local/receipt.json dist/
+          cp README.md dist/
+          (cd dist && sha256sum vram-host receipt.json README.md > SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: vram-linux-x86_64
+          path: dist/

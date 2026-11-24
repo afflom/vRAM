@@ -1,0 +1,43 @@
+
+##
+# @VramReclaimInfo:
+#
+# @discarded-pages: populated pages discarded in this call
+#
+# @resident-after: pages mincore reported resident in the requested range
+#     immediately after reclaim
+#
+# @total-faults: cumulative successful page installations across this backend
+#
+# Since: 9.2
+##
+{ 'struct': 'VramReclaimInfo', 'if': 'CONFIG_LINUX',
+  'data': { 'discarded-pages': 'uint64', 'resident-after': 'uint64',
+            'total-faults': 'uint64' } }
+
+##
+# @x-vram-reclaim:
+#
+# Reclaim a range of private vRAM on a paused TCG or capture-all KVM VM.
+# The operator must exclude all DMA, external mappings and host access
+# to this range.  The opt-in backend option records that precondition.
+# On failure some pages can already have been committed and discarded.
+# Retrying the range while quiescent is supported.
+#
+# @id: backend object ID
+#
+# @offset: page-aligned byte offset in the backend
+#
+# @length: positive page-aligned byte count
+#
+# Returns: range residency and backend page fault counts
+#
+# Features:
+#
+# @unstable: experimental quiescent reclamation
+#
+# Since: 9.2
+##
+{ 'command': 'x-vram-reclaim', 'features': ['unstable'], 'if': 'CONFIG_LINUX',
+  'data': { 'id': 'str', 'offset': 'uint64', 'length': 'uint64' },
+  'returns': 'VramReclaimInfo' }

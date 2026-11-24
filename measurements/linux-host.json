@@ -1,0 +1,19 @@
+{
+  "verified_bytes": 33554432,
+  "linux_swap_writes": 8192,
+  "linux_swap_reads": 7296,
+  "store": {
+    "write_pages": 8192,
+    "read_pages": 7297,
+    "trim_pages": 0,
+    "raw_pages": 4096,
+    "selector_pages": 4096,
+    "selector_restores": 3648,
+    "store_bytes": 17736900
+  },
+  "kernel": "vmlinuz-6.12.117+deb13-amd64",
+  "server_sha256": "ff9c672ea3a4db4363081a1a191f554442a17f9bf507c78b33cde0a5ebc6b3a4",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "accelerator": "TCG",
+  "profile": "M"
+}

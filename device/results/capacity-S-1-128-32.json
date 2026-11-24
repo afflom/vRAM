@@ -1,0 +1,248 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "46be99d08de4269a435efb7c548b0f816a3808d600a7604b5f67c05a057e3dc9",
+  "guest_image_sha256": "6caddafb0c07877b37ba2f53efb14c5364e865737bc97b4117ba5ba41f9d7d8f",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "S",
+    "hot_mib": 1,
+    "maximum_mib": 128,
+    "budget_mib": 32,
+    "order": [
+      "vram",
+      "previous-vram",
+      "ordinary"
+    ],
+    "geometric": true,
+    "prior_qemu_sha256": "62186dce1a399050176df65c44ef79fc117f3eeae76803965bad50e3112fe8ca"
+  },
+  "budgets": [
+    {
+      "backend": "vram",
+      "outcome": "sweep ceiling",
+      "attempted_mib": 128,
+      "last_fully_verified_mib": 128,
+      "peak_bytes": 22192128,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "0",
+        "oom": "0",
+        "oom_kill": "0",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "previous-vram",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 24,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "35",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 18,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "56",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.22758491000000092,
+      "group_current": 15044608,
+      "group_peak": 15044608,
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 4.6604394389999975,
+      "group_current": 20492288,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 768,
+        "raw-pages": 0,
+        "backing-bytes": 645168,
+        "selector-restores": 768
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 4.215643016000001,
+      "group_current": 20492288,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 1792,
+        "raw-pages": 0,
+        "backing-bytes": 784432,
+        "selector-restores": 2560
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 7.041515283999999,
+      "group_current": 20353024,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 3840,
+        "raw-pages": 0,
+        "backing-bytes": 1062960,
+        "selector-restores": 6400
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 32,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 13.768866575000004,
+      "group_current": 20541440,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 7936,
+        "raw-pages": 0,
+        "backing-bytes": 1620016,
+        "selector-restores": 14336
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 64,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 47.112429554,
+      "group_current": 20860928,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 16128,
+        "raw-pages": 0,
+        "backing-bytes": 2734128,
+        "selector-restores": 30464
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 128,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 51.31266222300002,
+      "group_current": 20824064,
+      "group_peak": 22192128,
+      "store": {
+        "selector-pages": 32512,
+        "raw-pages": 0,
+        "backing-bytes": 4962352,
+        "selector-restores": 62976
+      }
+    },
+    {
+      "backend": "previous-vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.057108863999985715,
+      "group_current": 14782464,
+      "group_peak": 14893056
+    },
+    {
+      "backend": "previous-vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.5878704550000009,
+      "group_current": 16625664,
+      "group_peak": 17666048
+    },
+    {
+      "backend": "previous-vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 1.234830598000002,
+      "group_current": 18997248,
+      "group_peak": 20025344
+    },
+    {
+      "backend": "previous-vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 2.9301197769999874,
+      "group_current": 25440256,
+      "group_peak": 26738688
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.06770809099998587,
+      "group_current": 17412096,
+      "group_peak": 17412096
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.3290507939999827,
+      "group_current": 19509248,
+      "group_peak": 19509248
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 0.692537883,
+      "group_current": 23703552,
+      "group_peak": 23703552
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "S",
+      "verify_and_reclaim_seconds": 1.2262337680000144,
+      "group_current": 32092160,
+      "group_peak": 32092160
+    }
+  ]
+}

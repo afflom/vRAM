@@ -1,0 +1,18 @@
+[package]
+name = "verdant-memory"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+verdant-tensor = { version = "=2.20.0", registry = "verdant" }
+vram_selector_admission = { version = "=0.1.0", registry = "verdant" }
+vram_representation = { version = "=0.1.0", registry = "verdant" }
+vram_word = { version = "=0.1.0", registry = "verdant" }
+vram_lifecycle = { version = "=0.1.0", registry = "verdant" }
+vram_range_model = { package = "vram_range", version = "=0.1.0", registry = "verdant" }
+vram_search = { version = "=0.1.0", registry = "verdant" }
+vram_advance = { version = "=0.1.0", registry = "verdant" }
+vram_schedule = { version = "=0.1.0", registry = "verdant" }

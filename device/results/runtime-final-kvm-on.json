@@ -1,0 +1,304 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "d4c447e8f28a6a32c05f9f11c3ff241832bff129a970da605917e785a9775f7f",
+  "guest_image_sha256": "219922a06c157ec2de19c3500bda5a62969a9629732701b692a425d90de64a04",
+  "acceleration": "Linux KVM on TCG-emulated AMD SVM",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "F",
+    "hot_mib": 1,
+    "maximum_mib": 32,
+    "budget_mib": 32,
+    "guest_ram_mib": 132,
+    "order": [
+      "vram",
+      "ordinary"
+    ],
+    "accel": "kvm",
+    "geometric": true,
+    "resident_mib": 4,
+    "search_nodes": 49,
+    "adaptive": true,
+    "no_reserve": false
+  },
+  "budgets": [
+    {
+      "backend": "vram",
+      "outcome": "sweep ceiling",
+      "attempted_mib": 32,
+      "last_fully_verified_mib": 32,
+      "peak_bytes": 22446080,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "0",
+        "oom": "0",
+        "oom_kill": "0",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 19,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "55",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.023680396999999687,
+      "group_current": 13860864,
+      "group_peak": 13910016,
+      "charge_bytes": {
+        "anon": 12681216,
+        "file": 0,
+        "kernel": 806912,
+        "pagetables": 155648,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 0,
+        "program-pages": 0,
+        "protected-writes": 0,
+        "resident-pages": 258,
+        "plan-refits": 0,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 0,
+        "searches": 0,
+        "backing-bytes": 553464,
+        "captures": 0,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.11038633100000084,
+      "group_current": 16711680,
+      "group_peak": 16957440,
+      "charge_bytes": {
+        "anon": 15843328,
+        "file": 0,
+        "kernel": 811008,
+        "pagetables": 159744,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 4,
+        "program-pages": 3,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 1,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 101,
+        "searches": 2,
+        "backing-bytes": 556232,
+        "captures": 4,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 2594
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 3.144010712,
+      "group_current": 17698816,
+      "group_peak": 17965056,
+      "charge_bytes": {
+        "anon": 16596992,
+        "file": 0,
+        "kernel": 815104,
+        "pagetables": 167936,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 3081,
+        "program-pages": 2049,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 1923,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 12114,
+        "searches": 129,
+        "backing-bytes": 1941471,
+        "captures": 3081,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 1387736
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 5.0088786160000005,
+      "group_current": 21561344,
+      "group_peak": 22446080,
+      "charge_bytes": {
+        "anon": 20447232,
+        "file": 0,
+        "kernel": 835584,
+        "pagetables": 184320,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 9237,
+        "program-pages": 4097,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 3848,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 24201,
+        "searches": 257,
+        "backing-bytes": 3328063,
+        "captures": 9237,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 2774232
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 32,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 8.967469661000003,
+      "group_current": 21651456,
+      "group_peak": 22446080,
+      "charge_bytes": {
+        "anon": 20574208,
+        "file": 0,
+        "kernel": 868352,
+        "pagetables": 217088,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "automatic-drops": 21549,
+        "program-pages": 8193,
+        "protected-writes": 0,
+        "resident-pages": 1024,
+        "plan-refits": 7699,
+        "clean-drops": 0,
+        "raw-pages": 0,
+        "corrected-pages": 0,
+        "search-nodes": 48435,
+        "searches": 514,
+        "backing-bytes": 6101251,
+        "captures": 21549,
+        "search-skips": 0,
+        "edit-count": 0,
+        "write-tracking": false,
+        "selector-restores": 0,
+        "program-bytes": 5547224
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.011171042000000853,
+      "group_current": 16887808,
+      "group_peak": 16887808,
+      "charge_bytes": {
+        "anon": 15953920,
+        "file": 0,
+        "kernel": 778240,
+        "pagetables": 155648,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.06158055000000218,
+      "group_current": 18984960,
+      "group_peak": 18984960,
+      "charge_bytes": {
+        "anon": 18051072,
+        "file": 0,
+        "kernel": 782336,
+        "pagetables": 159744,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.09911076899999927,
+      "group_current": 23179264,
+      "group_peak": 23179264,
+      "charge_bytes": {
+        "anon": 22245376,
+        "file": 0,
+        "kernel": 790528,
+        "pagetables": 167936,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "F",
+      "verify_and_reclaim_seconds": 0.20702182099999789,
+      "group_current": 31830016,
+      "group_peak": 31830016,
+      "charge_bytes": {
+        "anon": 30633984,
+        "file": 0,
+        "kernel": 806912,
+        "pagetables": 184320,
+        "shmem": 0
+      }
+    }
+  ]
+}

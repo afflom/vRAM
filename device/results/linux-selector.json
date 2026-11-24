@@ -1,0 +1,489 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "46be99d08de4269a435efb7c548b0f816a3808d600a7604b5f67c05a057e3dc9",
+  "guest_image_sha256": "b8b61b1baae5f88e4fc68b5712d1fe2964599ef92854fbce95492d14e3af8e74",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 192,
+  "inner_vcpus": 1,
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "limit_bytes": 268435456,
+      "peak_bytes": 204480512,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "limit_bytes": 268435456,
+      "peak_bytes": 196845568,
+      "swap_limit_bytes": 0,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      }
+    }
+  ],
+  "trials": [
+    {
+      "before_reclaim": {
+        "rss_kib": 208000,
+        "pss_kib": 206983,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208000,
+        "pss_kib": 206983,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208000,
+        "pss_kib": 206983,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 204382208
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208008,
+        "pss_kib": 206991,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208008,
+        "pss_kib": 206991,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208024,
+        "pss_kib": 207007,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 204382208
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 204382208
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 204382208
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 204447744
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 204447744
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 6,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "selector pages",
+      "cgroup_peak_bytes_to_readback": 204447744
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 208032,
+        "pss_kib": 207015,
+        "swap_kib": 0
+      },
+      "backend": "ordinary",
+      "phase": 7,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "one byte changed per 17 selector pages",
+      "cgroup_peak_bytes_to_readback": 204480512
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200696,
+        "pss_kib": 199713,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 200688,
+        "pss_kib": 199705,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200700,
+        "pss_kib": 199717,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 0,
+      "checked_bytes": 8192,
+      "physical_ranges": 1,
+      "pages": 2,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196427776,
+      "discarded_before_resume": 2,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 2,
+      "backend_faults_during_readback": 2
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200700,
+        "pss_kib": 199717,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 199692,
+        "pss_kib": 198709,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 1,
+      "checked_bytes": 1048576,
+      "physical_ranges": 2,
+      "pages": 256,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196661248,
+      "discarded_before_resume": 256,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 256,
+      "backend_faults_during_readback": 256
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 196624,
+        "pss_kib": 195641,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 2,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "fill with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 196624,
+        "pss_kib": 195641,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 3,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "palette with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 196624,
+        "pss_kib": 195641,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 4,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "pseudorandom with boundary writes",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 196624,
+        "pss_kib": 195641,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 5,
+      "checked_bytes": 4194304,
+      "physical_ranges": 7,
+      "pages": 1024,
+      "pattern": "patch restored pseudorandom pages",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "discarded_before_resume": 1024,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 1024,
+      "backend_faults_during_readback": 1024
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 200720,
+        "pss_kib": 199737,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 184532,
+        "pss_kib": 183549,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200952,
+        "pss_kib": 199969,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 6,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "selector pages",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "backing_before_readback": {
+        "selector-pages": 4096,
+        "raw-pages": 0,
+        "backing-bytes": 1343536,
+        "selector-restores": 0
+      },
+      "backing_after_readback": {
+        "selector-pages": 4096,
+        "raw-pages": 0,
+        "backing-bytes": 1343536,
+        "selector-restores": 4096
+      },
+      "discarded_before_resume": 4096,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 4096,
+      "backend_faults_during_readback": 4096
+    },
+    {
+      "before_reclaim": {
+        "rss_kib": 185532,
+        "pss_kib": 184549,
+        "swap_kib": 0
+      },
+      "after_reclaim": {
+        "rss_kib": 184568,
+        "pss_kib": 183585,
+        "swap_kib": 0
+      },
+      "after_readback": {
+        "rss_kib": 200952,
+        "pss_kib": 199969,
+        "swap_kib": 0
+      },
+      "backend": "vram",
+      "phase": 7,
+      "checked_bytes": 16777216,
+      "physical_ranges": 9,
+      "pages": 4096,
+      "pattern": "one byte changed per 17 selector pages",
+      "cgroup_peak_bytes_to_readback": 196845568,
+      "backing_before_readback": {
+        "selector-pages": 3855,
+        "raw-pages": 241,
+        "backing-bytes": 2297896,
+        "selector-restores": 4337
+      },
+      "backing_after_readback": {
+        "selector-pages": 3855,
+        "raw-pages": 241,
+        "backing-bytes": 2297896,
+        "selector-restores": 8192
+      },
+      "discarded_before_resume": 241,
+      "resident_after_discard": 0,
+      "discarded_on_retry": 0,
+      "discarded_after_readback": 4096,
+      "backend_faults_during_readback": 4096
+    }
+  ]
+}

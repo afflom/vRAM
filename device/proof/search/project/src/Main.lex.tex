@@ -1,0 +1,30 @@
+\begin{lexlean}{Main}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+inductive{
+  name: Request, type_parameters: [], parameters: [],
+  constructors: [{name: explore, fields: [Nat, Nat]}, {name: split, fields: [Nat, Nat]}, {name: replace, fields: [Nat, Nat, Bool]}, {name: factor, fields: [Nat, Nat]}]
+}
+definition{
+  name: search, parameters: [request : Request], result: Bool,
+  body: (match request
+    | Request.explore incumbent nodeBudget => ((256 <? incumbent) && (0 <? nodeBudget))
+    | Request.split extent remaining => ((16 <? extent) && (0 <? remaining))
+    | Request.replace incumbent challenger exact => (exact && (challenger <? incumbent))
+    | Request.factor classes axis => ((0 <? classes) && ((classes <? axis) && (classes <=? 16)))),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+theorem{ name: rejectUnchecked, parameters: [a : Nat, b : Nat], statement: ((search (ctor Request.replace a b false)) = false), proof: reflexivity{} }
+theorem{ name: noSplitWithoutBudget, parameters: [], statement: ((search (ctor Request.split 64 0)) = false), proof: reflexivity{} }
+theorem{ name: noWideCodebook, parameters: [], statement: ((search (ctor Request.factor 17 64)) = false), proof: reflexivity{} }
+inductive{ name: Job, type_parameters: [], parameters: [], constructors: [{name: probe, fields: []}, {name: refit, fields: []}, {name: skip, fields: []}] }
+definition{ name: schedule, parameters: [adaptive : Bool, credits : Nat, template : Bool], result: Job,
+ body: (if adaptive then (if (credits =? 0) then (ctor Job.probe) else (if template then (ctor Job.refit) else (ctor Job.skip))) else (ctor Job.probe)),
+ executable: true, production: {effects: [], targets: [rust-core]} }
+definition{ name: advance, parameters: [probed : Bool, credits : Nat], result: Nat, body: (if probed then 15 else (prim subtract credits 1 : Nat)), executable: true, production: {effects: [], targets: [rust-core]} }
+theorem{ name: revisitAfterCreditsExpire, parameters: [template : Bool], statement: ((schedule true 0 template) = (ctor Job.probe)), proof: reflexivity{} }
+theorem{ name: fixedSearchAlwaysProbes, parameters: [credits : Nat, template : Bool], statement: ((schedule false credits template) = (ctor Job.probe)), proof: reflexivity{} }
+\end{semanticmodule}
+\end{lexlean}

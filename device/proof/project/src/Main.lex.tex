@@ -1,0 +1,29 @@
+\begin{lexlean}{Main}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: matchesCell,
+  parameters: [right : Bool, leftByte : Nat, rightByte : Nat, observed : Nat],
+  result: Bool,
+  body: (if right then (observed =? rightByte) else (observed =? leftByte)),
+  executable: true,
+  production: {effects: [], targets: [rust-core]}
+}
+
+theorem{
+  name: leftAdmission,
+  parameters: [a : Nat, b : Nat, observed : Nat],
+  statement: ((matchesCell false a b observed) = (observed =? a)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rightAdmission,
+  parameters: [a : Nat, b : Nat, observed : Nat],
+  statement: ((matchesCell true a b observed) = (observed =? b)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

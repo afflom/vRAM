@@ -1,0 +1,4 @@
+'Vram.Laws.contractWord_bit' depends on axioms: [propext, Quot.sound]
+'Vram.Laws.contractWord_oneHot' depends on axioms: [propext, Quot.sound]
+'Vram.Laws.chosen_is_minimum' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Vram.Laws.cannot_discard_dirty_without_capture' does not depend on any axioms

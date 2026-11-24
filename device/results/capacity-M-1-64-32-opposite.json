@@ -1,0 +1,256 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "46be99d08de4269a435efb7c548b0f816a3808d600a7604b5f67c05a057e3dc9",
+  "guest_image_sha256": "6caddafb0c07877b37ba2f53efb14c5364e865737bc97b4117ba5ba41f9d7d8f",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "M",
+    "hot_mib": 1,
+    "maximum_mib": 64,
+    "budget_mib": 32,
+    "order": [
+      "vram",
+      "ordinary"
+    ],
+    "geometric": false
+  },
+  "budgets": [
+    {
+      "backend": "vram",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 45,
+      "last_fully_verified_mib": 40,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "19",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 12,
+      "last_fully_verified_mib": 8,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "55",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.16136575999999891,
+      "group_current": 15044608,
+      "group_peak": 15089664,
+      "charge_bytes": {
+        "anon": 14307328,
+        "file": 0,
+        "kernel": 315392,
+        "pagetables": 159744,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 4.335209084000002,
+      "group_current": 20144128,
+      "group_peak": 21557248,
+      "charge_bytes": {
+        "anon": 19714048,
+        "file": 0,
+        "kernel": 327680,
+        "pagetables": 167936,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 384,
+        "raw-pages": 384,
+        "backing-bytes": 2165808,
+        "selector-restores": 384
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 6.927328193000001,
+      "group_current": 21118976,
+      "group_peak": 22999040,
+      "charge_bytes": {
+        "anon": 20631552,
+        "file": 0,
+        "kernel": 331776,
+        "pagetables": 176128,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 896,
+        "raw-pages": 896,
+        "backing-bytes": 4332592,
+        "selector-restores": 1280
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 11.780205303999999,
+      "group_current": 21409792,
+      "group_peak": 22999040,
+      "charge_bytes": {
+        "anon": 20635648,
+        "file": 0,
+        "kernel": 352256,
+        "pagetables": 192512,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 1920,
+        "raw-pages": 1920,
+        "backing-bytes": 8666160,
+        "selector-restores": 3200
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 24,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 9.614909155999996,
+      "group_current": 22081536,
+      "group_peak": 23425024,
+      "charge_bytes": {
+        "anon": 21602304,
+        "file": 0,
+        "kernel": 368640,
+        "pagetables": 212992,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 2944,
+        "raw-pages": 2944,
+        "backing-bytes": 12999728,
+        "selector-restores": 6144
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 32,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 12.602396114000001,
+      "group_current": 26587136,
+      "group_peak": 27664384,
+      "charge_bytes": {
+        "anon": 25968640,
+        "file": 0,
+        "kernel": 393216,
+        "pagetables": 237568,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 3968,
+        "raw-pages": 3968,
+        "backing-bytes": 17333296,
+        "selector-restores": 10112
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 40,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 13.94612248,
+      "group_current": 30994432,
+      "group_peak": 32165888,
+      "charge_bytes": {
+        "anon": 30322688,
+        "file": 0,
+        "kernel": 417792,
+        "pagetables": 262144,
+        "shmem": 0
+      },
+      "store": {
+        "selector-pages": 4992,
+        "raw-pages": 4992,
+        "backing-bytes": 21666864,
+        "selector-restores": 15104
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.07410718399999894,
+      "group_current": 17412096,
+      "group_peak": 17412096,
+      "charge_bytes": {
+        "anon": 16842752,
+        "file": 0,
+        "kernel": 290816,
+        "pagetables": 159744,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.31347922700000197,
+      "group_current": 19509248,
+      "group_peak": 19509248,
+      "charge_bytes": {
+        "anon": 18939904,
+        "file": 0,
+        "kernel": 294912,
+        "pagetables": 163840,
+        "shmem": 0
+      }
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.45149090099999967,
+      "group_current": 29904896,
+      "group_peak": 29904896,
+      "charge_bytes": {
+        "anon": 29335552,
+        "file": 0,
+        "kernel": 299008,
+        "pagetables": 172032,
+        "shmem": 0
+      }
+    }
+  ]
+}

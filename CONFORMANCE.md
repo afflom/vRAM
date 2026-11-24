@@ -16,12 +16,15 @@ The three honesty levels (R2):
 | `build` | Constructed here and proved by Lean's kernel. |
 | `open` | Measured and reported. **Never asserted.** |
 
-## contract
+## capacity
 
 | ID | Level | Statement | Evidence |
 | --- | --- | --- | --- |
-| `TC-01` | `build` | The checker answers conformant exactly when every universal policy file's observed label equals its locked label | `Contract.conformant_decides` |
-| `TC-02` | `build` | The checker answers invalid request to a request that is not exactly one locked and one observed label for each universal policy file | `Contract.accepts_exactly_a_request`, refuses with `invalid request` |
+| `VR-01` | `build` | A verified checkpoint within budget advances until the configured ceiling | `Contract.advanceVerified`, `Contract.finishVerified`, `Contract.budgetStops` |
+| `VR-02` | `build` | A failed byte check stops the sweep at any budget or ceiling | `Contract.failedBytesStop`, refuses with `failed readback` |
+| `VR-03` | `open` | Lossless capacity and cost are measured for each workload and host backend |  |
+| `VR-04` | `build` | Pilot optimization replaces the incumbent only for a verified improvement | `Contract.preferSmaller`, `Contract.preferFasterTie`, `Contract.replaceImprovement`, `Contract.keepIncumbent`, `Contract.rejectPilot` |
+| `VR-05` | `build` | Malformed requests are refused | `Contract.emptyRefused`, refuses with `invalid request` |
 
 ## Cited authorities
 
@@ -29,8 +32,10 @@ An authority is cited, never re-derived: what it states is not claimed as establ
 
 | Authority | Citation | Realized by |
 | --- | --- | --- |
+| `VERDANT-TENSOR` | Verdant supplies the packed tensor contraction and field extraction runtime. |  |
 
 ## Claims that are not conformance IDs
 
 | ID | Level | Claim |
 | --- | --- | --- |
+| `VR-TENSOR` | `some-true` | The vendored Verdant tensor runtime implements the packed contraction used by both device frontends. |

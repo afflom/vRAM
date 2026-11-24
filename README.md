@@ -1,91 +1,80 @@
-# UOR Prism template
+# vRAM
 
-The starting point for every Prism application: a repository whose every claim
-is registered, specified as a scenario, and proved by Lean's kernel, all
-checked by one command that runs in its own process.
+vRAM stores cold 4 KiB pages in the Verdant Engine 2.20.0 tensor runtime. Linux processes can use it as volatile swap. QEMU 9.2.0 can use it as guest main RAM. Both frontends link the same Rust library, use the same Prism-generated representation and scheduling decisions, and restore through the same page store. The Linux adapter speaks NBD over a local Unix socket. It persists no page data to disk.
+
+On a write, the store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
+
+## Use it on a Linux host
+
+The host frontend has been exercised on x86-64 Linux 6.12 with 4 KiB pages, the NBD kernel module and swap support. Build prerequisites are Python 3.11+, a C toolchain and Rust. The recorded build used Rust 1.97.1. From a checkout run:
 
 ```sh
-npx prism-code@latest init my-app
-cd my-app
-npx prism-code check
-npx prism-code build
+make -C host
+sudo make -C host install
+sudo modprobe nbd
 ```
 
-`init` writes this template from the copy `prism-code` carries, each file
-admitted by its BLAKE3 label, so it reads nothing from the network. `check` and
-`build` need no container, toolchain, workflow or server.
+Choose an unused whole NBD device. Start the server in a dedicated terminal or under a supervisor that keeps it alive for the entire swap session. This example advertises 128 MiB of logical swap. The server initializes a fresh swap header inside Verdant and locks its own memory to avoid recursive swapping. Linux zswap must be disabled while using this path.
 
-A Prism application is modeled in [LexLean](https://github.com/UOR-Foundation/LexLean),
-proved by Lean's kernel, and built by [`prism-code`](https://www.npmjs.com/package/prism-code)
-into a holo: one content-addressed archive that holds the model, the
-WebAssembly guest, its view and its acceptance vectors. Anyone can check a holo
-before it runs, offline, with `prism-code verify`.
-
-## What you get
-
-| Feature | What it means |
-| --- | --- |
-| **One command** | `prism-code check` is the acceptance boundary, the same on every machine. `prism-code build` also writes the app and replays every acceptance vector. |
-| **Claims you can audit** | `model/` registers every claim with an honesty level, and `CONFORMANCE.md` is generated from it. A claim without a scenario, or a `build` claim whose theorems Lean does not prove, fails `check`. |
-| **Proof, not tests** | A `build` claim names the theorems of the model that prove it. `check` refuses the claim unless Lean's kernel proved each, within its declared axioms, in that same run. |
-| **Typed refusals** | A registered failure names the exact refusal it answers, and `build` refuses it unless an acceptance vector answered with that refusal is replayed. |
-| **A bound policy** | `template.lock` binds the universal policy files by BLAKE3 label, and `check` refuses one that changed. |
-
-## The template is a Prism application
-
-`app/` is the **template contract checker**. A repository built from this
-template inherits universal policy files it must never edit. For each of the
-three that `template.lock` binds, the checker takes the locked label and the
-label actually on disk, and answers `conformant` or names every file that
-drifted.
-
-What makes it Prism and not a script: Lean proves the verdict is right.
-
-```
-theorem conformant_decides : conformant observation = true ↔ Conformant observation
-theorem accepts_exactly_a_request : accepts length = true ↔ length = 192
+```sh
+sudo /usr/local/sbin/vram-host attach /dev/nbd0 128
 ```
 
-`Conformant` says every observed label equals its locked label. The first
-claim is registered as `TC-01`; the second, `TC-02`, is its refusal: any request
-that is not three pins answers `invalid request`, which `build` replays on four
-such requests. Both are specified in `features/suites/contract.feature`. Keep
-them as a worked example, or replace `app/src/Contract.lex.tex` with your own
-model and the rows of `model/ids.toml` with your own claims.
+In a second terminal, activate the device, inspect Linux accounting, and after use return its pages to the host before detaching:
 
-## Everyday commands
+```sh
+sudo swapon /dev/nbd0
+swapon --show
+# After the workload has finished:
+sudo swapoff /dev/nbd0 && sudo /usr/local/sbin/vram-host detach /dev/nbd0
+```
 
-| Command | What it does |
-| --- | --- |
-| `prism-code check` | Checks the model, has Lean's kernel prove every theorem, and enforces R1 to R6 over the registers, the scenarios and `template.lock`. |
-| `prism-code build` | Regenerates `CONFORMANCE.md` from `model/`, runs `check`, then writes the app under `app/.prism/build` and replays every acceptance vector. |
-| `prism-code verify` | Checks a built app again: its archive, its world and its vectors. |
+For an exclusively Verdant experiment, configure this as the workload's only swap device. The installer leaves existing swap configuration to the operator. Allow sufficient host memory and locked-memory privileges for the server, page metadata, working set and literal pages. Killing the serving process while swap is active loses the device contents. Size the first deployment on a disposable host. A RAM-backed swap workload dominated by literal pages can exhaust the host.
 
-## For coding agents
+Linux reports this capacity under `SwapTotal`. Physical `MemTotal` stays hardware-defined. QEMU reports the configured guest main RAM to the guest. The reachable working set depends on content, resident frames, metadata, search cost and the host's memory budget. This repository establishes neither a universal multiplier nor a host-independent maximum.
 
-[AGENTS.md](AGENTS.md) holds the rules R1 to R6 and the required order of work.
-Read it first. Every refusal `check` reports names the rule it enforces.
-`init` also writes the Prism skill into `.claude/skills/prism` and
-`.agents/skills/prism`.
+## Use it as guest main RAM
 
-Repositories generated from this template are already Qortara-initialized; do
-not re-append managed sections; keep `.qortara/` journals empty here. The kit
-these files came from is pinned in
-[docs/qortara-template-pin.json](docs/qortara-template-pin.json).
+Build the QEMU backend using [the QEMU instructions](device/README.md). Select it as machine RAM:
 
-## Repository layout
+```sh
+-accel kvm -machine pc,memory-backend=ram,mem-merge=off -m 132 \
+  -object memory-backend-verdant-tensor,id=ram,size=132M,x-quiescent-reclaim=on,x-resident-target=4M,x-search-nodes=49,x-adaptive-search=on
+```
 
-| Path | Owner | Purpose |
-| --- | --- | --- |
-| `app/` | project | The Prism application: its LexLean model, the Foundation library it imports, and its project files. |
-| `model/` | project | The claim, authority and ledger registers: the single source of every claim (R1). |
-| `features/suites/` | project | One Gherkin scenario per registered ID (R3). |
-| `CONFORMANCE.md` | generated | Written by `prism-code build`, never by hand. |
-| `AGENTS.md`, `VERIFICATION.md`, `template-contract.json`, `template.lock` | universal policy | Bound by `template.lock`. Changes arrive only as a template release. |
+The verified configuration uses private 4 KiB memory, Linux userfaultfd and CPU-only guests with quiescent reclaim. Earlier receipts include TCG and KVM on an emulated AMD SVM host, with ordinary QEMU RAM as a control. [QEMU experiments](device/OPTIMIZER.md) · [Receipts](device/results)
 
-[TEMPLATE-CONTRACT.md](TEMPLATE-CONTRACT.md) defines the inherited policy, the
-`template/2` register and the lock. [VERIFICATION.md](VERIFICATION.md) defines
-the acceptance boundary, and [TEMPLATE-VERIFICATION.md](TEMPLATE-VERIFICATION.md)
-records this repository's planted defects.
+## Automate optimization and scaling
 
-Licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
+The operator follows Verdant Studio's model-directed next-operation pattern. Three measured pilot trials use search-node budgets of 0, 7 and 49. They run through the same Verdant store as the two devices. The Prism model ranks byte-verified pilots by store charge, breaking ties by write time. It then decides whether each geometric capacity trial advances, stops at its measured RSS budget, finishes at its ceiling, or fails readback. The regional optimizer in the store also learns when to refit, skip and revisit searches. [Controller model](app/src/Contract.lex.tex) · [Studio operations](https://github.com/afflom/verdant-studio/tree/e6261b24e4c66631f3011c15be57b324f5f138fb/studio/src/Studio) · [Regional optimizer](device/src/search.rs)
+
+Use Node 22+ and create a fresh receipt for each run:
+
+```sh
+npm ci --prefix automation --ignore-scripts
+automation/node_modules/.bin/prism-code check .
+automation/node_modules/.bin/prism-code build .
+make -C host
+node automation/operate.mjs F 256 96 measurements/local/factors.json
+```
+
+The arguments are workload, logical ceiling in MiB, process RSS budget in MiB and output file. Use `S` for rank-two pages, `F` for tiled factors, `M` for alternating structured and pseudorandom pages or `U` for pseudorandom bytes. The receipt records every pilot, selected budget, requested extent, actual page count, byte checks, store charge, RSS and timing. A partial final trial retains its actual verified count. RSS is sampled after groups of 64 writes and may cross the budget. Each trial runs in a fresh process.
+
+For a matching workload, pass the receipt's `search_nodes` as the fourth argument to `vram-host attach`, or as QEMU's `x-search-nodes`. Calibration on representative pages matters. For the recorded 4 MiB tiled-factor pilot, the controller selected 49 nodes and reduced store charge from 4,210,808 to 710,184 bytes. The 64 MiB follow-up verified 16,384 pages and recorded 15,360 template refits. [Pilot and follow-up](measurements/scale-F.json)
+
+The repository workflow builds the static Linux binary, runs calibration and uploads the binary, checksums and receipt. Its manual inputs select workload, ceiling and RSS budget. [Device workflow](.github/workflows/device.yml)
+
+## Verification
+
+The Linux integration test loads the distribution's NBD module in a disposable QEMU VM, activates only Verdant swap, writes ordinary anonymous memory, forces reclaim in a cgroup, and checks every byte after swap-in. The mixed 32 MiB case stored 4,096 modeled and 4,096 literal pages in one store. Linux registered 7,296 swap reads. The remainder could be served from its swap cache. [Linux receipt](measurements/linux-host.json)
+
+To replay on a host with matching kernel and module files, build the static server and supply the Linux image, its XZ-compressed NBD module and QEMU's BIOS directory:
+
+```sh
+make -C host LDFLAGS=-static
+python3 host/tests/boot.py --qemu /path/to/qemu-system-x86_64 \
+  --kernel /path/to/vmlinuz --nbd /path/to/nbd.ko.xz --bios-dir /path/to/pc-bios \
+  --result /tmp/vram-linux.json
+```
+
+The native scale receipts measure the store in isolation. Linux swap receipts exercise the kernel path. The QEMU receipts measure the guest backend. [Native and Linux measurements](measurements) · [Proof scope and fault injection](docs/device-verification.md)

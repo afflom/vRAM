@@ -1,0 +1,195 @@
+{
+  "qemu": "QEMU emulator version 9.2.0",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "inner_qemu_sha256": "46be99d08de4269a435efb7c548b0f816a3808d600a7604b5f67c05a057e3dc9",
+  "guest_image_sha256": "6caddafb0c07877b37ba2f53efb14c5364e865737bc97b4117ba5ba41f9d7d8f",
+  "acceleration": "TCG inside TCG",
+  "guest_ram_mib": 132,
+  "inner_vcpus": 1,
+  "config": {
+    "profile": "M",
+    "hot_mib": 1,
+    "maximum_mib": 64,
+    "budget_mib": 32,
+    "order": [
+      "ordinary",
+      "vram"
+    ],
+    "geometric": false
+  },
+  "budgets": [
+    {
+      "backend": "ordinary",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 18,
+      "last_fully_verified_mib": 16,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "53",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    },
+    {
+      "backend": "vram",
+      "outcome": "cgroup OOM kill",
+      "attempted_mib": 45,
+      "last_fully_verified_mib": 40,
+      "peak_bytes": 33554432,
+      "events": {
+        "low": "0",
+        "high": "0",
+        "max": "19",
+        "oom": "1",
+        "oom_kill": "1",
+        "oom_group_kill": "0"
+      }
+    }
+  ],
+  "trials": [
+    {
+      "backend": "ordinary",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.08043480399999936,
+      "group_current": 17412096,
+      "group_peak": 17412096
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.47058858099999945,
+      "group_current": 19509248,
+      "group_peak": 19509248
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.7014897149999992,
+      "group_current": 23703552,
+      "group_peak": 23703552
+    },
+    {
+      "backend": "ordinary",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 2.1632087319999993,
+      "group_current": 32092160,
+      "group_peak": 32092160
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 1,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 0.13173908999999995,
+      "group_current": 15044608,
+      "group_peak": 15065088,
+      "store": {
+        "selector-pages": 0,
+        "raw-pages": 0,
+        "backing-bytes": 540720,
+        "selector-restores": 0
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 4,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 5.967086878,
+      "group_current": 20021248,
+      "group_peak": 21446656,
+      "store": {
+        "selector-pages": 384,
+        "raw-pages": 384,
+        "backing-bytes": 2165808,
+        "selector-restores": 384
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 8,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 2.4414446530000014,
+      "group_current": 20942848,
+      "group_peak": 22450176,
+      "store": {
+        "selector-pages": 896,
+        "raw-pages": 896,
+        "backing-bytes": 4332592,
+        "selector-restores": 1280
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 16,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 4.858366356000005,
+      "group_current": 20873216,
+      "group_peak": 22450176,
+      "store": {
+        "selector-pages": 1920,
+        "raw-pages": 1920,
+        "backing-bytes": 8666160,
+        "selector-restores": 3200
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 24,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 6.508681410000001,
+      "group_current": 22183936,
+      "group_peak": 23347200,
+      "store": {
+        "selector-pages": 2944,
+        "raw-pages": 2944,
+        "backing-bytes": 12999728,
+        "selector-restores": 6144
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 32,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 9.423561372999998,
+      "group_current": 26652672,
+      "group_peak": 27799552,
+      "store": {
+        "selector-pages": 3968,
+        "raw-pages": 3968,
+        "backing-bytes": 17333296,
+        "selector-restores": 10112
+      }
+    },
+    {
+      "backend": "vram",
+      "verified_mib": 40,
+      "hot_mib": 1,
+      "profile": "M",
+      "verify_and_reclaim_seconds": 50.757807760000006,
+      "group_current": 30941184,
+      "group_peak": 33554432,
+      "store": {
+        "selector-pages": 4992,
+        "raw-pages": 4992,
+        "backing-bytes": 21666864,
+        "selector-restores": 15104
+      }
+    }
+  ]
+}
