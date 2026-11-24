@@ -2,9 +2,11 @@
 #define _GNU_SOURCE
 #include "pager.h"
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 enum { PAGE = 4096, PAGES = 32769 };
@@ -55,12 +57,49 @@ static int edit_limit(struct store *s)
     return bases == 2 && after == before + 1 && verify(s, 1, near) && verify(s, 2, far);
 }
 
+/* Run on a fresh file so the spare slot is known to start at byte PAGE. */
+static int partial_write(struct store *s, int fd)
+{
+    u8 old[PAGE], partial[PAGE], replacement[PAGE], disk[PAGE];
+    expected(1, 'U', old);
+    expected(2, 'U', partial);
+    expected(3, 'U', replacement);
+    if (store_put(s, 0, old)) return 0;
+    struct rlimit original;
+    if (getrlimit(RLIMIT_FSIZE, &original)) return 0;
+    struct rlimit limit = original;
+    limit.rlim_cur = PAGE + 1024;
+    struct sigaction ignore = {.sa_handler = SIG_IGN}, previous;
+    sigemptyset(&ignore.sa_mask);
+    if (sigaction(SIGXFSZ, &ignore, &previous)) return 0;
+    int limited = !setrlimit(RLIMIT_FSIZE, &limit);
+    int refused = limited && store_put(s, 0, partial) != 0;
+    if (setrlimit(RLIMIT_FSIZE, &original) || sigaction(SIGXFSZ, &previous, NULL)) return 0;
+    u8 zero[PAGE] = {0};
+    if (!refused || pread(fd, disk, PAGE, PAGE) != PAGE ||
+        memcmp(disk, partial, 1024) || memcmp(disk + 1024, zero, PAGE - 1024) ||
+        !verify(s, 0, old) || !verify(s, 1, zero)) return 0;
+    if (store_put(s, 1, replacement) || !verify(s, 0, old) || !verify(s, 1, replacement) ||
+        pread(fd, disk, PAGE, PAGE) != PAGE || memcmp(disk, replacement, PAGE)) return 0;
+    return !store_discard(s, 0, PAGES);
+}
+
 static int failed_writes(struct store *s, int fd)
 {
     u8 old[PAGE], other[PAGE], zero[PAGE] = {0};
     expected(17, 'U', old);
     expected(19, 'U', other);
     if (store_discard(s, 0, PAGES) || store_put(s, 0, old)) return 0;
+    /* Fill four whole slot words. A failed write would start a fifth and
+     * grow the ledger if its reservation were committed before successful I/O. */
+    u8 live[PAGE];
+    for (size_t i = 1; i < 256; ++i) {
+        expected((u32)i + 1000, 'U', live);
+        if (store_put(s, 1024 + i, live)) return 0;
+    }
+    uint64_t bases, hits, skipped, residuals;
+    store_literal_stats(s, &bases, &hits, &skipped, &residuals);
+    if (bases != 256) return 0;
     uint64_t before[5], after[5];
     store_stats(s, before);
     if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE)) return 0;
@@ -84,10 +123,15 @@ int main(void)
     if (fd < 0 || ftruncate(fd, (off_t)(PAGES + 1) * PAGE)) return 1;
     struct store *s = store_new_file(PAGES, fd);
     if (!s) return 1;
+    int torn = partial_write(s, fd);
+    if (!torn) fprintf(stderr, "partial write rollback or spare-slot reuse failed\n");
+    store_free(s);
+    s = store_new_file(PAGES, fd);
+    if (!s) return 1;
     int fit = collisions(s);
     int boundary = edit_limit(s);
     int rollback = failed_writes(s, fd);
     store_free(s);
     close(fd);
-    return !(fit && boundary && rollback);
+    return !(torn && fit && boundary && rollback);
 }

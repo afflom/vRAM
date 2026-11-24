@@ -118,3 +118,22 @@ The same 128 MiB file-backed harness ran six paired trials against 0.4.1 on one 
 | Four colliding dense bases | 48.2 | 45.2 | 25.7 | 25.8 |
 
 The packaged launcher also booted Linux with a 512 MiB platform ceiling and 320 MiB guest ceiling supplied to `--ram-mib max`. It provided 192 MiB at boot and plugged the reserved 128 MiB while the guest ran. With swap disabled, MemTotal increased by exactly 131,072 KiB and the guest verified 95 MiB on the new DIMM. This run used stock QEMU 10.0.13 and KVM on emulated AMD SVM. [Guest and store counters](../measurements/linux-virtual-dimm-0.5.0.json)
+
+## Dense slot reclamation in 0.5.1
+
+The previous file-backed arena pushed retired slot numbers onto a growable vector. The new arena maintains one availability word per 64 slots reached and links words with available lanes. Both slot selection and return take constant time once the word exists. Growing the word vector on admission has amortized constant cost. The arena uses the existing Prism word-membership and empty-group exports. It commits ownership under its lock only after a complete page write. A final partial word exposes only slots that fit the reserved file.
+
+The release path for a literal slot only updates existing metadata or releases the entire ledger when the last owner drops. This property applies to the slot allocator. The page directory and literal index have their own resource costs. The ledger retains its word capacity until the arena drains, and a completely full arena now pays a small metadata cost before any pages are retired.
+
+On amd64, the targeted test filled 8,193 slots, released the even slots, refilled them and checked every page and the capacity boundary. Against 0.5.0, `cargo test --locked --offline fragmented_release -- --nocapture` failed with `slot reclamation grew metadata`. With 0.5.1 the same test passed. The readings include the arena structure and allocated slot ledger, in bytes.
+
+| Implementation | Empty | Full | Alternating slots released |
+|---|---:|---:|---:|
+| 0.5.0 | 72 | 72 | 32,840 |
+| 0.5.1 | 80 | 4,176 | 4,176 |
+
+The native file-admission test uses a file-size limit to interrupt a 4 KiB write after 1,024 bytes. It checks the partial bytes on disk, restores the previous logical page, and verifies the complete new contents when another page reuses that slot. A separate sealed-file test fills four complete words, forces writes that would require a fifth word to fail, and checks both the previous page and the store charge.
+
+All 262,144 independent pages in a fully reserved 1 GiB store restored under a 64 MiB process address-space limit. In six paired 128 MiB trials the repeated-page workload's median write time rose from 35.6 to 42.1 ms, sparse-edit writes fell from 76.4 to 72.7 ms, and independent writes changed from 130.6 to 131.3 ms. These are workload measurements. [Dense readback](../measurements/dense-reserve-0.5.1.json) · [All paired read and write timings](../measurements/file-latency-0.5.1.json)
+
+The packaged QEMU/KVM test booted with 192 MiB, onlined the reserved 128 MiB DIMM with swap disabled and checked 95 MiB on the added range. [Linux guest receipt](../measurements/linux-virtual-dimm-0.5.1.json)

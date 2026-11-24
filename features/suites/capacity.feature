@@ -101,3 +101,9 @@ Feature: capacity
     Given a small process budget and a sparse logical extent above one TiB
     When the first and last pages are written and the extent is discarded
     Then both restore exactly before discard and the empty directory has its starting charge
+
+  @VR-17 @open
+  Scenario: Reclaim and reuse interleaved slots in a full dense backing file
+    Given a full arena ending in a partial word and live literals in alternating slots
+    When the other slots retire and new literals fill their places
+    Then the release uses no additional slot metadata and every surviving literal restores its bytes

@@ -109,3 +109,9 @@ id = "VR-16"
 level = "open"
 suite = "capacity"
 statement = "An untouched virtual extent has constant directory cost and range discard skips unallocated leaves"
+
+[[id]]
+id = "VR-17"
+level = "open"
+suite = "capacity"
+statement = "Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents"

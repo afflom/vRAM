@@ -1,0 +1,23 @@
+{
+  "requested_mib": 1024,
+  "profile": "U",
+  "search_nodes": 49,
+  "stored_pages": 262144,
+  "verified_pages": 262144,
+  "peak_rss_kib": 39976,
+  "store_bytes": 1099538120,
+  "raw_pages": 262144,
+  "refits": 0,
+  "skips": 12288,
+  "write_seconds": 2.791715,
+  "read_seconds": 0.397286,
+  "write_cpu_seconds": 2.771882,
+  "unique_literals": 262144,
+  "literal_hits": 0,
+  "residual_captures": 0,
+  "file_base_reads": 262144,
+  "file_base_writes": 262144,
+  "admission_base_reads": 0,
+  "reserve_bytes": 1073745920,
+  "address_space_limit_bytes": 67108864
+}
