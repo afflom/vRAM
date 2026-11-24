@@ -191,3 +191,9 @@ Feature: capacity
     Given a range write supplies different sparse changes to an existing file literal
     When several pages nominate the same live base
     Then the first admission reads its bytes and later admissions can reuse them while checking each exact reconstruction
+
+  @VR-27 @build
+  Scenario: Sweep newly eligible plans at each measured deadline
+    Given two equal-work plans first qualify at the same deadline
+    When the faster has been considered and a later deadline admits more plans
+    Then the slower plan cannot improve the incumbent and earlier eligible plans need no second evaluation

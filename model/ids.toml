@@ -171,3 +171,10 @@ id = "VR-26"
 level = "open"
 suite = "capacity"
 statement = "A multi-page writer can reuse its last successful immutable file literal read for admission without retaining ownership or bypassing exact candidate selection"
+
+[[id]]
+id = "VR-27"
+level = "build"
+suite = "capacity"
+statement = "An eligible candidate's timing decision is stable at every looser deadline; a plan dominated in both tail and elapsed time cannot improve the result after its dominator"
+theorems = ["Performance.stableAtLooserDeadline", "Performance.dominatedPlan"]

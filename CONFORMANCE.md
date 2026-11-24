@@ -46,6 +46,7 @@ The three honesty levels (R2):
 | `VR-24` | `build` | Nearest-rank p99 is certified from strict and tied counts, and shortening one sequential worker has an exact elapsed-time gain in a fixed parallel schedule | `Performance.rankWitness`, `Performance.missBudget`, `Performance.laneFloor`, `Performance.laneGain` |
 | `VR-25` | `open` | One range read restores adjacent pages sharing an immutable file literal from one backing read per run within a policy group, including pages with distinct XOR residuals |  |
 | `VR-26` | `open` | A multi-page writer can reuse its last successful immutable file literal read for admission without retaining ownership or bypassing exact candidate selection |  |
+| `VR-27` | `build` | An eligible candidate's timing decision is stable at every looser deadline; a plan dominated in both tail and elapsed time cannot improve the result after its dominator | `Performance.stableAtLooserDeadline`, `Performance.dominatedPlan` |
 
 ## Cited authorities
 

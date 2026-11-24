@@ -93,5 +93,15 @@ theorem{
   statement: ((((longest remaining other) + overhead) + (laneGainTicks remaining saved other)) = ((longest (remaining + saved) other) + overhead)),
   proof: linear_arithmetic{definitions: [laneGainTicks, longest]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+theorem{
+  name: stableAtLooserDeadline, parameters: [q : Nat, d : Nat, more : Nat, t : Nat, i : Nat],
+  statement: (((q <=? d) && (not ((bestTime d q t i) =? (bestTime (d + more) q t i)))) = false),
+  proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: dominatedPlan, parameters: [d : Nat, q : Nat, t : Nat, tailGap : Nat, timeGap : Nat, i : Nat],
+  statement: ((bestTime d (q + tailGap) (t + timeGap) (bestTime d q t i)) = (bestTime d q t i)),
+  proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

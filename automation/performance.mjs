@@ -77,15 +77,16 @@ for (const vcpus of widths) {
         ...(hasWitnesses ? {lane_bounds: bounds} : {})});
 }
 
-const deadlines = [...new Set(points.map(p => p.max_trial_p99_ns))].sort((a, b) => a - b);
-let best = points.find(p => p.max_trial_p99_ns === deadlines[0]);
+// Once a width becomes eligible its time stays eligible at every looser budget.
+// Finish every tie group before publishing that budget's fastest width.
+const ordered = [...points].sort((a, b) => a.max_trial_p99_ns - b.max_trial_p99_ns);
 const frontier = [];
-for (const limit of deadlines) {
-    for (const point of points) {
-        if (await decision('b', [limit, point.max_trial_p99_ns, point.total_write_ns, best.total_write_ns], 8))
-            best = point;
-    }
-    if (frontier.at(-1)?.vcpus !== best.vcpus)
+let best = ordered[0];
+for (const [index, point] of ordered.entries()) {
+    const limit = point.max_trial_p99_ns;
+    if (index && await decision('b', [limit, limit, point.total_write_ns, best.total_write_ns], 8))
+        best = point;
+    if (ordered[index + 1]?.max_trial_p99_ns !== limit && frontier.at(-1)?.vcpus !== best.vcpus)
         frontier.push({minimum_p99_budget_ns: limit, vcpus: best.vcpus});
 }
 const report = {input_sha256: createHash('sha256').update(raw).digest('hex'),
