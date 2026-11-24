@@ -77,4 +77,6 @@ python3 host/tests/boot.py --qemu /path/to/qemu-system-x86_64 \
   --result /tmp/vram-linux.json
 ```
 
+The native rank-two trial wrote and read back 4,194,304 distinct page positions (16 GiB of logical contents). The store charged 637,534,328 bytes, and the process reached 657,208 KiB peak RSS. The pseudorandom trial selected literal pages and stopped during its 64 MiB attempt under a 48 MiB RSS budget. [Rank-two sweep](measurements/scale-S.json) · [Pseudorandom control](measurements/scale-U.json)
+
 The native scale receipts measure the store in isolation. Linux swap receipts exercise the kernel path. The QEMU receipts measure the guest backend. [Native and Linux measurements](measurements) · [Proof scope and fault injection](docs/device-verification.md)

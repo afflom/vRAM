@@ -48,18 +48,32 @@ jobs:
           automation/node_modules/.bin/prism-code check .
           automation/node_modules/.bin/prism-code build .
           git diff --exit-code -- CONFORMANCE.md
-      - name: Verify and build both frontends
+      - name: Check the shared runtime and build the Linux host server
         run: |
           (cd device && cargo test --locked --offline)
           make -C host LDFLAGS=-static
+      - name: Boot Linux and verify Verdant swap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 seabios
+          kernel=linux-image-6.12.117+deb13-amd64_6.12.117-1_amd64.deb
+          curl --retry 3 -fsSL "https://deb.debian.org/debian/pool/main/l/linux-signed-amd64/$kernel" -o "$RUNNER_TEMP/linux.deb" ||
+            curl --retry 3 -fsSL 'https://snapshot.debian.org/file/8d84a75c14dcaabe4a09e361972d5303721084aa' -o "$RUNNER_TEMP/linux.deb"
+          echo "ca712d36790184f6ac125ce2b20ea4e2202ae6bb7817b7de268f1f0115ccda73  $RUNNER_TEMP/linux.deb" | sha256sum -c
+          dpkg-deb -x "$RUNNER_TEMP/linux.deb" "$RUNNER_TEMP/linux"
+          mkdir -p measurements/local
+          python3 host/tests/boot.py --qemu "$(command -v qemu-system-x86_64)" \
+            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* \
+            --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
+            --result measurements/local/linux-host.json
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
       - name: Package Linux host software and receipt
         run: |
           mkdir -p dist
-          cp host/build/vram-host measurements/local/receipt.json dist/
+          cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
           cp README.md dist/
-          (cd dist && sha256sum vram-host receipt.json README.md > SHA256SUMS)
+          (cd dist && sha256sum vram-host receipt.json linux-host.json README.md > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: vram-linux-x86_64

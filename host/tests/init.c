@@ -8,8 +8,6 @@
 #include <sys/io.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
-#include <sys/ioctl.h>
-#include <linux/fs.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/stat.h>

@@ -12,7 +12,9 @@
     "store_bytes": 17736900
   },
   "kernel": "vmlinuz-6.12.117+deb13-amd64",
-  "server_sha256": "ff9c672ea3a4db4363081a1a191f554442a17f9bf507c78b33cde0a5ebc6b3a4",
+  "linux_ram_mib": 288,
+  "workload_memcg_mib": 48,
+  "server_sha256": "f4107a38f2e9fa0d7ea93e85f56273ab65838bfbdd5023020888fd59f189932b",
   "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
   "accelerator": "TCG",
   "profile": "M"

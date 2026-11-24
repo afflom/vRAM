@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <linux/nbd.h>
 #include <signal.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +16,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 enum { PAGE = 4096 };
@@ -89,6 +89,17 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
     }
 }
 
+struct kernel_loop { int device, socket, error; };
+static void *drive_kernel(void *arg)
+{
+    struct kernel_loop *loop = arg;
+    if (ioctl(loop->device, NBD_DO_IT) < 0 && errno != EPIPE) {
+        loop->error = errno;
+        shutdown(loop->socket, SHUT_RDWR);
+    }
+    return NULL;
+}
+
 static void usage(void)
 {
     fputs("vram-host attach /dev/nbdN SIZE_MiB [SEARCH_NODES]\nvram-host detach /dev/nbdN\n", stderr);
@@ -143,24 +154,33 @@ int main(int argc, char **argv)
         ioctl(fd, NBD_SET_FLAGS, NBD_FLAG_HAS_FLAGS | NBD_FLAG_SEND_TRIM | NBD_FLAG_SEND_FLUSH)) {
         perror("configure NBD"); ioctl(fd, NBD_CLEAR_SOCK); return 1;
     }
-    pid_t child = fork();
-    if (child < 0) { perror("fork"); ioctl(fd, NBD_CLEAR_SOCK); return 1; }
-    if (child == 0) {
-        close(pair[0]); close(pair[1]);
-        int rc = ioctl(fd, NBD_DO_IT);
-        if (rc < 0 && errno != EPIPE) { perror("NBD_DO_IT"); _exit(1); }
-        _exit(0);
-    }
     close(pair[1]);
+    /* Sharing the locked address space prevents a forked ioctl worker from
+       retaining copy-on-write snapshots of the store during reclaim. */
+    struct kernel_loop loop = { .device = fd, .socket = pair[0] };
+    pthread_t worker;
+    pthread_attr_t attr;
+    int error = pthread_attr_init(&attr);
+    if (!error) {
+        error = pthread_attr_setstacksize(&attr, 128 * 1024);
+        if (!error) error = pthread_create(&worker, &attr, drive_kernel, &loop);
+        pthread_attr_destroy(&attr);
+    }
+    if (error) {
+        ioctl(fd, NBD_CLEAR_SOCK);
+        errno = error;
+        die("start NBD kernel worker");
+    }
     signal(SIGPIPE, SIG_IGN);
     printf("Serving %lu MiB of volatile Verdant swap on %s\n", mib, argv[2]);
     fflush(stdout);
     struct io_counts counts = {0};
     int rc = serve(pair[0], store, pages, &counts);
     shutdown(pair[0], SHUT_RDWR);
+    error = pthread_join(worker, NULL);
+    if (error) { errno = error; die("join NBD kernel worker"); }
     close(pair[0]);
-    int status;
-    if (waitpid(child, &status, 0) < 0) die("waitpid");
+    if (loop.error) { errno = loop.error; perror("NBD_DO_IT"); }
     ioctl(fd, NBD_CLEAR_SOCK);
     uint64_t stats[5], modeled, restores;
     store_stats(store, stats);
@@ -169,5 +189,5 @@ int main(int argc, char **argv)
            "\"raw_pages\":%lu,\"selector_pages\":%lu,\"selector_restores\":%lu,\"store_bytes\":%lu}\n",
            counts.writes, counts.reads, counts.trims, stats[2], modeled, restores, stats[4]);
     store_free(store);
-    return rc || !WIFEXITED(status) || WEXITSTATUS(status);
+    return rc || loop.error;
 }
