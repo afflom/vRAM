@@ -137,6 +137,7 @@ for trial in range(3):
         swap_fill.snapshot("mixed" + str(trial), 6 * pages + 384, 6 * pages + 320)
 if fill:
     swap_fill.sweep(fill_fd, buf)
+    swap_fill.ranges(devices)
 if os.path.exists("/swap_read_windows.py"):
     sys.path.insert(0, "/")
     from swap_read_windows import measure

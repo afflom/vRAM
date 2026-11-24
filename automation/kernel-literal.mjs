@@ -13,14 +13,17 @@ if (!imported.equals(source('../device/proof/runtime/project/src/Main.lex.tex'))
     createHash('sha256').update(imported).digest('hex') !== runtime?.sha256)
     throw Error('Imported Verdant representation chooser differs from certified source');
 const {model, address} = await verifiedModel();
-const actions = [];
-for (let op = 0; op < 3; op++) {
-    for (let shape = 0; shape < 8; shape++) {
-        const packet = Uint8Array.of(76, op, shape >> 2, (shape >> 1) & 1, shape & 1);
-        const action = new TextDecoder().decode(await model.dispatch(packet));
-        if (!/^[012]$/.test(action)) throw Error('Invalid literal policy response');
-        actions.push(Number(action));
+async function actions(tag) {
+    const table = [];
+    for (let op = 0; op < 3; op++) {
+        for (let shape = 0; shape < 8; shape++) {
+            const packet = Uint8Array.of(tag, op, shape >> 2, (shape >> 1) & 1, shape & 1);
+            const action = new TextDecoder().decode(await model.dispatch(packet));
+            if (!/^[012]$/.test(action)) throw Error('Invalid transfer policy response');
+            table.push(Number(action));
+        }
     }
+    return table.join(', ');
 }
 const fills = [];
 for (const uniform of [0, 1]) {
@@ -28,4 +31,4 @@ for (const uniform of [0, 1]) {
     if (!/^[01]$/.test(choice)) throw Error('Invalid Verdant representation');
     fills.push(Number(choice));
 }
-writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 literal_action[24] = {${actions.join(', ')}};\n`);
+writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 resident_action[24] = {${await actions(78)}};\nstatic const u8 literal_action[24] = {${await actions(76)}};\n`);

@@ -80,6 +80,24 @@ if (literal) {
     receipt[fill ? 'fill_at_most_literal_p50' : 'literal_at_most_nbd_p50'] = comparison;
 }
 if (fill) {
+    const reclaim = receipt.kernel_reclaim;
+    if (reclaim?.capacity_mib !== 96 || reclaim.verified_bytes !== 24 * 1024 * 1024 ||
+        !Number.isInteger(reclaim.evicted_pages) || reclaim.evicted_pages < 5376 || reclaim.evicted_pages > 6144 ||
+        !Number.isInteger(reclaim.literal_pages_under_pressure) || reclaim.literal_pages_under_pressure < 1536 ||
+        reclaim.literal_pages_under_pressure > 6145 || reclaim.literal_pages_after_drain !== 1)
+        throw Error('Invalid swap reclaim or slot release evidence');
+    const ranges = receipt.range_throughput;
+    if (!Array.isArray(ranges) || ranges.length !== 18) throw Error('Incomplete range throughput evidence');
+    for (const pages of [1, 16, 64]) {
+        for (const backend of ['kernel-fill', 'zram-zstd']) {
+            for (const trial of [0, 1, 2]) {
+                const rows = ranges.filter(r => r.pages === pages && r.backend === backend && r.trial === trial);
+                if (rows.length !== 1 || rows[0].verified_bytes !== 8 * 1024 * 1024 ||
+                    ![rows[0].write_ns, rows[0].read_ns].every(n => Number.isSafeInteger(n) && n > 0))
+                    throw Error('Invalid range timing or byte count');
+            }
+        }
+    }
     const slots = 16384;
     const expected = [
         ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 6 * 2048 + 320, []]),

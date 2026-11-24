@@ -110,6 +110,32 @@ int main(void) {
     }
     int status;
     if (waitpid(workload, &status, 0) != workload || status) fail("benchmark");
+    if (fill) {
+        if (unlink("/dev/vramfill0") || syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload fill");
+        if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) fail("activation devtmpfs");
+        pid_t activation = fork();
+        if (activation < 0) fail("fork activation");
+        if (!activation) {
+            const char *mounts[] = {"/dev", "/sys", "/proc"};
+            for (size_t i = 0; i < 3; i++) {
+                char target[64];
+                snprintf(target, sizeof(target), "/kernel-system%s", mounts[i]);
+                if (mkdir(target, 0755) || mount(mounts[i], target, NULL, MS_BIND, NULL)) fail(target);
+            }
+            if (chroot("/kernel-system") || chdir("/") || setenv("PATH", "/bin:/sbin", 1) ||
+                setenv("VRAM_KERNEL_SIZE_MIB", "96", 1)) fail("activation root");
+            execl("/usr/lib/vram/start-kernel-swap", "start-kernel-swap", NULL);
+            fail("exec packaged activation");
+        }
+        if (waitpid(activation, &status, 0) != activation || status) fail("packaged activation");
+        pid_t reclaim = fork();
+        if (reclaim < 0) fail("fork reclaim");
+        if (!reclaim) {
+            execl("/kernel-reclaim", "kernel-reclaim", NULL);
+            fail("exec reclaim");
+        }
+        if (waitpid(reclaim, &status, 0) != reclaim || status) fail("kernel swap reclaim");
+    }
     if (access("/store-clock", F_OK) == 0) {
         const unsigned port = 0x505;
         int fd = open("/path-samples.json", O_RDONLY);

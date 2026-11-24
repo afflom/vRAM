@@ -60,7 +60,14 @@ downloads = out / "downloads"
 downloads.mkdir()
 shutil.copy2(package, downloads / package.name)
 digest = hashlib.sha256(package.read_bytes()).hexdigest()
-(downloads / "SHA256SUMS").write_text(f"{digest}  {package.name}\n")
+kernel_name = "vram-kernel-dkms_0.1.0_amd64.deb"
+kernel_package = package.parent / kernel_name
+if kernel_package.is_file():
+    shutil.copy2(kernel_package, downloads / kernel_name)
+else:
+    subprocess.run(["bash", root / "host/kernel/package.sh", downloads / kernel_name], check=True)
+kernel_digest = hashlib.sha256((downloads / kernel_name).read_bytes()).hexdigest()
+(downloads / "SHA256SUMS").write_text(f"{digest}  {package.name}\n{kernel_digest}  {kernel_name}\n")
 with ZipFile(out / "assets/brand-kit.zip", "w", ZIP_DEFLATED) as archive:
     for f in sorted((out / "assets").rglob("*")):
         if f.is_file() and f.suffix != ".zip":

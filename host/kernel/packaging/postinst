@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    /usr/lib/dkms/common.postinst vram-fill 0.1.0 "" "$(dpkg --print-architecture)" "${2:-}"
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    if [ "$1" = configure ] && [ -n "${2:-}" ]; then
+        systemctl try-restart vram-kernel.service
+    fi
+fi

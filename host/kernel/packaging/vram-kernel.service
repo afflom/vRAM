@@ -1,0 +1,17 @@
+[Unit]
+Description=Verdant kernel-backed volatile swap
+After=systemd-modules-load.service systemd-udevd.service
+ConditionPathExists=/proc/swaps
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=VRAM_KERNEL_SIZE_MIB=64
+EnvironmentFile=-/etc/default/vram
+ExecStart=/usr/lib/vram/start-kernel-swap
+ExecStop=/sbin/swapoff /dev/vramfill0
+ExecStop=/sbin/modprobe -r vram_fill
+TimeoutStopSec=infinity
+
+[Install]
+WantedBy=multi-user.target

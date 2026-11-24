@@ -88,3 +88,32 @@ def sweep(fd, buf):
             times["fill" if slot < fills else "literal"].append(elapsed)
         tails = {kind: sorted(v)[(99 * len(v) + 99) // 100 - 1] for kind, v in times.items() if v}
         snapshot(stage, SLOTS, SLOTS - fills, tails)
+
+
+def ranges(devices):
+    """Time identical 8 MiB aligned streams. Keep preparation and verification outside the clock."""
+    count = 2048
+    rng = random.Random(3651)
+    data = b"".join(bytes([i % 256]) * PAGE if i % 2 else rng.randbytes(PAGE) for i in range(count))
+    targets = [(name, fd) for name, fd in devices if name in ("zram-zstd", "kernel-fill")]
+    for pages in (1, 16, 64):
+        size = pages * PAGE
+        with mmap.mmap(-1, len(data)) as area:
+            views = [memoryview(area)[i:i+size] for i in range(0, len(data), size)]
+            for trial in range(3):
+                for name, fd in targets[trial % 2:] + targets[:trial % 2]:
+                    area[:] = data
+                    t = time.perf_counter_ns()
+                    for i, view in enumerate(views):
+                        assert os.pwrite(fd, view, i * size) == size
+                    write_ns = time.perf_counter_ns() - t
+                    area[:] = bytes(len(data))
+                    t = time.perf_counter_ns()
+                    for i, view in enumerate(views):
+                        assert os.preadv(fd, [view], i * size) == size
+                    read_ns = time.perf_counter_ns() - t
+                    assert area[:] == data
+                    print("KERNEL_RANGE", json.dumps(dict(pages=pages, trial=trial, backend=name,
+                          verified_bytes=len(data), write_ns=write_ns, read_ns=read_ns)), flush=True)
+            for view in views:
+                view.release()

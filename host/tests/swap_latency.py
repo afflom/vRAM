@@ -30,7 +30,10 @@ parser.add_argument("--local-completion", action="store_true",
 parser.add_argument("--read-windows", action="store_true", help="compare byte-verified direct reads at six request sizes")
 parser.add_argument("--kernel-literal", type=Path, help="measure the resident literal module alongside the shipping server and zram")
 parser.add_argument("--kernel-fill", type=Path, help="compare the resident Fill store with the literal kernel control and zram")
+parser.add_argument("--kernel-system", type=Path, help="installed DKMS activation helper and userland for the Fill guest")
 args = parser.parse_args()
+if bool(args.kernel_fill) != bool(args.kernel_system):
+    parser.error("the Fill guest requires the installed kernel activation root")
 if args.kernel_fill and not args.kernel_literal:
     parser.error("the Fill comparison requires the kernel literal control")
 if args.kernel_literal and (args.local_completion or args.read_windows or args.trace_output):
@@ -68,6 +71,15 @@ with tempfile.TemporaryDirectory() as tmp:
         files.pop("candidate", None)
         files["kernel-literal.ko"] = args.kernel_literal.read_bytes()
     if args.kernel_fill:
+        subprocess.run(["cc", "-static", "-O2", "-Wall", "-Wextra", "-Werror", root / "host/tests/kernel_reclaim.c",
+                        "-o", path / "kernel-reclaim"], check=True)
+        files["kernel-reclaim"] = (path / "kernel-reclaim").read_bytes()
+        installed, = args.kernel_system.glob("lib/modules/*/updates/vram_fill.ko")
+        if installed.read_bytes() != args.kernel_fill.read_bytes():
+            parser.error("the timed module differs from the installed activation module")
+        for item in args.kernel_system.rglob("*"):
+            if item.is_file():
+                files["kernel-system/" + str(item.relative_to(args.kernel_system))] = item.read_bytes()
         files["kernel-fill.ko"] = args.kernel_fill.read_bytes()
         files["swap_fill.py"] = (root / "host/tests/swap_fill.py").read_bytes()
     files.update(python_files())
@@ -163,6 +175,11 @@ if args.kernel_literal:
 if args.kernel_fill:
     if re.findall(r"^FILL_POLICY (blake3:[0-9a-f]{64})\s*$", log, re.M) != addresses:
         sys.exit("Fill policy identity mismatch")
+    pressure = re.findall(r"^KERNEL_RECLAIM (.+)$", log, re.M)
+    if len(pressure) != 1:
+        sys.exit("Missing kernel reclaim evidence")
+    result["kernel_reclaim"] = json.loads(pressure[0])
+    result["range_throughput"] = [json.loads(row) for row in re.findall(r"^KERNEL_RANGE (.+)$", log, re.M)]
     result["fill_store"] = [json.loads(row) for row in re.findall(r"^FILL_STORE (.+)$", log, re.M)]
     result["server_sha256"] = {name: hashlib.sha256(files[name + ".ko"]).hexdigest() for name in (control, candidate)}
 if args.read_windows:

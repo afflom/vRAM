@@ -455,3 +455,21 @@ Feature: capacity
     Given the fill device and fresh literal and zram controls
     When the guest overwrites the same slots with differing page shapes
     Then it verifies every read and records retained page and directory bytes alongside read and write latency
+
+  @VR-61 @build
+  Scenario: Admit a whole range before modifying its first page
+    Given the adapter observes the operation, alignment, whole-page length and device boundary
+    When the resident controller resolves the span
+    Then only a complete in-bounds read or write receives a transfer action
+
+  @VR-62 @open
+  Scenario: Retire Linux swap slots after verified page recovery
+    Given the packaged kernel store serving anonymous Linux memory
+    When the guest pages out, restores data and drains the device
+    Then every recovered byte matches and freed swap slots release their literal payloads
+
+  @VR-62 @open
+  Scenario: Compare bulk transfers on the kernel store and zram
+    Given equal-capacity guest devices and identical data
+    When direct requests grow from one to many pages
+    Then each device returns the original bytes and records elapsed read and write times

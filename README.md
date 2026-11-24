@@ -13,7 +13,7 @@ On a write, the store measures candidate representations, including fills, spars
 Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.7_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
-sha256sum -c SHA256SUMS
+sha256sum --ignore-missing -c SHA256SUMS
 sudo apt install ./vram-host_0.6.7_amd64.deb qemu-system-x86 fuse3
 ```
 
@@ -87,7 +87,20 @@ A native store trial wrote and restored 1 GiB of unique pseudorandom pages with 
 
 In 0.4.1, sparse edits to dense pages reuse the same base read for fitting and exact reconstruction. Median write time on the 128 MiB edited workload fell from 176.7 to 70.2 ms across six paired runs. The deliberately colliding four-base control rose from 43.2 to 45.4 ms. A failed literal write preserves the previous page and releases any newly allocated empty group. [Workloads, read counts and failure tests](docs/device-verification.md#file-backed-admission-and-write-rollback-in-041)
 
-### Add swap to a directly booted Linux system
+### Low-latency swap for directly booted Linux
+
+The amd64 DKMS package builds the Verdant Fill/literal driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.0_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+
+```sh
+sha256sum --ignore-missing -c SHA256SUMS
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.0_amd64.deb
+sudo systemctl enable --now vram-kernel.service
+swapon --show
+```
+
+The initial swap size is 64 MiB. Set `VRAM_KERNEL_SIZE_MIB` in `/etc/default/vram` before starting the service to select another capacity. A uniform page needs only a directory entry. Other pages retain one literal frame each, which Linux can release when the swap slot becomes free. Each configured GiB costs 4 MiB of directory on the tested kernel. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal. The service refuses to format a device owned by an already loaded instance. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
+
+### NBD swap with the full Verdant representation set
 
 The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
 

@@ -365,7 +365,7 @@ VR-58 compares this adapter, zram with zstd and the shipping Verdant NBD server 
 
 The workload checks initial zeros, overwrites, both ends of the literal device and end-of-device I/O before timing. The operator's three rotated trials and the six mixed-overwrite families then exercise all three backends with identical inputs within each trial. The receipt retains trial p50 and p99, the model identity reported by the loaded module, both binary digests and the Prism median verdicts. These are direct block-I/O measurements at queue depth one. The experiment runs only in the verification guest. [Guest measurement](https://afflom.github.io/vRAM/downloads/kernel-literal.json)
 
-To reproduce, run `bash host/tests/kernel_literal/build-guest.sh /tmp/vram-literal` after building the verified model. Supply `--control host/build/vram-host --kernel-literal /tmp/vram-literal/vram_literal.ko` to the single-page guest benchmark with the pinned guest kernel. Replay its JSON with `node automation/swap-latency.mjs input.json output.json --kernel-literal`. The release workflow builds the module separately and loads it inside QEMU.
+To reproduce, build the verified model, run `bash host/kernel/package.sh /tmp/vram-kernel.deb`, then run `bash host/tests/kernel_literal/build-guest.sh /tmp/vram-literal /tmp/vram-kernel.deb`. Supply `--control host/build/vram-host --kernel-literal /tmp/vram-literal/vram_literal.ko` to the single-page guest benchmark with the pinned guest kernel. Replay its JSON with `node automation/swap-latency.mjs input.json output.json --kernel-literal`. The release workflow builds the module separately and loads it inside QEMU.
 
 ### Verdant Fill on the kernel page path
 
@@ -377,4 +377,14 @@ VR-60 runs the Fill device beside the kernel literal control and zram in one gue
 
 The gate exercises a last-byte mismatch and concurrent same-slot writers before timing. Skipping the last byte of a segment in the native uniformity check made the first literal-allocation assertion fail. Restoring the scan passed the same check. Accepting a nonuniform literal as Fill makes Lean reject `ResidentPolicy.denseLiteral`. A report with a changed charge must also pass the archived model's accounting query.
 
-Use the same guest kernel and module build as the literal experiment. Pass both `--kernel-literal <build-dir>/vram_literal.ko` and `--kernel-fill <build-dir>/vram_fill.ko` to the guest benchmark. Replay the resulting JSON with `node automation/swap-latency.mjs input.json output.json --kernel-fill`.
+Use the same guest kernel and module build as the literal experiment. Pass both `--kernel-literal <build-dir>/vram_literal.ko` with `--kernel-fill <build-dir>/vram_fill.ko --kernel-system <build-dir>/kernel-system` to the guest benchmark. Replay the resulting JSON with `node automation/swap-latency.mjs input.json output.json --kernel-fill`.
+
+### Packaged kernel swap and range throughput
+
+The `vram-kernel-dkms` companion package contains the kernel store source and the action tables generated from the verified Holo. CI installs the Debian package inside an isolated build container, builds for the guest kernel using DKMS and boots the installed module in QEMU. The guest checks both kernel module identities before measuring. The service uses a fresh module instance, checks the block device identity, activates swap and drains it before unloading. The full Verdant NBD store remains available for its broader representation set.
+
+VR-61 applies the Prism transfer rule to the entire span before the adapter touches its first slot. Once admitted, the adapter walks the bio one page at a time, including across segment boundaries. The device accepts a configured logical size, uses a virtually contiguous directory, and clears released swap slots under the same lock as reads and writes. Each slot update that needs a new literal acquires its frame before replacing existing data. Directory byte counts cover the directory allocation; kernel virtual mapping structures and common block infrastructure are additional overhead.
+
+VR-62 records three timed 8 MiB streams per backend at request sizes of 4, 64 and 256 KiB. All reads are checked outside the timed section. The discard-and-reload test changes the capacity from 64 to 96 MiB, activates Linux swap and evicts anonymous pages under a memory cgroup limit. It reads half of the mapping back, drains swap with data still live, verifies every byte and checks that only the swap header retains a literal frame. [Guest evidence](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
+
+Removing the swap-slot release callback in a throwaway module left retired literals allocated after swapoff. The guest stopped at the post-drain allocation check. Restoring the callback left exactly the header frame. Changing the write action of the span policy to a refusal makes Lean reject the write theorem.

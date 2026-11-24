@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+# Only format a device this invocation created. An existing module may own live data.
+modprobe --first-time vram_fill "capacity_mib=${VRAM_KERNEL_SIZE_MIB:?}"
+trap 'modprobe -r vram_fill' EXIT
+# Verify the device node belongs to the newly registered kernel disk.
+node=/dev/vramfill0
+tries=0
+while [ ! -b "$node" ] && [ "$tries" -lt 300 ]; do
+    sleep 0.1
+    tries=$((tries + 1))
+done
+test -b "$node"
+dev=$(cat /sys/block/vramfill0/dev)
+test "$(stat -Lc '%t:%T' "$node")" = "$(printf '%x:%x' "${dev%:*}" "${dev#*:}")"
+mkswap "$node"
+swapon "$node"
+trap - EXIT

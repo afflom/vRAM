@@ -1,6 +1,7 @@
 \begin{lexlean}{ResidentPolicy}
 \useglossary{lexlean.std.bool@1.2.0}
 \useglossary{lexlean.std.nat@1.2.0}
+\importmodule{LiteralBioPolicy}
 \importmodule{Main}
 \importmodule{Performance}
 \title{Natural number}
@@ -31,5 +32,14 @@ theorem{
     (directory <? fillBytes)) = false),
   proof: linear_arithmetic{definitions: [Performance::disagree, residentBytes]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: span, parameters: [op : Nat, aligned : Bool, completePages : Bool, inside : Bool], result: Nat,
+  body: (LiteralBioPolicy::action op aligned completePages inside), executable: true
+}
+theorem{ name: readSpan, parameters: [], statement: ((span 0 true true true) = 1), proof: reflexivity{} }
+theorem{ name: writeSpan, parameters: [], statement: ((span 1 true true true) = 2), proof: reflexivity{} }
+theorem{ name: incompleteSpan, parameters: [op : Nat, inside : Bool], statement: ((span op true false inside) = 0), proof: reflexivity{} }
+theorem{ name: outsideSpan, parameters: [op : Nat], statement: ((span op true true false) = 0), proof: reflexivity{} }
+theorem{ name: unsupportedSpan, parameters: [], statement: ((span 2 true true true) = 0), proof: reflexivity{} }
 \end{semanticmodule}
 \end{lexlean}

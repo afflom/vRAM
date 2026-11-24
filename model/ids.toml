@@ -395,3 +395,16 @@ id = "VR-60"
 level = "open"
 suite = "capacity"
 statement = "A disposable guest measures byte-exact overwrites, resident store bytes and p99 recovery latency for Fill and literal pages alongside zram and the kernel literal control"
+
+[[id]]
+id = "VR-61"
+level = "build"
+suite = "capacity"
+statement = "A resident transfer admits only a supported operation on an aligned nonempty whole-page span inside the device"
+theorems = ["ResidentPolicy.readSpan", "ResidentPolicy.writeSpan", "ResidentPolicy.incompleteSpan", "ResidentPolicy.outsideSpan", "ResidentPolicy.unsupportedSpan"]
+
+[[id]]
+id = "VR-62"
+level = "open"
+suite = "capacity"
+statement = "The packaged kernel store restores Linux swap under reclaim, releases retired literal slots and measures verified direct range throughput alongside zram"

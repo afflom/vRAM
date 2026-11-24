@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+case "$1" in
+remove|upgrade)
+    if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+        systemctl stop vram-kernel.service
+        systemctl disable vram-kernel.service
+    fi
+    if [ -d /var/lib/dkms/vram-fill/0.1.0 ]; then
+        dkms remove -m vram-fill -v 0.1.0 --all
+    fi
+    ;;
+esac

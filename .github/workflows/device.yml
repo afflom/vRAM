@@ -105,10 +105,12 @@ jobs:
           guest=(--accel "$accel" --qemu "$(command -v qemu-system-x86_64)" --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules")
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control measurements/local/swap-control/host/build/vram-host --read-windows --result measurements/local/swap-raw.json
           node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json --read-windows
-          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module"
+          mkdir -p dist
+          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.0_amd64.deb
+          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.0_amd64.deb
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --result measurements/local/literal-raw.json
           node automation/swap-latency.mjs measurements/local/literal-raw.json measurements/local/kernel-literal.json --kernel-literal
-          sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --kernel-fill "$RUNNER_TEMP/literal-module/vram_fill.ko" --result measurements/local/fill-raw.json
+          sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --kernel-fill "$RUNNER_TEMP/literal-module/vram_fill.ko" --kernel-system "$RUNNER_TEMP/literal-module/kernel-system" --result measurements/local/fill-raw.json
           node automation/swap-latency.mjs measurements/local/fill-raw.json measurements/local/kernel-fill.json --kernel-fill
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --local-completion --result measurements/local/completion-raw.json
           node automation/swap-latency.mjs measurements/local/completion-raw.json measurements/local/completion-affinity.json --completion
@@ -181,6 +183,7 @@ jobs:
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
           cp dist/mixed-file-range.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
+          cmp dist/vram-kernel-dkms_*.deb product-public/downloads/vram-kernel-dkms_*.deb
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)
           python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &

@@ -80,6 +80,8 @@ The three honesty levels (R2):
 | `VR-58` | `open` | A disposable guest measures byte-verified literal page completion against zram and the shipping NBD server with the same direct IO workload |  |
 | `VR-59` | `build` | The resident page controller specializes the Verdant representation chooser to Fill and literal and charges every retained literal plus the store directory | `ResidentPolicy.uniformFill`, `ResidentPolicy.denseLiteral`, `ResidentPolicy.breakEven` |
 | `VR-60` | `open` | A disposable guest measures byte-exact overwrites, resident store bytes and p99 recovery latency for Fill and literal pages alongside zram and the kernel literal control |  |
+| `VR-61` | `build` | A resident transfer admits only a supported operation on an aligned nonempty whole-page span inside the device | `ResidentPolicy.readSpan`, `ResidentPolicy.writeSpan`, `ResidentPolicy.incompleteSpan`, `ResidentPolicy.outsideSpan`, `ResidentPolicy.unsupportedSpan` |
+| `VR-62` | `open` | The packaged kernel store restores Linux swap under reclaim, releases retired literal slots and measures verified direct range throughput alongside zram |  |
 
 ## Cited authorities
 
