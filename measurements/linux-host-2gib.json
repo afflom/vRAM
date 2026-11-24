@@ -1,0 +1,21 @@
+{
+  "verified_bytes": 2147483648,
+  "linux_swap_writes": 524296,
+  "linux_swap_reads": 523170,
+  "store": {
+    "write_pages": 524296,
+    "read_pages": 523179,
+    "trim_pages": 0,
+    "raw_pages": 0,
+    "selector_pages": 524288,
+    "selector_restores": 523170,
+    "store_bytes": 80166015
+  },
+  "kernel": "vmlinuz-6.12.117+deb13-amd64",
+  "linux_ram_mib": 512,
+  "workload_memcg_mib": 48,
+  "server_sha256": "f4107a38f2e9fa0d7ea93e85f56273ab65838bfbdd5023020888fd59f189932b",
+  "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
+  "accelerator": "TCG",
+  "profile": "S"
+}

@@ -42,8 +42,12 @@ with tempfile.TemporaryDirectory() as directory:
            "-display", "none", "-serial", "stdio", "-device", "isa-debug-exit,iobase=0xf4,iosize=4", "-no-reboot"]
     if args.bios_dir:
         cmd.extend(["-L", args.bios_dir])
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120 + args.mib * 2)
-    log = proc.stdout.decode(errors="replace")
+    # A live serial file also exposes progress during multi-GiB TCG runs.
+    serial = tmp / "serial.log"
+    print(f"Linux guest serial log: {serial}", flush=True)
+    with serial.open("wb") as output:
+        proc = subprocess.run(cmd, stdout=output, stderr=subprocess.STDOUT, timeout=120 + args.mib * 2)
+    log = serial.read_text(errors="replace")
     print(log)
     match = re.search(r"VRAM_RESULT (\{[^\n]+\})", log)
     if proc.returncode != 1 or not match:

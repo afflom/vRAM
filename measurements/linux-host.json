@@ -1,14 +1,14 @@
 {
   "verified_bytes": 33554432,
   "linux_swap_writes": 8192,
-  "linux_swap_reads": 7296,
+  "linux_swap_reads": 7168,
   "store": {
     "write_pages": 8192,
-    "read_pages": 7297,
+    "read_pages": 7169,
     "trim_pages": 0,
     "raw_pages": 4096,
     "selector_pages": 4096,
-    "selector_restores": 3648,
+    "selector_restores": 3584,
     "store_bytes": 17736900
   },
   "kernel": "vmlinuz-6.12.117+deb13-amd64",

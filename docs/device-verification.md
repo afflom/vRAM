@@ -10,6 +10,8 @@ Changing the failed-readback branch of `decision` from halt to advance made `pri
 
 Appending one byte to the locked `vram_word` archive in a temporary checkout made `python3 device/build.py --verify-only` exit 1 with `locked archive differs: vram_word`. The unaltered archive passed. A Linux test that wrote and immediately reread anonymous pages produced 8,192 swap writes but zero Verdant restores. The integration gate rejected it. The current test applies cgroup pressure, checks actual swap reads and selector restores, and compares every byte.
 
+The multi-GiB fixture budgets for page tables when it forces reclaim. It releases the byte-verified mapping before invoking the detach command. With the 2 GiB mapping still present and swap already disabled, Linux refused that fork with `ENOMEM`. The final fixture requires successful readback, swapoff, server exit and detach before writing a passing receipt.
+
 ## Owner policy
 
 The inherited Qortara governance and security documents record the accountable owner and security process as `NOT_ESTABLISHED`. The repository-documents check reports these as open owner actions. The architecture index passes. An authorized repository owner must establish those policies.

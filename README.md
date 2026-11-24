@@ -68,7 +68,9 @@ The repository workflow builds the static Linux binary, runs calibration and upl
 
 ## Verification
 
-The Linux integration test loads the distribution's NBD module in a disposable QEMU VM, activates only Verdant swap, writes ordinary anonymous memory, forces reclaim in a cgroup, and checks every byte after swap-in. The mixed 32 MiB case stored 4,096 modeled and 4,096 literal pages in one store. Linux registered 7,296 swap reads. The remainder could be served from its swap cache. [Linux receipt](measurements/linux-host.json)
+The Linux integration test loads the distribution's NBD module in a disposable QEMU VM, activates only Verdant swap, writes ordinary anonymous memory, forces reclaim in a cgroup, and checks every byte after swap-in. The mixed 32 MiB case stored 4,096 modeled and 4,096 literal pages in one store. Linux registered 7,168 swap reads. The remainder could be served from its swap cache. [Linux receipt](measurements/linux-host.json)
+
+In a separate test, a 512 MiB Linux VM ran a 2 GiB anonymous-memory workload in a 48 MiB cgroup, with the Verdant server outside that cgroup. The program wrote and checked every byte. Linux counted 523,170 swap reads. The store held 524,288 rank-two pages and charged 80,166,015 bytes including its directory. Swapoff and detach both completed. This test uses generated structured data. [2 GiB Linux receipt](measurements/linux-host-2gib.json)
 
 To replay on a host with matching kernel and module files, build the static server and supply the Linux image, its XZ-compressed NBD module and QEMU's BIOS directory:
 
@@ -79,6 +81,8 @@ python3 host/tests/boot.py --qemu /path/to/qemu-system-x86_64 \
   --result /tmp/vram-linux.json
 ```
 
-The native rank-two trial wrote and read back 4,194,304 distinct page positions (16 GiB of logical contents). The store charged 637,534,328 bytes, and the process reached 657,208 KiB peak RSS. The pseudorandom trial selected literal pages and stopped during its 64 MiB attempt under a 48 MiB RSS budget. [Rank-two sweep](measurements/scale-S.json) · [Pseudorandom control](measurements/scale-U.json)
+Add `--mib 2048 --profile S` to replay the larger Linux trial.
+
+The native rank-two trial wrote and read back 4,194,304 distinct page positions (16 GiB of logical contents). The store charged 637,534,328 bytes, and the process reached 657,336 KiB peak RSS. The pseudorandom trial selected literal pages and stopped during its 64 MiB attempt under a 48 MiB RSS budget. [Rank-two sweep](measurements/scale-S.json) · [Pseudorandom control](measurements/scale-U.json)
 
 The native scale receipts measure the store in isolation. Linux swap receipts exercise the kernel path. The QEMU receipts measure the guest backend. [Native and Linux measurements](measurements) · [Proof scope and fault injection](docs/device-verification.md)

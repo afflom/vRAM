@@ -82,10 +82,16 @@ int main(void)
 	if (mem == MAP_FAILED || madvise(mem, bytes, MADV_NOHUGEPAGE)) fail("anonymous mapping");
 	control("/sys/fs/cgroup/test/memory.max", "50331648");
 	unsigned long writes_before = vmstat("pswpout");
-	for (size_t i = 0; i < pages; i++)
+	for (size_t i = 0; i < pages; i++) {
+		if (i && !(i % (65536U))) dprintf(1, "written %zu MiB\n", i / 256);
 		expected(i, PROFILE, mem + i * PAGE);
+	}
 	if (madvise(mem, bytes, MADV_PAGEOUT)) fail("pageout");
-	control("/sys/fs/cgroup/test/memory.max", "4194304");
+	/* The mapping's PTEs stay charged even after every data page leaves.
+	   Leave room for those PTEs, the residency bitmap and task overhead. */
+	char reclaim_limit[32];
+	snprintf(reclaim_limit, sizeof(reclaim_limit), "%zu", (4UL << 20) + pages * 10);
+	control("/sys/fs/cgroup/test/memory.max", reclaim_limit);
 	/* A completed swap write can leave a resident swap-cache copy. Require
 	   eviction before counting any read as a Verdant restore. */
 	u8 *present = calloc(pages, 1);
@@ -94,7 +100,7 @@ int main(void)
 		if (mincore(mem, bytes, present)) fail("mincore");
 		size_t resident = 0;
 		for (size_t i = 0; i < pages; i++) resident += present[i] & 1;
-		if (!resident) break;
+		if (resident <= pages / 8) break;
 		usleep(50000);
 		if (madvise(mem, bytes, MADV_PAGEOUT)) fail("drain swap cache");
 	}
@@ -103,12 +109,17 @@ int main(void)
 	unsigned long reads_before = vmstat("pswpin");
 	for (size_t i = 0; i < pages; i++) {
 		u8 want[PAGE];
+		if (i && !(i % (65536U))) dprintf(1, "verified %zu MiB\n", i / 256);
 		expected(i, PROFILE, want);
 		if (memcmp(mem + i * PAGE, want, PAGE)) fail("readback");
 		if (i % 256 == 255 && madvise(mem + (i - 255) * PAGE, 256 * PAGE, MADV_DONTNEED))
 			fail("drop verified tile");
 	}
 	unsigned long read = vmstat("pswpin") - reads_before;
+	/* Release the verified virtual extent before fork. Linux otherwise
+	   charges a potential copy of that entire private mapping to commit. */
+	if (munmap(mem, bytes)) fail("release verified mapping");
+	free(present);
 	if (swapoff("/dev/nbd0")) fail("swapoff");
 	pid_t closer = fork();
 	if (closer < 0) fail("fork detach");

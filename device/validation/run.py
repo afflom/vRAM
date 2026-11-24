@@ -80,6 +80,8 @@ def main():
         print(log,flush=True)
         if proc.returncode!=1 or f"PASS nested {accel.upper()} main RAM and Linux pager" not in log: sys.exit(1)
         a.result.write_text(json.dumps({"accelerator":"Linux KVM on TCG-emulated AMD SVM" if a.svm_modules else "TCG inside TCG for inner VM","log":log,
+            "qemu_sha256":hashlib.sha256(a.qemu.read_bytes()).hexdigest(),
+            "store_library_sha256":hashlib.sha256((device/"target/release/libverdant_memory.a").read_bytes()).hexdigest(),
             "kernel_sha256":hashlib.sha256(a.kernel.read_bytes()).hexdigest(),"digits_gz_sha256":hashlib.sha256(a.digits.read_bytes()).hexdigest(),
             "qemu_version":subprocess.check_output([a.qemu,"--version"],text=True).splitlines()[0]},indent=2)+"\n")
 if __name__=="__main__": main()
