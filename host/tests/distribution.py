@@ -25,6 +25,10 @@ systemctl mask systemd-networkd-wait-online.service
 mkdir -p /mnt/vram-test
 mount -o ro /dev/sr0 /mnt/vram-test
 dpkg -i /mnt/vram-test/vram.deb
+if systemctl is-enabled --quiet vram@nbd0.service || systemctl is-active --quiet vram@nbd0.service; then
+    echo 'Fresh package unexpectedly enabled or started vRAM'
+    exit 1
+fi
 # This disposable VM uses vRAM as its only swap path on both boots.
 if test -e /sys/module/zswap/parameters/enabled; then
     echo 'w /sys/module/zswap/parameters/enabled - - - - 0' > /etc/tmpfiles.d/vram-test.conf
@@ -50,12 +54,11 @@ systemctl --no-block reboot
 second = """[Unit]
 Description=Verify automatic vRAM activation after reboot
 After=vram@nbd0.service
-Wants=vram@nbd0.service
 [Service]
 Type=oneshot
 StandardOutput=tty
 TTYPath=/dev/ttyS0
-ExecStart=/bin/sh -c 'if systemctl is-active --quiet vram@nbd0.service && grep -q /dev/nbd0 /proc/swaps; then echo VRAM_REBOOT_PASSED; else echo VRAM_REBOOT_FAILED; fi; systemctl --no-block poweroff'
+ExecStart=/bin/sh -c 'if systemctl is-enabled --quiet vram@nbd0.service && systemctl is-active --quiet vram@nbd0.service && grep -q /dev/nbd0 /proc/swaps; then echo VRAM_REBOOT_PASSED; else echo VRAM_REBOOT_FAILED; fi; systemctl --no-block poweroff'
 [Install]
 WantedBy=multi-user.target
 """

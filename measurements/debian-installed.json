@@ -3,10 +3,10 @@
     "rows": 20480,
     "bytes_checked": 83886080,
     "sqlite": "3.46.1",
-    "writes": 99682,
-    "reads": 94055
+    "writes": 100055,
+    "reads": 94410
   },
-  "package_sha256": "5bac3b60941f55c8c4e24293c65b6c2ede6b3f7aa4e30f1b0c0e8a4216680714",
+  "package_sha256": "e7436f60a3e92c1bf99582973099aaf7a9ed08ce881175fb66a014d7a9ca9a0b",
   "image_sha256": "7b8981e785a013986df45133c1c74b722b1a6e4d6c80a975bdcdcece5c553131",
   "enabled_after_reboot": true,
   "guest_ram_mib": 1536,

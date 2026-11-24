@@ -78,7 +78,9 @@ def main():
         proc=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=180)
         log=proc.stdout.decode(errors="replace")
         print(log,flush=True)
-        if proc.returncode!=1 or f"PASS nested {accel.upper()} main RAM and Linux pager" not in log: sys.exit(1)
+        marker = f"PASS nested {accel.upper()} main RAM and Linux pager"
+        if proc.returncode != 1 or marker not in log:
+            sys.exit(f"QEMU exit {proc.returncode}, observed {marker!r}: {marker in log}")
         a.result.write_text(json.dumps({"accelerator":"Linux KVM on TCG-emulated AMD SVM" if a.svm_modules else "TCG inside TCG for inner VM","log":log,
             "qemu_sha256":hashlib.sha256(a.qemu.read_bytes()).hexdigest(),
             "store_library_sha256":hashlib.sha256((device/"target/release/libverdant_memory.a").read_bytes()).hexdigest(),

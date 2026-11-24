@@ -1,39 +1,39 @@
 {
   "verified_bytes": 67108864,
-  "linux_swap_writes": 16384,
-  "linux_swap_reads": 15616,
+  "linux_swap_writes": 16385,
+  "linux_swap_reads": 15615,
   "managed": true,
   "live": [
     {
-      "store_bytes": 3934172,
+      "store_bytes": 3936077,
       "raw_pages": 670,
       "unique_literals": 670,
       "literal_hits": 0,
-      "literal_fast_writes": 484,
+      "literal_fast_writes": 482,
       "residual_captures": 15714
     },
     {
-      "store_bytes": 1468596,
-      "raw_pages": 341,
-      "unique_literals": 276,
-      "literal_hits": 65,
-      "literal_fast_writes": 484,
+      "store_bytes": 1405013,
+      "raw_pages": 395,
+      "unique_literals": 267,
+      "literal_hits": 128,
+      "literal_fast_writes": 482,
       "residual_captures": 15714
     }
   ],
   "store": {
-    "write_pages": 16449,
-    "read_pages": 15808,
-    "trim_pages": 15360,
-    "raw_pages": 341,
+    "write_pages": 16513,
+    "read_pages": 15745,
+    "trim_pages": 15872,
+    "raw_pages": 395,
     "selector_pages": 0,
     "selector_restores": 0,
-    "store_bytes": 1468596
+    "store_bytes": 1405013
   },
   "kernel": "vmlinuz-6.12.117+deb13-amd64",
   "linux_ram_mib": 264,
   "workload_memcg_mib": 48,
-  "server_sha256": "f29884966df097c09df49d7810c53f37fba48516d8fbf2bc8b7af852d24387c8",
+  "server_sha256": "93ad735973e4b2cc88a7bfb0c2d86b1335ec7b1b7485050de72d6e01550b7886",
   "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
   "accelerator": "TCG",
   "profile": "D"

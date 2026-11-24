@@ -75,7 +75,8 @@ impl Pool {
         self.residuals += 1;
         Some(super::Value::Residual(Box::new(residual)))
     }
-    pub(super) fn insert(&mut self, hash: u64, bytes: Box<[u8; PAGE]>) -> Arc<Literal> {
+    pub(super) fn insert(&mut self, hash: Option<u64>, bytes: Box<[u8; PAGE]>) -> Arc<Literal> {
+        let hash = hash.unwrap_or_else(|| self.fingerprint(&bytes));
         if self.slots.is_empty() {
             self.slots.resize_with(self.limit, || None);
         }
@@ -99,6 +100,13 @@ impl Pool {
     }
     pub(super) fn live(&self) -> u64 {
         self.live.load(Ordering::Relaxed)
+    }
+    pub(super) fn release_if_empty(&mut self) {
+        // Residuals also own bases. Their last drop retires the index just as
+        // removing the final exact reference does. Keep lifetime hit counters.
+        if self.active() && self.live() == 0 {
+            self.slots = Vec::new();
+        }
     }
     pub(super) fn charge(&self) -> usize {
         let live = self.live() as usize;

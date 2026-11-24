@@ -371,30 +371,26 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
         values.discard(page, page + 1);
         return 0;
     }
-    let hash = values
-        .literals
-        .active()
-        .then(|| values.literals.fingerprint(data));
-    if let Some(shared) = hash.and_then(|h| values.literals.lookup(h, data)) {
-        values.write_group(page).values[page % 64] = shared;
+    let (group, literals) = values.write_group(page);
+    let slot = &mut group.values[page % directory::GROUP];
+    let hash = literals.active().then(|| literals.fingerprint(data));
+    if let Some(shared) = hash.and_then(|h| literals.lookup(h, data)) {
+        *slot = shared;
         return 0;
     }
-    let group = values.write_group(page);
     let credits = group.literal_credits;
     if matches!(
         vram_schedule::run(s.adaptive, credits, false),
         vram_schedule::Adt0::C2
-    ) && matches!(group.values[page % 64], Value::Fill(_) | Value::Shared(_))
+    ) && matches!(slot, Value::Fill(_) | Value::Shared(_))
         && literals::diverse_axes(data)
     {
         group.literal_credits = vram_advance::run(false, credits);
-        let key = hash.unwrap_or_else(|| values.literals.fingerprint(data));
-        let literal = values.literals.insert(key, Box::new(*data));
-        values.write_group(page).values[page % 64] = Value::Shared(literal);
+        *slot = Value::Shared(literals.insert(hash, Box::new(*data)));
         s.literal_skips.fetch_add(1, Ordering::Relaxed);
         return 0;
     }
-    let incumbent = Value::encode(&group.values[page % 64], data);
+    let incumbent = Value::encode(slot, data);
     let result = search::optimize(
         data,
         incumbent.charge(),
@@ -412,12 +408,11 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
     };
     if let Value::Raw(bytes) = candidate {
         group.literal_credits = vram_advance::run(true, credits);
-        let key = hash.unwrap_or_else(|| values.literals.fingerprint(data));
-        let shared = values.literals.insert(key, bytes);
-        values.write_group(page).values[page % 64] = Value::Shared(shared);
+        *slot = Value::Shared(literals.insert(hash, bytes));
     } else {
         group.literal_credits = 0;
-        group.values[page % 64] = candidate;
+        *slot = candidate;
+        literals.release_if_empty();
     }
     0
 }
@@ -644,6 +639,43 @@ mod host_tests {
             assert_eq!(stats[4], initial);
             assert_eq!(stats[0], n as u64);
             store_free(s as *const _ as *mut _);
+        }
+    }
+
+    #[test]
+    fn final_literal_releases_index_on_overwrite_and_trim() {
+        unsafe {
+            let store = Box::from_raw(store_new(32768));
+            let charge = || {
+                let mut stats = [0; 5];
+                store_stats(&store, stats.as_mut_ptr());
+                stats[4]
+            };
+            let empty = charge();
+            let fill = [7; PAGE];
+            let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let mut near = dense;
+            near[77] ^= 43;
+            assert_eq!(store_put(&store, 1, &fill), 0);
+            let one_group = charge();
+            assert_eq!(store_put(&store, 0, &dense), 0);
+            assert_eq!(store_put(&store, 1, &near), 0);
+            assert_eq!(store_discard(&store, 0, 1), 0);
+            let mut restored = [0; PAGE];
+            assert_eq!(store_get(&store, 1, &mut restored), 0);
+            assert_eq!(near, restored);
+            assert_eq!(store_put(&store, 1, &fill), 0);
+            assert_eq!(charge(), one_group);
+
+            assert_eq!(store_put(&store, 0, &dense), 0);
+            assert_eq!(store_put(&store, 1, &dense), 0);
+            assert_eq!(store.values.read().unwrap().literals.live(), 1);
+            assert_eq!(store_discard(&store, 0, 2), 0);
+            assert_eq!(charge(), empty);
+            let mut hits = 0;
+            let mut residuals = 0;
+            store_literal_stats(&store, &mut 0, &mut hits, &mut 0, &mut residuals);
+            assert_eq!((hits, residuals), (1, 1));
         }
     }
 

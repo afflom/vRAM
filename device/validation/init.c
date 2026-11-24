@@ -12,6 +12,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <termios.h>
 #ifdef TEST_SVM
 #include "svm.h"
 #endif
@@ -19,7 +20,17 @@
 #include <unistd.h>
 
 enum { PAGE = 4096, SIDE = 64 };
-static void fail(const char *msg) { dprintf(1,"FAIL %s errno=%d\n",msg,errno); outb(1,0xf4); _exit(1); }
+static void finish(int code) {
+    /* The debug port terminates QEMU immediately, including pending UART I/O. */
+    fflush(stdout);
+    tcdrain(STDOUT_FILENO);
+    outb(code, 0xf4);
+    for (;;) pause();  /* PID 1 must stay alive until QEMU handles the exit. */
+}
+static void fail(const char *msg) {
+    dprintf(STDOUT_FILENO, "FAIL %s errno=%d\n", msg, errno);
+    finish(1);
+}
 static uint64_t now(void) {
     struct timespec t;
     if (clock_gettime(CLOCK_MONOTONIC, &t)) fail("clock");
@@ -149,5 +160,6 @@ int main(void) {
     int status;
     if (child<0 || waitpid(child,&status,0)<0 || !WIFEXITED(status) || WEXITSTATUS(status)!=1)
         fail("nested QEMU main RAM");
-    printf("PASS nested %s main RAM and Linux pager\n", !strcmp(accel,"kvm") ? "KVM" : "TCG"); outb(0,0xf4); return 0;
+    printf("PASS nested %s main RAM and Linux pager\n", !strcmp(accel,"kvm") ? "KVM" : "TCG");
+    finish(0);
 }

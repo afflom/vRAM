@@ -78,7 +78,7 @@ jobs:
         run: |
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
-          python3 host/package.py dist/vram-host_0.2.0_amd64.deb
+          python3 host/package.py dist/
           cp measurements/local/managed-*.json dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)

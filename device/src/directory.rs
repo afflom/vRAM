@@ -3,7 +3,7 @@
 use super::{search::Region, Value};
 use std::mem::size_of;
 
-const GROUP: usize = 64;
+pub(super) const GROUP: usize = 64;
 const FANOUT: usize = 256;
 const LEAF: usize = GROUP * FANOUT;
 static ZERO: Value = Value::Fill(0);
@@ -46,7 +46,7 @@ impl Directory {
                 .map_or(&ZERO, |g| &g.values[page % GROUP]),
         )
     }
-    pub(super) fn write_group(&mut self, page: usize) -> &mut Group {
+    pub(super) fn write_group(&mut self, page: usize) -> (&mut Group, &mut super::literals::Pool) {
         let leaf = self.leaves[page / LEAF].get_or_insert_with(|| {
             Box::new(Leaf {
                 groups: std::array::from_fn(|_| None),
@@ -63,7 +63,7 @@ impl Directory {
             })
         });
         group.occupied = vram_word::run(group.occupied, u64::MAX, 1 << (page % GROUP));
-        group
+        (group, &mut self.literals)
     }
     pub(super) fn discard(&mut self, mut start: usize, end: usize) {
         while start < end {
@@ -92,6 +92,7 @@ impl Directory {
             }
             start += n;
         }
+        self.literals.release_if_empty();
     }
     fn groups(&self) -> impl Iterator<Item = &Group> {
         self.leaves

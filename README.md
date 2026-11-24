@@ -6,14 +6,14 @@ On a write, the store measures candidate representations, including fills, spars
 
 ## Install on a Linux computer
 
-On amd64 Debian or Ubuntu with systemd, download `vram-host_0.2.0_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
+On amd64 Debian or Ubuntu with systemd, download `vram-host_0.2.1_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.2.0_amd64.deb
+sudo apt install ./vram-host_0.2.1_amd64.deb
 ```
 
-The package installs a service and configuration. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
+The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
 
 ```sh
 sudo systemctl enable --now vram@nbd0.service
@@ -24,19 +24,19 @@ Applications can now page to Verdant through the normal Linux memory manager. Th
 
 Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pages consume host RAM. Capacity gains depend on the data and the resident working set. A process crash or loss of power can lose paged-out data. The service needs memory and locked-memory privileges for the store and headroom for Linux to drain it.
 
-On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. Linux counted 99,682 swap-outs and 94,055 swap-ins during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
+On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
+To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.1_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
 
 ## How dense pages interact
 
-Two pages with high byte diversity can share every coordinate, or differ at only a few. Verdant maintains a bounded index of literal bases across the whole running store. A fingerprint proposes a candidate. Verdant compares the bytes before sharing an immutable allocation. For near matches it builds a sparse list of coordinate-wise XOR differences and admits it after exact reconstruction. A write to the original swap address cannot change any dependent page.
+Two pages with high byte diversity can share every coordinate, or differ at only a few. Verdant maintains a bounded index of literal bases across the whole running store. A fingerprint proposes a candidate. Verdant compares the bytes before sharing an immutable allocation. For near matches it builds a sparse list of coordinate-wise XOR differences and admits it after exact reconstruction. A write to the original swap address cannot change any dependent page. Discarding or overwriting the final page that references a literal also frees the lookup table.
 
 Independent pages can still inform scheduling. In a 64-page region, a full literal result allows the Prism scheduler to reduce subsequent fitting work when samples on both axes have high byte diversity. The credits expire and trigger another full probe. This saves CPU on sustained high-entropy writes. Sampling can pass over a compressible page until a later probe. Every representation retains the original bytes.
 
-The native comparison times 128 MiB of writes with the same harness and input generator against the previous and current libraries. R cycles through 256 pseudorandom bases. D makes four pseudorandom byte edits to each recurrence. U generates each page independently. The measurements include full readback and three trials in alternating order. [Native comparison](measurements/literal-reuse.json) · [Managed repeated pages](measurements/managed-repeated.json) · [Managed dense residuals](measurements/managed-dense.json) · [Independent control](measurements/managed-independent.json)
+The native comparison times 128 MiB of writes with the same harness and input generator against the pre-sharing library (commit `0d24329`) and vRAM 0.2.0. R cycles through 256 pseudorandom bases. D makes four pseudorandom byte edits to each recurrence. U generates each page independently. The measurements include full readback and three trials in alternating order. [Native comparison](measurements/literal-reuse.json) · [Managed repeated pages](measurements/managed-repeated.json) · [Managed dense residuals](measurements/managed-dense.json) · [Independent control](measurements/managed-independent.json)
 
-| 128 MiB written and read back | Previous store | Current store | Median write time (previous → current) | Median readback time (previous → current) |
+| 128 MiB written and read back | Pre-sharing store | 0.2.0 store | Median write time | Median readback time |
 |---|---:|---:|---:|---:|
 | Repeated dense literals | 128.51 MiB | 1.78 MiB | 0.493 s → 0.021 s | 0.025 s → 0.020 s |
 | Dense literals with four edits per recurrence | 128.51 MiB | 6.02 MiB | 0.279 s → 0.124 s | 0.027 s → 0.021 s |
