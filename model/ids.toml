@@ -269,4 +269,32 @@ theorems = ["FacetPolicy.exactReply"]
 id = "VR-41"
 level = "open"
 suite = "capacity"
-statement = "Single-page swap latency is measured per operation against zram with zstd in the same Linux guest, with exact readback"
+statement = "Single-page swap latency is measured against zram with zstd for the operator corpus and independently for six mixed-overwrite families, with exact readback"
+
+[[id]]
+id = "VR-42"
+level = "build"
+suite = "capacity"
+statement = "A bounded path fits its zram latency budget when its overhead and service bounds fit, and an overhead floor above the budget excludes parity"
+theorems = ["SwapPolicy.serviceBudget", "SwapPolicy.overheadFloor", "SwapPolicy.zstdBreakEven"]
+
+[[id]]
+id = "VR-43"
+level = "build"
+suite = "capacity"
+statement = "A three-run median meets a latency bound exactly when at least two run medians meet it"
+theorems = ["SwapPolicy.majorityMedian"]
+
+[[id]]
+id = "VR-44"
+level = "build"
+suite = "capacity"
+statement = "An exact factor cheaper than a lower bound on alternative storage is cheaper than every alternative meeting the bound"
+theorems = ["SwapPolicy.factorDominance"]
+
+[[id]]
+id = "VR-45"
+level = "build"
+suite = "capacity"
+statement = "Restoring a verified prefix consumes a strictly positive bounded part of the remaining copy budget, with exact byte accounting"
+theorems = ["SwapPolicy.copyBudget"]

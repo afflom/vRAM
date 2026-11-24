@@ -60,7 +60,11 @@ The three honesty levels (R2):
 | `VR-38` | `open` | The published product catalog resolves its Prism facet records to the workstation model, source evidence and product assets |  |
 | `VR-39` | `open` | The released Holo serves each catalog facet directly through its pure byte dispatcher, with records matching the checked source export |  |
 | `VR-40` | `build` | A successful facet lookup returns its record bytes unchanged | `FacetPolicy.exactReply` |
-| `VR-41` | `open` | Single-page swap latency is measured per operation against zram with zstd in the same Linux guest, with exact readback |  |
+| `VR-41` | `open` | Single-page swap latency is measured against zram with zstd for the operator corpus and independently for six mixed-overwrite families, with exact readback |  |
+| `VR-42` | `build` | A bounded path fits its zram latency budget when its overhead and service bounds fit, and an overhead floor above the budget excludes parity | `SwapPolicy.serviceBudget`, `SwapPolicy.overheadFloor`, `SwapPolicy.zstdBreakEven` |
+| `VR-43` | `build` | A three-run median meets a latency bound exactly when at least two run medians meet it | `SwapPolicy.majorityMedian` |
+| `VR-44` | `build` | An exact factor cheaper than a lower bound on alternative storage is cheaper than every alternative meeting the bound | `SwapPolicy.factorDominance` |
+| `VR-45` | `build` | Restoring a verified prefix consumes a strictly positive bounded part of the remaining copy budget, with exact byte accounting | `SwapPolicy.copyBudget` |
 
 ## Cited authorities
 

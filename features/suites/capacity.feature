@@ -323,3 +323,33 @@ Feature: capacity
     Given zram with zstd and the Verdant swap device in one disposable Linux guest
     When each backend receives identical synchronous 4 KiB writes and shuffled reads in three runs
     Then restored bytes match and each workload reports its median and its measured ratio to zram
+
+  @VR-41 @open
+  Scenario: Preserve data while its representation changes
+    Given sparse, selector, periodic, perturbed, dense and uniform pages share a device
+    When each address is overwritten with another family and read back in shuffled order
+    Then each restored byte equals the last write and each family reports separate read and write medians
+
+  @VR-42 @build
+  Scenario: Allocate a measured zram deadline between transport and service
+    Given upper bounds for both disjoint parts of a page operation
+    When the two bounds together fit its deadline
+    Then the complete operation fits the deadline
+
+  @VR-43 @build
+  Scenario: Replay zram parity for three trial medians
+    Given three vRAM medians and three zram medians in half-nanosecond units
+    When two vRAM medians are at most the middle zram observation
+    Then the model accepts parity for that operation
+
+  @VR-44 @build
+  Scenario: Admit a compact exact factor by its storage bound
+    Given the incumbent costs at least the alternative storage floor
+    When the exact factor costs less than the floor
+    Then its stored representation costs less than the incumbent
+
+  @VR-45 @build
+  Scenario: Reconstruct a page with a partial final repetition
+    Given a verified displacement and a nonempty prefix of reconstructed bytes
+    When the decoder copies the smaller of the available bytes and the remaining bytes
+    Then every step stays inside the initialized prefix and consumes exactly that many remaining bytes

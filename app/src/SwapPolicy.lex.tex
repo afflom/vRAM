@@ -1,0 +1,57 @@
+\begin{lexlean}{SwapPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Performance}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: middle, parameters: [a : Nat, b : Nat, c : Nat], result: Nat,
+  body: (if (a <=? b) then (if (b <=? c) then b else (if (a <=? c) then c else a))
+         else (if (a <=? c) then a else (if (b <=? c) then c else b))), executable: true
+}
+definition{
+  name: twoWithin, parameters: [a : Nat, b : Nat, c : Nat, bound : Nat], result: Bool,
+  body: (((a <=? bound) && (b <=? bound)) || (((a <=? bound) || (b <=? bound)) && (c <=? bound))), executable: true
+}
+definition{
+  name: parity, parameters: [a : Nat, b : Nat, c : Nat, x : Nat, y : Nat, z : Nat], result: Bool,
+  body: (twoWithin a b c (middle x y z)), executable: true
+}
+theorem{
+  name: majorityMedian, parameters: [a : Nat, b : Nat, c : Nat, bound : Nat],
+  statement: ((Performance::disagree (twoWithin a b c bound) ((middle a b c) <=? bound)) = false),
+  proof: linear_arithmetic{definitions: [Performance::disagree, middle, twoWithin]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: serviceBudget, parameters: [transport : Nat, service : Nat, transportMax : Nat, serviceMax : Nat, zram : Nat],
+  statement: ((((transport <=? transportMax) && ((service <=? serviceMax) && ((transportMax + serviceMax) <=? zram))) && (zram <? (transport + service))) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: overheadFloor, parameters: [lower : Nat, transport : Nat, service : Nat, zram : Nat],
+  statement: ((((zram <? lower) && (lower <=? transport)) && ((transport + service) <=? zram)) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: zstdBreakEven, parameters: [shared : Nat, extra : Nat, service : Nat, saved : Nat],
+  statement: ((Performance::disagree (((shared + extra) + service) <=? (shared + (service + saved))) (extra <=? saved)) = false),
+  proof: linear_arithmetic{definitions: [Performance::disagree]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: factorDominance, parameters: [factor : Nat, floor : Nat, alternative : Nat],
+  statement: ((((factor <? floor) && (floor <=? alternative)) && (alternative <=? factor)) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+definition{
+  name: copyCount, parameters: [ready : Nat, missing : Nat], result: Nat,
+  body: (if (ready <=? missing) then ready else missing), executable: true
+}
+theorem{
+  name: copyBudget, parameters: [ready : Nat, missing : Nat],
+  statement: ((let n : Nat := (copyCount ready missing);
+    ((n <=? ready) && ((n <=? missing) && (((n + (prim subtract missing n : Nat)) =? missing)
+      && (((ready =? 0) || (missing =? 0)) || (0 <? n)))))) = true),
+  proof: linear_arithmetic{definitions: [copyCount]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

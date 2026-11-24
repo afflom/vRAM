@@ -5,7 +5,9 @@ mod io_profile;
 mod lifecycle;
 mod literal_file;
 mod literals;
+mod repeated;
 mod search;
+use repeated::Repeated;
 mod selector;
 use selector::Selector;
 use std::{
@@ -64,6 +66,7 @@ struct Corrected {
 enum Value {
     Program(Box<search::Program>),
     Fill(u8),
+    Repeated(Box<Repeated>),
     Sparse(Box<Exceptions>),
     Packed(Box<Packed>),
     Shared(Arc<literals::Literal>),
@@ -114,6 +117,7 @@ impl Value {
     fn charge(&self) -> usize {
         match self {
             Self::Fill(_) => 0,
+            Self::Repeated(p) => p.charge(),
             Self::Residual(p) => p.charge(),
             Self::Shared(_) => 0, // The pool charges each live payload once.
             Self::Selector(_) => size_of::<Selector>(),
@@ -141,6 +145,37 @@ impl Value {
         ) {
             return Some(Self::Fill(bytes[0]));
         }
+        if let Some(block) = Repeated::factor(bytes) {
+            let cost = Repeated::cost(block.len());
+            // A nonuniform block has at least one sparse exception per repeat.
+            // Every selector, corrected selector and packed encoding has a fixed minimum size.
+            let sparse_floor =
+                size_of::<Exceptions>() + (PAGE / block.len()) * size_of::<(u16, u8)>();
+            let floor = sparse_floor
+                .min(size_of::<Selector>())
+                .min(size_of::<Packed>())
+                .min(size_of::<Corrected>());
+            if search::improves(floor, cost, true) {
+                return Some(Self::Repeated(Repeated::new(block)));
+            }
+            let other = Self::encode_nonuniform(prior, bytes);
+            if search::improves(other.as_ref().map_or(PAGE, Self::charge), cost, true) {
+                return Some(Self::Repeated(Repeated::new(block)));
+            }
+            return other;
+        }
+        let other = Self::encode_nonuniform(prior, bytes);
+        let ceiling = other.as_ref().map_or(PAGE, Self::charge);
+        match Repeated::shifted(bytes, ceiling) {
+            Some(block) => Some(Self::Repeated(Repeated::new(block))),
+            None => other,
+        }
+    }
+
+    fn encode_nonuniform(prior: Option<&Selector>, bytes: &[u8; PAGE]) -> Option<Self> {
+        use vram_representation::Adt0 as Plan;
+        let choose = vram_representation::run;
+        let absent = PAGE as u64;
         // Packed payloads and corrected selectors already cost more than a selector.
         // The exact row multiplicities suffice to compare the remaining sparse candidate.
         let selector = Selector::fit(bytes);
@@ -266,6 +301,7 @@ impl Value {
             Self::Program(p) => return p.decode(out, false),
             Self::Residual(p) => return p.decode(out),
             Self::Fill(b) => out.fill(*b),
+            Self::Repeated(p) => p.decode(out),
             Self::Sparse(p) => {
                 out.fill(p.base);
                 for &(i, b) in p.entries.iter() {
@@ -318,7 +354,7 @@ impl Value {
             return Ok(true);
         }
         let mut expanded = [0; PAGE];
-        if !matches!(self, Self::Fill(_) | Self::Sparse(_)) {
+        if !matches!(self, Self::Fill(_) | Self::Sparse(_) | Self::Repeated(_)) {
             self.decode(&mut expanded)?;
         }
         for (w, sums) in weights.iter().zip(out) {
@@ -326,6 +362,7 @@ impl Value {
                 Self::Fill(v) => {
                     sums.fill(w.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(*v))
                 }
+                Self::Repeated(p) => p.project(w, sums),
                 Self::Sparse(p) => {
                     sums.fill(w.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(p.base));
                     for &(i, b) in p.entries.iter() {
@@ -623,6 +660,7 @@ fn literal_fast(s: &Store, credits: u64, slot: &Value, data: &[u8; PAGE]) -> boo
         vram_schedule::Adt0::C2
     ) && matches!(slot, Value::Fill(_) | Value::Shared(_))
         && literals::diverse_axes(data)
+        && Repeated::factor(data).is_none()
 }
 
 impl FitInputs {
@@ -1014,7 +1052,11 @@ pub unsafe extern "C" fn store_stats(s: &Store, out: *mut u64) {
             Value::Packed(_) => out[1] += 1,
             Value::Shared(_) => out[2] += 1,
             Value::Sparse(_) => out[3] += 1,
-            Value::Selector(_) | Value::Corrected(_) | Value::Residual(_) | Value::Program(_) => {}
+            Value::Repeated(_)
+            | Value::Selector(_)
+            | Value::Corrected(_)
+            | Value::Residual(_)
+            | Value::Program(_) => {}
         }
     }
 }
@@ -1094,6 +1136,101 @@ mod runtime_tests {
     }
 
     #[test]
+    fn broadcast_reconstructs_and_projects_the_same_page() {
+        let mut page = std::array::from_fn(|i| (i % SIDE) as u8);
+        let value = Value::encode(None, &page).unwrap();
+        assert!(matches!(value, Value::Repeated(_)));
+        assert_eq!(value.charge(), Repeated::cost(SIDE));
+        recover(&value, &page);
+        let weights = [std::array::from_fn(|i| 17 - i as i32)];
+        let mut result = [[0i64; SIDE]];
+        value.project(&weights, &mut result).unwrap();
+        for j in 0..SIDE {
+            let dense: i64 = (0..SIDE)
+                .map(|i| i64::from(weights[0][i]) * i64::from(page[i * SIDE + j]))
+                .sum();
+            assert_eq!(result[0][j], dense);
+        }
+        page[PAGE - 1] ^= 1;
+        let changed = Value::encode(None, &page);
+        assert!(!matches!(changed, Some(Value::Repeated(_))));
+        if let Some(v) = changed {
+            recover(&v, &page);
+        }
+    }
+
+    #[test]
+    fn varying_periods_and_near_repeats_round_trip() {
+        let mut seed = 423197u32;
+        for shift in 1..12 {
+            let n = 1 << shift;
+            let block: Vec<_> = (0..n)
+                .map(|_| {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 17;
+                    seed ^= seed << 5;
+                    seed as u8
+                })
+                .collect();
+            let mut data = std::array::from_fn(|i| block[i % n]);
+            let rep = Repeated::new(Repeated::factor(&data).unwrap());
+            let mut decoded = [0; PAGE];
+            rep.decode(&mut decoded);
+            assert_eq!(decoded, data);
+            let weight = std::array::from_fn(|i| i as i32 - 9);
+            let mut projected = [0; SIDE];
+            rep.project(&weight, &mut projected);
+            for col in 0..SIDE {
+                assert_eq!(
+                    projected[col],
+                    (0..SIDE)
+                        .map(|i| i64::from(weight[i]) * i64::from(data[i * SIDE + col]))
+                        .sum::<i64>()
+                );
+            }
+            let selected = Value::encode(None, &data).unwrap();
+            assert!(selected.charge() <= rep.charge());
+            recover(&selected, &data);
+            data[PAGE - 1] ^= 1;
+            assert!(Repeated::factor(&data).is_none());
+        }
+    }
+
+    #[test]
+    fn truncated_repeats_restore_and_project_at_arbitrary_phase() {
+        let mut seed = 917761u32;
+        for n in [3, 7, 39, 97, 193, 509] {
+            let block: Vec<_> = (0..n)
+                .map(|_| {
+                    seed ^= seed << 13;
+                    seed ^= seed >> 17;
+                    seed ^= seed << 5;
+                    seed as u8
+                })
+                .collect();
+            let mut data = std::array::from_fn(|i| block[i % n]);
+            let value = Value::encode(None, &data).unwrap();
+            recover(&value, &data);
+            if n == 97 {
+                assert!(matches!(value, Value::Repeated(_)));
+            }
+            let weights = [std::array::from_fn(|i| 24 - i as i32)];
+            let mut out = [[0; SIDE]];
+            value.project(&weights, &mut out).unwrap();
+            for j in 0..SIDE {
+                assert_eq!(
+                    out[0][j],
+                    (0..SIDE)
+                        .map(|i| i64::from(weights[0][i]) * i64::from(data[i * SIDE + j]))
+                        .sum::<i64>()
+                );
+            }
+            data[PAGE - 1] ^= 1;
+            assert!(Repeated::shifted(&data, PAGE).is_none());
+        }
+    }
+
+    #[test]
     fn palette_preserves_the_full_ranking_at_ties() {
         for seed in 0..64 {
             let histogram = std::array::from_fn(|i| (i * 113 + seed * i * i) % (1 + seed));
@@ -1133,8 +1270,12 @@ mod runtime_tests {
             }
         }
         assert_eq!(page, original);
-        let entropy = std::array::from_fn(|i| (i % 256) as u8);
-        assert!(Value::encode(value.selector_base(), &entropy).is_none());
+        let mut cycling = std::array::from_fn(|i| (i % 256) as u8);
+        let factored = Value::encode(value.selector_base(), &cycling).unwrap();
+        assert!(matches!(factored, Value::Repeated(_)));
+        recover(&factored, &cycling);
+        cycling[PAGE - 1] ^= 1;
+        assert!(Value::encode(value.selector_base(), &cycling).is_none());
         let rows = std::array::from_fn(|i| (i / SIDE) as u8);
         let value = Value::encode(None, &rows).unwrap();
         assert!(matches!(value, Value::Selector(_)));
@@ -1171,6 +1312,16 @@ mod host_tests {
         store
     }
 
+    fn independent_page() -> [u8; PAGE] {
+        let mut x = 0x78f1e221u32;
+        std::array::from_fn(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x as u8
+        })
+    }
+
     #[test]
     fn writer_can_finish_fitting_while_reader_holds_directory() {
         let s = profiled_store(true);
@@ -1198,7 +1349,7 @@ mod host_tests {
 
     #[test]
     fn commit_revalidates_selector_region_and_new_literal() {
-        let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+        let dense = independent_page();
         let selector = std::array::from_fn(|i| {
             let row = (i / SIDE) as u8;
             if i % 2 == 0 {
@@ -1431,7 +1582,7 @@ mod host_tests {
         use std::sync::Barrier;
         unsafe {
             let store = Box::from_raw(store_new(256));
-            let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let dense = independent_page();
             let mut edited = dense;
             edited[77] ^= 43;
             let zero = [0; PAGE];
@@ -1470,7 +1621,7 @@ mod host_tests {
             };
             let empty = charge();
             let fill = [7; PAGE];
-            let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let dense = independent_page();
             let mut near = dense;
             near[77] ^= 43;
             assert_eq!(store_put(&store, 1, &fill), 0);
@@ -1514,7 +1665,7 @@ mod host_tests {
         unsafe {
             assert!(store_new_file(n + 1, file.as_raw_fd()).is_null());
             let store = Box::from_raw(store_new_file(n, file.as_raw_fd()));
-            let a = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let a = independent_page();
             let mut edited = a;
             edited[77] ^= 43;
             for (addr, page) in [(0, &a), (1, &a), (2, &edited)] {
@@ -1547,7 +1698,7 @@ mod host_tests {
     fn fingerprint_collision_overwrite_and_discard_preserve_shared_bytes() {
         unsafe {
             let s = &*store_new(128);
-            let a = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let a = independent_page();
             let mut b = a;
             for byte in &mut b[100..200] {
                 *byte ^= 3;

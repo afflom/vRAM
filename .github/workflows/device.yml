@@ -104,7 +104,8 @@ jobs:
           if [ -c /dev/kvm ]; then accel=kvm; fi
           sudo python3 host/tests/swap_latency.py --accel "$accel" --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules" \
-            --control measurements/local/swap-control/host/build/vram-host --result measurements/local/swap-latency.json
+            --control measurements/local/swap-control/host/build/vram-host --result measurements/local/swap-raw.json
+          node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
       - name: Check out the 0.5.9 guest benchmark control
@@ -152,6 +153,7 @@ jobs:
       - name: Assemble the product site from the verified model and tested package
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
+          cp dist/swap-latency.json product-public/downloads/
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)
           python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &

@@ -15,7 +15,7 @@ On the package build host, install Graphviz and the dependencies in the device w
 ```sh
 npm ci --prefix automation --ignore-scripts
 PRISM_CODE_TIER=offline PRISM_LEXLEAN_FETCH=0 PRISM_TELEMETRY=0 \
-  python3 automation/product_site.py --package dist/vram-host_0.6.2_amd64.deb --out product-public
+  python3 automation/product_site.py --package dist/vram-host_0.6.3_amd64.deb --out product-public
 python3 -m http.server 8765 --directory product-public --bind 127.0.0.1
 ```
 

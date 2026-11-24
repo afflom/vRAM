@@ -79,7 +79,7 @@ fn bits(classes: usize) -> usize {
         _ => 4,
     }
 }
-fn improves(old: usize, new: usize, exact: bool) -> bool {
+pub(super) fn improves(old: usize, new: usize, exact: bool) -> bool {
     run(Request::C2(old as u64, new as u64, exact))
 }
 

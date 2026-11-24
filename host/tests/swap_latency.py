@@ -24,15 +24,36 @@ parser.add_argument("--accel", choices=["kvm", "tcg"], required=True)
 parser.add_argument("--require-parity", action="store_true", help="exit unsuccessfully if any median exceeds zram")
 args = parser.parse_args()
 servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
+def python_files():
+    # Collect the system interpreter, its imported standard library and resolved ELF dependencies.
+    python = "/usr/bin/python3"
+    probe = ("import os,sys,statistics,random,mmap,time,json;"
+             "print(json.dumps([m.__file__ for m in sys.modules.copy().values() if getattr(m,'__file__',None)]))")
+    paths = {Path(p) for p in json.loads(subprocess.check_output([python, "-IS", "-c", probe]))}
+    paths.add(Path(python))
+    for path in list(paths):
+        if path == Path(python) or path.suffix == ".so":
+            linked = subprocess.check_output(["ldd", path], text=True)
+            paths.update(Path(p) for p in re.findall(r"(/[^\s]+)\s+\(", linked))
+    return {str(path).lstrip("/"): path.read_bytes() for path in paths}
+
+
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp)
     subprocess.run(["cc", "-static", "-O2", "-Wall", "-Wextra", "-Werror",
                     root / "host/tests/swap_latency_guest.c", "-o", path / "init"], check=True)
     files = dict(servers, init=(path / "init").read_bytes())
+    files.update(python_files())
+    files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
     for name in ("nbd", "zram", "lz4_compress", "lz4hc_compress"):
         module, = args.modules.rglob(name + ".ko.xz")
         files[name + ".ko"] = lzma.decompress(module.read_bytes())
     entries = {d: (stat.S_IFDIR | 0o755, b"", 0, 0) for d in ("dev", "sys", "proc")}
+    for f in files:
+        for parent in reversed(Path(f).parents):
+            if str(parent) != ".":
+                entries[str(parent)] = (stat.S_IFDIR | 0o755, b"", 0, 0)
+    entries["dev/urandom"] = (stat.S_IFCHR | 0o666, b"", 1, 9)
     entries["dev/console"] = (stat.S_IFCHR | 0o600, b"", 5, 1)
     entries.update({k: (stat.S_IFREG | 0o755, v, 0, 0) for k, v in files.items()})
     entries["TRAILER!!!"] = (0, b"", 0, 0)
@@ -45,33 +66,45 @@ with tempfile.TemporaryDirectory() as tmp:
         command.extend(["-L", args.bios_dir])
     if args.accel == "kvm":
         command.extend(["-cpu", "host"])
-    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=240)
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=360)
     log = proc.stdout.decode(errors="replace")
     if proc.returncode != 1:
         sys.exit(log[-4000:])
 
-rows = {}
-for run, backend, profile, op, p50, p99 in re.findall(
-        r"^PAGE_LATENCY (\d+) (\S+) ([SU]) (read|write) (\d+) (\d+)\s*$", log, re.M):
-    key = (int(run), backend, profile, op)
-    if key in rows or not 0 < int(p50) <= int(p99):
-        sys.exit("Invalid timing observation: " + repr(key))
-    rows[key] = dict(p50_ns=int(p50), p99_ns=int(p99))
-if len(rows) != 36:
-    sys.exit("Incomplete timing matrix\n" + log[-4000:])
-summary = {}
-for workload, profile in (("patterned", "S"), ("dense", "U")):
-    for op in ("write", "read"):
-        times = {b: [rows[i,b,profile,op] for i in range(3)] for b in ("zram-zstd", "control", "vram")}
-        medians = {b: statistics.median(r["p50_ns"] for r in samples) for b, samples in times.items()}
-        summary[f"{workload}_{op}"] = dict(runs=times, median_ns=medians,
-            vram_to_zram=medians["vram"]/medians["zram-zstd"], meets_zram=medians["vram"] <= medians["zram-zstd"])
+def observations(prefix, profiles):
+    rows = {}
+    for line in re.findall(r"^" + prefix + r" (.+)$", log, re.M):
+        run, backend, profile, op, p50, p99 = json.loads(line)
+        key = (run, backend, profile, op)
+        if key in rows or not 0 < p50 <= p99:
+            sys.exit("Invalid timing observation: " + repr(key))
+        rows[key] = dict(p50_ns=p50, p99_ns=p99)
+    if len(rows) != len(profiles)*18:
+        sys.exit("Incomplete timing matrix\n" + log[-4000:])
+    summary = {}
+    for profile in profiles:
+        for op in ("write", "read"):
+            times = {b: [rows[i,b,profile,op] for i in range(3)] for b in ("zram-zstd", "control", "vram")}
+            medians = {b: statistics.median(r["p50_ns"] for r in samples) for b, samples in times.items()}
+            summary[f"{profile}_{op}"] = dict(runs=times, median_ns=medians,
+                vram_to_zram=medians["vram"]/medians["zram-zstd"], meets_zram=medians["vram"] <= medians["zram-zstd"])
+    return summary
+
+
+summary = observations("PAGE_LATENCY", ("patterned", "dense"))
+mixed = observations("MIXED_LATENCY", ("sparse", "selector", "period97", "perturbed", "independent", "fill"))
 result = dict(accelerator=args.accel, kernel=args.kernel.name, kernel_sha256=hashlib.sha256(args.kernel.read_bytes()).hexdigest(),
               server_sha256={k: hashlib.sha256(v).hexdigest() for k,v in servers.items()},
-              samples_per_run=1024, page_bytes=4096, queue_depth=1, runs=3,
-              verified_bytes_per_backend=3*2*1024*4096, meets_parity=all(v["meets_zram"] for v in summary.values()),
-              workloads=summary)
+              python_version=re.search(r"^INTERPRETER ([0-9.]+)", log, re.M)[1], samples_per_run=2048, page_bytes=4096, queue_depth=1, runs=3,
+              verified_bytes_per_backend=3*2*2048*4096,
+              operator_parity=all(v["meets_zram"] for v in summary.values()),
+              held_out_parity=all(v["meets_zram"] for v in mixed.values()),
+              workloads=summary, mixed_overwrites=mixed, mixed_pages_per_family_per_round=64,
+              mixed_verified_bytes_per_backend=3*384*4096)
+result["meets_parity"] = result["operator_parity"] and result["held_out_parity"]
 args.result.write_text(json.dumps(result, indent=2) + "\n")
 print({k:v["median_ns"] for k,v in summary.items()})
 if args.require_parity and not result["meets_parity"]:
-    sys.exit("Single-page zram parity not reached: " + ", ".join(k for k,v in summary.items() if not v["meets_zram"]))
+    misses = [f"{suite}/{k}" for suite, cells in (("operator", summary), ("mixed", mixed))
+              for k, v in cells.items() if not v["meets_zram"]]
+    sys.exit("Single-page zram parity not reached: " + ", ".join(misses))
