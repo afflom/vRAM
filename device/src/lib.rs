@@ -425,9 +425,17 @@ impl Store {
             self.values.write().unwrap()
         })
     }
-    fn wait_for_writer(&self) -> std::sync::RwLockWriteGuard<'_, directory::Directory> {
+    fn wait_for_writer(
+        &self,
+        after_fit: bool,
+    ) -> std::sync::RwLockWriteGuard<'_, directory::Directory> {
         self.waiting_writers.fetch_add(1, Ordering::Relaxed);
-        let values = self.write_directory();
+        let reacquire = self
+            .profile
+            .as_ref()
+            .filter(|_| after_fit)
+            .map(|p| &p.reacquire_ns);
+        let values = io_profile::measured(reacquire, || self.write_directory());
         self.waiting_writers.fetch_sub(1, Ordering::Relaxed);
         values
     }
@@ -453,6 +461,22 @@ pub unsafe extern "C" fn store_fit_counts(s: &Store, out: &mut [u64; 2]) {
             p.prepared.load(Ordering::Relaxed),
             p.used.load(Ordering::Relaxed),
         ]
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_fit_profile(s: &Store, out: &mut [u64; 7]) {
+    *out = s.profile.as_ref().map_or([0; 7], |p| {
+        [
+            &p.encoding_reuses,
+            &p.fit_ns,
+            &p.overlap_ns,
+            &p.snapshot_ns,
+            &p.validation_ns,
+            &p.credit_replays,
+            &p.reacquire_ns,
+        ]
+        .map(|counter| counter.load(Ordering::Relaxed))
     });
 }
 
@@ -495,7 +519,7 @@ pub unsafe extern "C" fn store_write_pages(
                     .ok()
                     .and_then(|dir| FitInputs::snapshot(s, &dir, first, &group[0]));
                 let leading = inputs.map(|inputs| inputs.prepare(s, &group[0]));
-                (s.wait_for_writer(), leading)
+                (s.wait_for_writer(leading.is_some()), leading)
             }
             Err(std::sync::TryLockError::Poisoned(e)) => panic!("{e}"),
         };
@@ -506,7 +530,7 @@ pub unsafe extern "C" fn store_write_pages(
                 if let Some(inputs) = FitInputs::snapshot(s, &values, page, src) {
                     drop(values);
                     prepared = Some(inputs.prepare(s, src));
-                    values = s.wait_for_writer();
+                    values = s.wait_for_writer(true);
                 }
             }
             if put_locked(s, &mut values, page, src, prepared) != 0 {
@@ -551,7 +575,8 @@ struct FitInputs {
 struct PreparedFit {
     inputs: FitInputs,
     next_region: search::Region,
-    value: Value,
+    encoding: Value,
+    outcome: search::Outcome,
 }
 
 fn literal_fast(s: &Store, credits: u64, slot: &Value, data: &[u8; PAGE]) -> bool {
@@ -569,56 +594,112 @@ impl FitInputs {
         page: usize,
         data: &[u8; PAGE],
     ) -> Option<Self> {
-        let slot = dir.get(page);
-        let group = dir.group_at(page);
-        if data.iter().all(|&b| b == data[0])
-            || dir.literals.has_candidate(data, slot.literal_base())
-            || literal_fast(s, group.map_or(0, |g| g.literal_credits), slot, data)
-        {
-            return None;
-        }
-        Some(Self {
-            selector: slot.selector_base().cloned(),
-            region: group.map(|g| g.region.clone()).unwrap_or_default(),
+        io_profile::measured(s.profile.as_ref().map(|p| &p.snapshot_ns), || {
+            let slot = dir.get(page);
+            let group = dir.group_at(page);
+            if data.iter().all(|&b| b == data[0])
+                || dir.literals.has_candidate(data, slot.literal_base())
+                || literal_fast(s, group.map_or(0, |g| g.literal_credits), slot, data)
+            {
+                return None;
+            }
+            Some(Self {
+                selector: slot.selector_base().cloned(),
+                region: group.map(|g| g.region.clone()).unwrap_or_default(),
+            })
         })
     }
 
     fn prepare(self, s: &Store, data: &[u8; PAGE]) -> PreparedFit {
         let mut next_region = self.region.clone();
-        let value = fit(s, self.selector.as_ref(), data, &mut next_region);
-        if let Some(p) = &s.profile {
-            p.prepared.fetch_add(1, Ordering::Relaxed);
-        }
+        let mut prepare = || {
+            let encoding = Value::encode(self.selector.as_ref(), data);
+            let outcome = search_page(s, data, encoding.charge(), &mut next_region);
+            (encoding, outcome)
+        };
+        let (encoding, outcome) = if let Some(p) = &s.profile {
+            p.measure_fit(prepare)
+        } else {
+            prepare()
+        };
         PreparedFit {
             inputs: self,
             next_region,
-            value,
+            encoding,
+            outcome,
         }
     }
 }
 
-fn fit(
+fn search_page(
+    s: &Store,
+    data: &[u8; PAGE],
+    charge: usize,
+    region: &mut search::Region,
+) -> search::Outcome {
+    let result = search::optimize(data, charge, s.node_budget, s.adaptive.then_some(region));
+    // Only observed events need a write to the counters shared by all fitters.
+    for (counter, count) in [
+        (&s.searches, result.probes),
+        (&s.nodes_visited, result.nodes as u64),
+        (&s.refits, result.refits),
+        (&s.skips, result.skips),
+    ] {
+        if count != 0 {
+            counter.fetch_add(count, Ordering::Relaxed);
+        }
+    }
+    result
+}
+
+fn resolve_fit(
     s: &Store,
     prior: Option<&Selector>,
     data: &[u8; PAGE],
     region: &mut search::Region,
+    prepared: Option<PreparedFit>,
 ) -> Value {
-    let incumbent = Value::encode(prior, data);
-    let result = search::optimize(
-        data,
-        incumbent.charge(),
-        s.node_budget,
-        s.adaptive.then_some(region),
-    );
-    s.searches.fetch_add(result.probes, Ordering::Relaxed);
-    s.nodes_visited
-        .fetch_add(result.nodes as u64, Ordering::Relaxed);
-    s.refits.fetch_add(result.refits, Ordering::Relaxed);
-    s.skips.fetch_add(result.skips, Ordering::Relaxed);
-    match result.program {
-        Some(program) => Value::Program(Box::new(program)),
-        None => incumbent,
-    }
+    let encoding = if let Some(p) = prepared {
+        let (same_selector, same_region, advance) =
+            io_profile::measured(s.profile.as_ref().map(|p| &p.validation_ns), || {
+                let same_selector = p.inputs.selector.as_ref() == prior;
+                let exact = same_selector && p.inputs.region == *region;
+                let advance = same_selector
+                    && !exact
+                    && region.can_repeat_advance(&p.inputs.region, &p.outcome);
+                (same_selector, exact, advance)
+            });
+        if same_region || advance {
+            if advance {
+                region.advance();
+            } else {
+                *region = p.next_region;
+            }
+            if let Some(profile) = &s.profile {
+                profile.used.fetch_add(1, Ordering::Relaxed);
+                if advance {
+                    profile.credit_replays.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            return p
+                .outcome
+                .program
+                .map_or(p.encoding, |program| Value::Program(Box::new(program)));
+        }
+        if same_selector {
+            if let Some(profile) = &s.profile {
+                profile.encoding_reuses.fetch_add(1, Ordering::Relaxed);
+            }
+            p.encoding
+        } else {
+            Value::encode(prior, data)
+        }
+    } else {
+        Value::encode(prior, data)
+    };
+    search_page(s, data, encoding.charge(), region)
+        .program
+        .map_or(encoding, |program| Value::Program(Box::new(program)))
 }
 
 fn put_locked(
@@ -628,6 +709,7 @@ fn put_locked(
     data: &[u8; PAGE],
     prepared: Option<PreparedFit>,
 ) -> c_int {
+    let _commit_interval = s.profile.as_ref().map(|p| p.begin_commit());
     let dst = values.get(page);
     // Capture-all KVM may return an unchanged modeled frame. A matching expansion
     // authorizes retaining the exact backing, including its existing corrections.
@@ -653,19 +735,7 @@ fn put_locked(
     let capture = if fast {
         literals::Capture::Borrowed(data)
     } else {
-        let candidate = match prepared {
-            Some(p)
-                if p.inputs.selector.as_ref() == slot.selector_base()
-                    && p.inputs.region == group.region =>
-            {
-                group.region = p.next_region;
-                if let Some(p) = &s.profile {
-                    p.used.fetch_add(1, Ordering::Relaxed);
-                }
-                p.value
-            }
-            _ => fit(s, slot.selector_base(), data, &mut group.region),
-        };
+        let candidate = resolve_fit(s, slot.selector_base(), data, &mut group.region, prepared);
         match candidate {
             Value::Raw(bytes) => literals::Capture::Owned(bytes),
             modeled => {
@@ -1008,6 +1078,14 @@ mod host_tests {
                 0,
                 "used stale fit after competing write to page {competing_page}"
             );
+            assert_eq!(
+                s.profile
+                    .as_ref()
+                    .unwrap()
+                    .encoding_reuses
+                    .load(Ordering::Relaxed),
+                u64::from(competing_page == 1)
+            );
             if competing_page == 0 {
                 assert!(matches!(dir.get(0), Value::Corrected(_)));
             }
@@ -1017,6 +1095,86 @@ mod host_tests {
             let mut restored = [0; PAGE];
             dir.get(0).decode(&mut restored).unwrap();
             assert_eq!(&restored, submitted);
+        }
+    }
+
+    #[test]
+    fn prepared_schedule_matches_fresh_fit_at_every_credit_boundary() {
+        let store = profiled_store(true);
+        let field = |key: usize| {
+            let x = (key as u32).wrapping_mul(0x9e3779b9);
+            ((x ^ (x >> 17)).wrapping_mul(0x85ebca6b) >> 24) as u8
+        };
+        let tiled = std::array::from_fn(|i| {
+            let (r, c) = (i / SIDE, i % SIDE);
+            field(if r < 32 {
+                r * 101 + c % 5
+            } else {
+                c * 131 + r % 7
+            })
+        });
+        let dense = std::array::from_fn(field);
+        let profile = store.profile.as_ref().unwrap();
+        // Transposing the field swaps the successful cut directions. A live
+        // refit of another nonempty shape must go through the regional search.
+        let transposed = std::array::from_fn(|i| tiled[(i % SIDE) * SIDE + i / SIDE]);
+        let mut before = search::Region::default();
+        let mut live = search::Region::default();
+        assert!(search_page(&store, &tiled, PAGE, &mut before)
+            .program
+            .is_some());
+        assert!(search_page(&store, &transposed, PAGE, &mut live)
+            .program
+            .is_some());
+        let cached = FitInputs {
+            selector: None,
+            region: before,
+        }
+        .prepare(&store, &tiled);
+        assert_eq!(cached.outcome.refits, 1);
+        let mut expected = live.clone();
+        let reused = resolve_fit(&store, None, &tiled, &mut live, Some(cached));
+        let fresh = resolve_fit(&store, None, &tiled, &mut expected, None);
+        assert_eq!(profile.encoding_reuses.load(Ordering::Relaxed), 1);
+        assert!(live == expected);
+        assert_eq!(fresh.charge(), reused.charge());
+        let mut restored = [0; PAGE];
+        reused.decode(&mut restored).unwrap();
+        assert_eq!(restored, tiled);
+
+        for data in [&tiled, &dense] {
+            let mut initial = search::Region::default();
+            search_page(&store, data, PAGE, &mut initial);
+            let mut live = initial.clone();
+            for consumed in 0..=15 {
+                let inputs = FitInputs {
+                    selector: None,
+                    region: initial.clone(),
+                };
+                let cached = inputs.prepare(&store, data);
+                assert_eq!(cached.outcome.refits + cached.outcome.skips, 1);
+                let (mut replayed, mut fresh) = (live.clone(), live.clone());
+                let before = profile.credit_replays.load(Ordering::Relaxed);
+                let reused = resolve_fit(&store, None, data, &mut replayed, Some(cached));
+                let expected = resolve_fit(&store, None, data, &mut fresh, None);
+                assert!(
+                    replayed == fresh,
+                    "state diverged after {consumed} neighboring writes"
+                );
+                assert_eq!(
+                    profile.credit_replays.load(Ordering::Relaxed) - before,
+                    u64::from((1..15).contains(&consumed))
+                );
+                assert_eq!(
+                    std::mem::discriminant(&reused),
+                    std::mem::discriminant(&expected)
+                );
+                assert_eq!(reused.charge(), expected.charge());
+                let mut out = [0; PAGE];
+                reused.decode(&mut out).unwrap();
+                assert_eq!(&out, data);
+                live = fresh;
+            }
         }
     }
 

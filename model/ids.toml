@@ -146,3 +146,9 @@ level = "build"
 suite = "capacity"
 statement = "For equal verified work, modeled overlap improves makespan exactly when it exceeds additional critical-path cost; page latency and deadline misses have separate break-even conditions, and selection minimizes measured elapsed time among eligible alternatives"
 theorems = ["Performance.overlapBreakEven", "Performance.idealBreakEven", "Performance.pageBreakEven", "Performance.tailNonincrease", "Performance.bestAtDeadline", "Performance.attainable"]
+
+[[id]]
+id = "VR-23"
+level = "open"
+suite = "capacity"
+statement = "A region-only change permits reuse of the selector-dependent page encoding and replay of an equivalent skip or successful refit against live credits"

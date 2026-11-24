@@ -355,6 +355,21 @@ pub(super) struct Region {
     credits: u64,
 }
 impl Region {
+    /// Both a successful template refit and a skipped probe advance the live
+    /// credit counter. A full probe, or a different template, needs a new search.
+    pub(super) fn can_repeat_advance(&self, previous: &Self, outcome: &Outcome) -> bool {
+        use vram_schedule::Adt0 as Job;
+        match vram_schedule::run(true, self.credits, !self.shape.is_empty()) {
+            Job::C2 => outcome.skips != 0,
+            Job::C1 => outcome.refits != 0 && self.shape == previous.shape,
+            Job::C0 => false,
+        }
+    }
+
+    pub(super) fn advance(&mut self) {
+        self.credits = vram_advance::run(false, self.credits);
+    }
+
     pub(super) fn extra_bytes(&self) -> usize {
         self.shape.len()
     }
@@ -436,7 +451,7 @@ pub(super) fn optimize(
     match vram_schedule::run(region.is_some(), credits, !shape.is_empty()) {
         Job::C2 => {
             if let Some(r) = region {
-                r.credits = vram_advance::run(false, credits);
+                r.advance();
             }
             out.skips = 1;
             return out;
@@ -458,7 +473,7 @@ pub(super) fn optimize(
             out.nodes = limit - search.remaining;
             if out.program.is_some() {
                 if let Some(r) = region {
-                    r.credits = vram_advance::run(false, credits);
+                    r.advance();
                 }
                 out.refits = 1;
                 return out;

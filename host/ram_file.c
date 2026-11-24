@@ -200,7 +200,13 @@ int main(int argc, char **argv)
         uint64_t ns[4];
         uint64_t fits[2];
         store_fit_counts(memory, fits);
-        fprintf(stderr, "VRAM_FITS {\"prepared\":%" PRIu64 ",\"used\":%" PRIu64 "}\n", fits[0], fits[1]);
+        uint64_t fit_profile[7];
+        store_fit_profile(memory, fit_profile);
+        fprintf(stderr, "VRAM_FITS {\"prepared\":%" PRIu64 ",\"used\":%" PRIu64
+                ",\"encoding_only\":%" PRIu64 ",\"fit_ns\":%" PRIu64 ",\"commit_overlap_ns\":%" PRIu64
+                ",\"snapshot_ns\":%" PRIu64 ",\"validation_ns\":%" PRIu64 ",\"credit_replays\":%" PRIu64
+                ",\"reacquire_ns\":%" PRIu64 "}\n",
+                fits[0], fits[1], fit_profile[0], fit_profile[1], fit_profile[2], fit_profile[3], fit_profile[4], fit_profile[5], fit_profile[6]);
         store_io_times(memory, ns);
         fprintf(stderr, "VRAM_TIMES {\"read_callback_ns\":%" PRIu64 ",\"write_callback_ns\":%" PRIu64
                 ",\"read_lock_ns\":%" PRIu64 ",\"write_lock_ns\":%" PRIu64

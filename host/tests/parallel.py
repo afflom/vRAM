@@ -130,10 +130,17 @@ with tempfile.TemporaryDirectory() as temp:
                        fuse_waiting_mean=sum(samples)/len(samples) if samples else None)
         if profile["vcpus"] != 8 or min(profile["times"].values()) <= 0 or not samples:
             raise ValueError(f"incomplete eight-vCPU diagnostic: {profile}")
-        if backend == "vram":
-            profile["fits"] = receipt(log, "VRAM_FITS")
-            if not 0 <= profile["fits"]["used"] <= profile["fits"]["prepared"]:
-                raise ValueError(f"inconsistent fit counts: {profile}")
+        if backend == "vram" or re.search(r"^VRAM_FITS ", log, re.M):
+            fits = receipt(log, "VRAM_FITS")
+            if not 0 <= fits["used"] <= fits["prepared"]:
+                raise ValueError(f"inconsistent fit counts: {fits}")
+            if backend == "vram" and (
+                    not 0 <= fits["encoding_only"] <= fits["prepared"] - fits["used"]
+                    or not 0 <= fits["credit_replays"] <= fits["used"]
+                    or not 0 <= fits["commit_overlap_ns"] <= fits["fit_ns"]
+                    or bool(fits["prepared"]) != bool(fits["fit_ns"])):
+                raise ValueError(f"inconsistent fit reuse or overlap: {fits}")
+            profile["fits"] = fits
         print("VM profile", backend, profile, flush=True)
         profiles[backend] = profile
 args.result.write_text(json.dumps(dict(**runner,

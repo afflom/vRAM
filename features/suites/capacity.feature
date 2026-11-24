@@ -155,3 +155,15 @@ Feature: capacity
     Given an incumbent satisfies a specified p99 ceiling on equal verified work
     When a faster trial meets the ceiling exactly
     Then the selected elapsed time is the faster trial's time
+
+  @VR-23 @open
+  Scenario: Reuse the page encoding after a neighboring fit changes the region
+    Given a prepared fit whose selector still matches but whose region has changed
+    When the page reaches exact admission and still needs a fit
+    Then reuse the encoding and produce the same bytes and policy state as a fresh fit
+
+  @VR-23 @open
+  Scenario: A prepared refit crosses a regional credit update
+    Given neighboring pages consume credits while a template refit is prepared
+    When the live schedule still admits the same template
+    Then the prepared refit advances the live credits and leaves the next mandatory probe due at its original boundary
