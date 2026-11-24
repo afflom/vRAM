@@ -94,3 +94,18 @@ id = "VR-14"
 level = "open"
 suite = "capacity"
 statement = "Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes"
+
+[[id]]
+id = "VR-15"
+level = "build"
+suite = "capacity"
+statement = "The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing"
+failure = "capacity mismatch"
+negative = "VR-15"
+theorems = ["CapacityPolicy.admissible", "CapacityPolicy.greatest", "CapacityPolicy.monotoneBacking", "CapacityPolicy.fullTarget"]
+
+[[id]]
+id = "VR-16"
+level = "open"
+suite = "capacity"
+statement = "An untouched virtual extent has constant directory cost and range discard skips unallocated leaves"

@@ -45,7 +45,7 @@ def save(entries, path):
 
 def add_python_firmware(outer, system_python, bios_dir):
     add_linked(outer, system_python, "usr/bin/python3")
-    probe = ("import argparse, mmap, struct, signal, tempfile, sys, sysconfig, json, socket, subprocess, codecs, pathlib, encodings.utf_8; "
+    probe = ("import argparse, mmap, struct, resource, signal, tempfile, sys, sysconfig, json, socket, subprocess, codecs, pathlib, encodings.utf_8; "
              "print(json.dumps([sysconfig.get_path('stdlib'),"
              "[m.__file__ for m in sys.modules.values() if "
              "str(getattr(m,'__file__','')).endswith('.so')]]))")

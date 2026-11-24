@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory() as folder:
                args.qemu, args.bios_dir or "", args.kernel, tmp/"guest.gz", "tcg"]
     else:
         outer = base_entries()
-        subprocess.run([*cflags, *(["-DTEST_SVM"] if args.svm_modules else []),
+        subprocess.run([*cflags, "-DTEST_DIMM", *(["-DTEST_SVM"] if args.svm_modules else []),
                         validation/"reclaim_host.c", "-o", tmp/"host"], check=True)
         if args.svm_modules:
             svm_entries(outer, args.svm_modules)
@@ -93,6 +93,7 @@ with tempfile.TemporaryDirectory() as folder:
             or guest["verified_on_dimm_bytes"] < 1 << 20):
         raise RuntimeError("missing Linux or Verdant memory traffic")
     result = dict(guest=guest, store=store, dimm_mib=128, initial_mib=192,
+                  sizing="max", platform_max_mib=512, guest_max_mib=320,
                   acceleration="KVM on emulated AMD SVM" if args.svm_modules else ("TCG" if args.native else "nested TCG"),
                   qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
                   kernel=args.kernel.name, package_sha256=digest)

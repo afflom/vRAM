@@ -1,7 +1,7 @@
 // Each occupied bit describes one page in the same 64-page region used by the
 // adaptive optimizer. Absent groups represent zero pages, including projections.
 use super::{search::Region, Value};
-use std::mem::size_of;
+use std::{collections::BTreeMap, mem::size_of};
 
 pub(super) const GROUP: usize = 64;
 const FANOUT: usize = 256;
@@ -21,33 +21,29 @@ struct Leaf {
 pub(super) struct Directory {
     pub(super) count: usize,
     pub(super) literals: super::literals::Pool,
-    leaves: Vec<Option<Box<Leaf>>>,
+    leaves: BTreeMap<usize, Box<Leaf>>,
 }
 impl Directory {
-    pub(super) fn new(count: usize) -> Option<Self> {
-        let mut leaves = Vec::new();
-        let n = count.div_ceil(LEAF);
-        leaves.try_reserve_exact(n).ok()?;
-        leaves.resize_with(n, || None);
-        Some(Self {
+    pub(super) fn new(count: usize) -> Self {
+        Self {
             count,
-            leaves,
+            leaves: BTreeMap::new(),
             literals: super::literals::Pool::new(),
-        })
+        }
     }
     pub(super) fn get(&self, page: usize) -> Option<&Value> {
         if page >= self.count {
             return None;
         }
         Some(
-            self.leaves[page / LEAF]
-                .as_ref()
+            self.leaves
+                .get(&(page / LEAF))
                 .and_then(|leaf| leaf.groups[page / GROUP % FANOUT].as_ref())
                 .map_or(&ZERO, |g| &g.values[page % GROUP]),
         )
     }
     pub(super) fn write_group(&mut self, page: usize) -> (&mut Group, &mut super::literals::Pool) {
-        let leaf = self.leaves[page / LEAF].get_or_insert_with(|| {
+        let leaf = self.leaves.entry(page / LEAF).or_insert_with(|| {
             Box::new(Leaf {
                 groups: std::array::from_fn(|_| None),
                 live: 0,
@@ -65,39 +61,43 @@ impl Directory {
         group.occupied = vram_word::run(group.occupied, u64::MAX, 1 << (page % GROUP));
         (group, &mut self.literals)
     }
-    pub(super) fn discard(&mut self, mut start: usize, end: usize) {
-        while start < end {
-            let slot = &mut self.leaves[start / LEAF];
-            let Some(leaf) = slot.as_mut() else {
-                start += (LEAF - start % LEAF).min(end - start);
-                continue;
-            };
-            let group = &mut leaf.groups[start / GROUP % FANOUT];
-            let lane = start % GROUP;
-            let n = (GROUP - lane).min(end - start);
-            if let Some(g) = group.as_mut() {
-                let mask = (u64::MAX >> (GROUP - n)) << lane;
-                g.occupied = vram_word::run(g.occupied, 0, mask);
-                if vram_empty_group::run(g.occupied) {
-                    *group = None;
-                    leaf.live -= 1;
-                    if leaf.live == 0 {
+    pub(super) fn discard(&mut self, start: usize, end: usize) {
+        if start == end {
+            return;
+        }
+        let range = start / LEAF..=(end - 1) / LEAF;
+        self.leaves
+            .extract_if(range, |&id, leaf| {
+                let base = id * LEAF;
+                let lo = start.saturating_sub(base);
+                let hi = (end - base).min(LEAF);
+                if lo == 0 && hi == LEAF {
+                    return true;
+                }
+                for index in lo / GROUP..hi.div_ceil(GROUP) {
+                    let slot = &mut leaf.groups[index];
+                    let Some(g) = slot else { continue };
+                    let from = lo.saturating_sub(index * GROUP);
+                    let to = (hi - index * GROUP).min(GROUP);
+                    let mask = (u64::MAX >> (GROUP - (to - from))) << from;
+                    g.occupied = vram_word::run(g.occupied, 0, mask);
+                    if vram_empty_group::run(g.occupied) {
                         *slot = None;
-                    }
-                } else {
-                    for value in &mut g.values[lane..lane + n] {
-                        *value = Value::Fill(0);
+                        leaf.live -= 1;
+                    } else {
+                        for value in &mut g.values[from..to] {
+                            *value = Value::Fill(0);
+                        }
                     }
                 }
-            }
-            start += n;
-        }
+                leaf.live == 0
+            })
+            .for_each(drop);
         self.literals.resize_for_live_bases();
     }
     fn groups(&self) -> impl Iterator<Item = &Group> {
         self.leaves
-            .iter()
-            .flatten()
+            .values()
             .flat_map(|leaf| leaf.groups.iter().flatten().map(Box::as_ref))
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = &Value> {
@@ -110,8 +110,9 @@ impl Directory {
         })
     }
     pub(super) fn metadata(&self) -> usize {
-        self.leaves.capacity() * size_of::<Option<Box<Leaf>>>()
-            + self.leaves.iter().flatten().count() * size_of::<Leaf>()
+        // Charge the live keys, pointers and leaf payloads. Allocator and B-tree
+        // node slack are included in process RSS, outside this logical charge.
+        self.leaves.len() * (size_of::<(usize, Box<Leaf>)>() + size_of::<Leaf>())
             + self
                 .groups()
                 .map(|g| size_of::<Group>() + g.region.extra_bytes())

@@ -5,6 +5,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import resource
 import signal
 import socket
 import subprocess
@@ -68,16 +69,159 @@ def grow(state):
             print(json.dumps({"address": data["addr"], "size": size, "slot": data["slot"]}))
 
 
+MIB = 1 << 20
+MAX_OFFSET = (1 << 63) - 1
+HELPER = Path(__file__).resolve().parents[1] / "lib/vram/vram-ram-file"
+
+
+def dmi_capacity(table):
+    """Sum SMBIOS type 16 system-memory arrays, in whole MiB."""
+    offset = total = 0
+    seen = set()
+    while offset + 4 <= len(table):
+        kind, length = table[offset:offset + 2]
+        if length < 4 or offset + length > len(table):
+            return None
+        record = table[offset:offset + length]
+        end = table.find(b"\x00\x00", offset + length)
+        if end < 0:
+            return None
+        offset = end + 2
+        if kind == 127:
+            return total // MIB or None
+        if kind != 16:
+            continue
+        if length < 15:
+            return None
+        if record[5] in (1, 2):  # Other or unknown use cannot establish a complete total.
+            return None
+        if record[5] != 3:
+            continue
+        handle = record[2:4]
+        if handle in seen:
+            return None
+        seen.add(handle)
+        kib = int.from_bytes(record[7:11], "little")
+        if kib == 0x80000000:
+            if length < 23:
+                return None
+            size = int.from_bytes(record[15:23], "little")
+        elif kib < 0x80000000:
+            size = kib * 1024
+        else:
+            return None
+        if not size:
+            return None
+        total += size
+    return None
+
+
+def domain_limit(path):
+    from xml.etree import ElementTree
+    try:
+        domain = ElementTree.parse(path).getroot()
+    except ElementTree.ParseError as err:
+        raise ValueError(f"invalid domain XML: {err}") from err
+    if domain.tag != "domain":
+        raise ValueError("expected a libvirt domain")
+    element = domain.find("maxMemory")
+    if element is None:
+        element = domain.find("memory")
+    if element is None:
+        raise ValueError("domain XML has no configured memory limit")
+    units = {"b": 1, "bytes": 1}
+    for power, prefix in enumerate("kmgtpe", 1):
+        units.update({prefix: 1024**power, prefix + "ib": 1024**power, prefix + "b": 1000**power})
+    unit = element.get("unit", "KiB").lower()
+    if unit not in units:
+        raise ValueError(f"unknown domain memory unit {unit!r}")
+    return int(element.text or "") * units[unit] // MIB
+
+
+def backing_path(args):
+    if args.backing_dir is not None:
+        return args.backing_dir
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "vram"
+
+
+def ceiling(platform, guest, backing):
+    result = subprocess.run([HELPER, "--ceiling", str(platform), str(guest), str(backing)],
+                            check=False, capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(f"Verdant capacity policy exited with status {result.returncode}")
+    return int(result.stdout)
+
+
+def capacity(args):
+    backing = backing_path(args).resolve()
+    existing = backing
+    while not existing.exists():
+        existing = existing.parent
+    fs = os.statvfs(existing)
+    available = fs.f_bavail * fs.f_frsize
+    fsize = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
+    address = resource.getrlimit(resource.RLIMIT_AS)[0]
+    budget = min(available, MAX_OFFSET, fsize if fsize != resource.RLIM_INFINITY else MAX_OFFSET)
+    platform = args.platform_max_mib
+    source = "configuration" if platform is not None else None
+    if platform is None:
+        try:
+            platform = dmi_capacity(Path("/sys/firmware/dmi/tables/DMI").read_bytes())
+        except (FileNotFoundError, PermissionError):
+            pass
+        if platform is not None:
+            source = "SMBIOS type 16"
+    guest = domain_limit(args.domain_xml) if args.domain_xml is not None else args.guest_max_mib
+    for bound in (platform, guest):
+        if bound is not None and not 0 < bound <= (1 << 64) - 1:
+            raise ValueError("platform and guest limits must be positive u64 MiB values")
+    # Missing bounds stay visible in the report. The upper bound can still help
+    # explain why a requested target cannot fit even before all inputs are known.
+    os_bound = MAX_OFFSET // MIB if address == resource.RLIM_INFINITY else address // MIB
+    unlimited = (1 << 64) - 1
+    upper = ceiling(platform or unlimited, min(guest or unlimited, os_bound), budget)
+    known = platform is not None and guest is not None
+    return dict(platform_max_mib=platform, platform_source=source, guest_max_mib=guest,
+                guest_source=("domain XML" if args.domain_xml else "configuration") if guest else None,
+                backing_directory=str(backing), filesystem_available_bytes=available,
+                file_budget_bytes=budget, address_space_limit_bytes=None if address == resource.RLIM_INFINITY else address,
+                upper_bound_mib=upper, configured_target_mib=min(platform, guest) if known else None,
+                feasible_mib=upper if known else None)
+
+
+def sizing_options(parser):
+    parser.add_argument("--backing-dir", type=Path, help="filesystem used for the dense-page reserve")
+    parser.add_argument("--platform-max-mib", type=int, help="documented platform maximum, overriding SMBIOS")
+    guest = parser.add_mutually_exclusive_group()
+    guest.add_argument("--guest-max-mib", type=int, help="configured QEMU and guest OS limit in MiB")
+    guest.add_argument("--domain-xml", type=Path, help="read the configured guest ceiling from a libvirt domain XML")
+
+
 def run(args):
     extra = args.options[1:] if args.options[:1] == ["--"] else args.options
     if "-daemonize" in extra or "--daemonize" in extra:
         raise ValueError("vram-machine requires foreground QEMU")
-    if not 1 <= args.ram_mib <= 1048576 or not 0 <= args.add_mib <= 1048576 - args.ram_mib:
-        raise ValueError("total RAM must be between 1 MiB and 1 TiB")
+    if args.add_mib < 0:
+        raise ValueError("DIMM size must be nonnegative")
+    if args.ram_mib == "max":
+        plan = capacity(args)
+        total = plan["configured_target_mib"]
+        if total is None:
+            raise ValueError("max needs a known platform and guest limit; inspect vram-machine capacity")
+        if plan["feasible_mib"] != total:
+            raise ValueError(f"configured target {total} MiB exceeds the current bound of {plan['feasible_mib']} MiB")
+        args.ram_mib = total - args.add_mib
+    else:
+        args.ram_mib = int(args.ram_mib)
+        total = args.ram_mib + args.add_mib
+        if args.platform_max_mib is not None or args.guest_max_mib is not None or args.domain_xml:
+            if total > capacity(args)["upper_bound_mib"]:
+                raise ValueError("requested RAM exceeds the configured capacity envelope")
+    if args.ram_mib < 1 or total > ceiling(MAX_OFFSET, MAX_OFFSET, MAX_OFFSET):
+        raise ValueError("boot RAM must be positive and its backing reserve must fit signed file offsets")
     state = args.state.resolve()
     if "," in str(state) or len(os.fsencode(state / "qmp")) >= 108:
         raise ValueError("use a shorter state path without commas")
-    helper = Path(__file__).resolve().parents[1] / "lib/vram/vram-ram-file"
     state.mkdir(mode=0o700)
     mount = state / "ram"
     vm = server = None
@@ -91,13 +235,12 @@ def run(args):
     old = {sig: signal.signal(sig, forward) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     try:
         mount.mkdir(mode=0o700)
-        backing = args.backing_dir
-        if backing is None:
-            backing = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "vram"
+        backing = backing_path(args)
+        if args.backing_dir is None:
             backing.mkdir(mode=0o700, parents=True, exist_ok=True)
         with tempfile.TemporaryFile(dir=backing) as reserve:
             os.posix_fallocate(reserve.fileno(), 0, ((args.ram_mib + args.add_mib) << 20) + 4096)
-            server = subprocess.Popen([helper, str(args.ram_mib), str(args.add_mib),
+            server = subprocess.Popen([HELPER, str(args.ram_mib), str(args.add_mib),
                                        str(reserve.fileno()), mount], pass_fds=(reserve.fileno(),),
                                       start_new_session=True)
         deadline = time.monotonic() + 20
@@ -156,15 +299,20 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     launch = commands.add_parser("run", help="start a VM on Verdant RAM")
     launch.add_argument("--state", type=Path, required=True, help="private runtime directory to create")
-    launch.add_argument("--ram-mib", type=int, required=True)
+    launch.add_argument("--ram-mib", required=True, help="boot MiB, or max for the configured total less the reserved DIMM")
     launch.add_argument("--add-mib", type=int, default=0, help="reserve this much hot-pluggable RAM")
-    launch.add_argument("--backing-dir", type=Path, help="filesystem for private dense-page backing (default: user cache)")
+    sizing_options(launch)
+    inspect = commands.add_parser("capacity", help="report capacity bounds without reserving storage")
+    sizing_options(inspect)
     launch.add_argument("--qemu", default="qemu-system-x86_64")
     launch.add_argument("options", nargs=argparse.REMAINDER, help="QEMU guest, disk and accelerator options after --")
     add = commands.add_parser("grow", help="plug the reserved DIMM into the running VM")
     add.add_argument("--state", type=Path, required=True)
     args = parser.parse_args()
     try:
+        if args.command == "capacity":
+            print(json.dumps(capacity(args), indent=2))
+            return 0
         if args.command == "grow":
             grow(args.state)
             return 0

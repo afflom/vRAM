@@ -60,6 +60,11 @@ jobs:
           cc -Wall -Wextra -Werror -O2 -Idevice/native device/validation/file_admission.c \
             device/target/release/libverdant_memory.a -lpthread -ldl -lm -o "$RUNNER_TEMP/vram-file-admission"
           "$RUNNER_TEMP/vram-file-admission"
+          cc -Wall -Wextra -Werror -O2 -Idevice/native device/validation/sparse_extent.c \
+            device/target/release/libverdant_memory.a -lpthread -ldl -lm -o "$RUNNER_TEMP/vram-sparse-extent"
+          "$RUNNER_TEMP/vram-sparse-extent" 1024
+          "$RUNNER_TEMP/vram-sparse-extent" 1024 file
+          python3 host/tests/capacity.py
       - name: Boot Linux and verify Verdant swap
         run: |
           sudo apt-get update -qq

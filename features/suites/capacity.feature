@@ -83,3 +83,21 @@ Feature: capacity
     Given one committed page and previously untouched page groups
     When writes to the backing file fail
     Then the committed page retains its bytes and the empty groups release their metadata
+
+  @VR-15 @build
+  Scenario: Select the greatest admissible capacity without a fixed device ceiling
+    Given platform, guest and backing limits expressed in whole MiB
+    When the capacity policy chooses the extent
+    Then it satisfies all three limits and every feasible extent is at most the chosen extent
+
+  @VR-15 @build @rejects
+  Scenario: Reject a target one byte short of a full reserve
+    Given platform and guest limits of 100 and 64 MiB
+    When the backing budget is one byte below 64 MiB plus the replacement page
+    Then a proposed ceiling of 64 MiB receives "capacity mismatch"
+
+  @VR-16 @open
+  Scenario: Touch distant addresses in a large logical device
+    Given a small process budget and a sparse logical extent above one TiB
+    When the first and last pages are written and the extent is discarded
+    Then both restore exactly before discard and the empty directory has its starting charge

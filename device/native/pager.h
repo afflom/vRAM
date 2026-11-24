@@ -5,6 +5,7 @@
 #include <stdint.h>
 struct store;
 struct pager;
+uint64_t vram_capacity_ceiling(uint64_t platform_mib, uint64_t guest_mib, uint64_t backing_bytes);
 struct store *store_new(size_t npages);
 /* fd is a private, preallocated, writable file of exactly (npages + 1) pages. */
 struct store *store_new_file(size_t npages, int fd);

@@ -1,0 +1,44 @@
+\begin{lexlean}{CapacityPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: smaller, parameters: [a : Nat, b : Nat], result: Nat,
+  body: (if (a <? b) then a else b), executable: true
+}
+definition{
+  name: backingMib, parameters: [bytes : Nat], result: Nat,
+  body: (prim quotient (prim subtract bytes 4096 : Nat) 1048576 0 : Nat), executable: true
+}
+definition{
+  name: ceiling, parameters: [platform : Nat, guest : Nat, backing : Nat], result: Nat,
+  body: (smaller platform (smaller guest backing)), executable: true
+}
+definition{
+  name: plan, parameters: [platform : Nat, guest : Nat, bytes : Nat], result: Nat,
+  body: (ceiling platform guest (backingMib bytes)),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+theorem{
+  name: admissible, parameters: [p : Nat, g : Nat, b : Nat],
+  statement: ((((ceiling p g b) <=? p) && (((ceiling p g b) <=? g) && ((ceiling p g b) <=? b))) = true),
+  proof: linear_arithmetic{definitions: [ceiling, smaller]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: greatest, parameters: [p : Nat, g : Nat, b : Nat, n : Nat],
+  statement: ((((n <=? p) && ((n <=? g) && (n <=? b))) && (not (n <=? (ceiling p g b)))) = false),
+  proof: linear_arithmetic{definitions: [ceiling, smaller]}, axioms: [Quot.sound, propext]
+}
+theorem{
+  name: monotoneBacking, parameters: [p : Nat, g : Nat, b : Nat, c : Nat],
+  statement: (((b <=? c) && (not ((ceiling p g b) <=? (ceiling p g c)))) = false),
+  proof: linear_arithmetic{definitions: [ceiling, smaller]}, axioms: [Quot.sound, propext]
+}
+theorem{
+  name: fullTarget, parameters: [p : Nat, g : Nat, b : Nat],
+  statement: ((((smaller p g) <=? b) && ((ceiling p g b) <? (smaller p g))) = false),
+  proof: linear_arithmetic{definitions: [ceiling, smaller]}, axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

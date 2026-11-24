@@ -1,0 +1,133 @@
+{
+  "previous_commit": "38410cc963c82a10a8c866ed2b6bbaaabd68d807",
+  "page_bytes": 4096,
+  "written_pages": 8,
+  "process_address_limit_bytes": 67108864,
+  "kernel": "6.18.57",
+  "trials": [
+    {
+      "implementation": "previous",
+      "logical_tib": 1,
+      "sparse_file": false,
+      "empty_store_bytes": 131256,
+      "active_store_bytes": 179304,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 8,
+      "sparse_file": false,
+      "empty_store_bytes": 1048760,
+      "active_store_bytes": 1096808,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 64,
+      "sparse_file": false,
+      "empty_store_bytes": 8388792,
+      "active_store_bytes": 8436776,
+      "peak_rss_kib": 9672
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 1024,
+      "sparse_file": false,
+      "diagnostic": "directory refused 1024 TiB"
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 1,
+      "sparse_file": true,
+      "empty_store_bytes": 131328,
+      "active_store_bytes": 179376,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 8,
+      "sparse_file": true,
+      "empty_store_bytes": 1048832,
+      "active_store_bytes": 1096880,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 64,
+      "sparse_file": true,
+      "empty_store_bytes": 8388864,
+      "active_store_bytes": 8436848,
+      "peak_rss_kib": 9704
+    },
+    {
+      "implementation": "previous",
+      "logical_tib": 1024,
+      "sparse_file": true,
+      "diagnostic": "directory refused 1024 TiB"
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 1,
+      "sparse_file": false,
+      "empty_store_bytes": 184,
+      "active_store_bytes": 48296,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 8,
+      "sparse_file": false,
+      "empty_store_bytes": 184,
+      "active_store_bytes": 48232,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 64,
+      "sparse_file": false,
+      "empty_store_bytes": 184,
+      "active_store_bytes": 48296,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 1024,
+      "sparse_file": false,
+      "empty_store_bytes": 184,
+      "active_store_bytes": 48232,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 1,
+      "sparse_file": true,
+      "empty_store_bytes": 256,
+      "active_store_bytes": 48368,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 8,
+      "sparse_file": true,
+      "empty_store_bytes": 256,
+      "active_store_bytes": 48368,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 64,
+      "sparse_file": true,
+      "empty_store_bytes": 256,
+      "active_store_bytes": 48368,
+      "peak_rss_kib": 9472
+    },
+    {
+      "implementation": "current",
+      "logical_tib": 1024,
+      "sparse_file": true,
+      "empty_store_bytes": 256,
+      "active_store_bytes": 48304,
+      "peak_rss_kib": 9472
+    }
+  ]
+}

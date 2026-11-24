@@ -318,6 +318,14 @@ pub struct Store {
     skips: AtomicU64,
 }
 #[no_mangle]
+pub extern "C" fn vram_capacity_ceiling(
+    platform_mib: u64,
+    guest_mib: u64,
+    backing_bytes: u64,
+) -> u64 {
+    vram_capacity_ceiling::run(platform_mib, guest_mib, backing_bytes)
+}
+#[no_mangle]
 pub extern "C" fn store_new(count: usize) -> *mut Store {
     store_new_config(count, search::MAX_NODES, true)
 }
@@ -333,9 +341,7 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
     if count == 0 || nibble_table().is_none() || selector::mask_table().is_none() {
         return ptr::null_mut();
     }
-    let Some(values) = directory::Directory::new(count) else {
-        return ptr::null_mut();
-    };
+    let values = directory::Directory::new(count);
     Box::into_raw(Box::new(Store {
         values: RwLock::new(values),
         restores: AtomicU64::new(0),

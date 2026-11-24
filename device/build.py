@@ -14,6 +14,7 @@ def verify_packages():
     # Each manifest binds the compiled native export to the canonical Prism module.
     for policy, digest in (
         ("host", "204dbd353c4b049a801f4efd22a69cd20f4aac931f40da6d72699016a3c27bb6"),
+        ("capacity", "138b38f73224bd3572a7ffa876ce156bc73f9888ed0333a754daeba592abaf2a"),
         ("index", "55e68570fb4a1d97c2f04e36c3007bfd1db92a8dad353798b7af725a46f5ca13"),
     ):
         directory = root / "proof" / policy
@@ -27,6 +28,7 @@ def verify_packages():
             raise ValueError(f"{policy} policy differs from the certified native export")
     locked = {p["name"]: p for p in tomllib.loads((root / "Cargo.lock").read_text())["package"]}
     for location, pinned in (
+        ("proof/capacity/bundle", "5624d595a443a94b2f62d6ca5c8ce2f21caa188a3107599f6cef49f84a741f8f"),
         ("proof/index/bundle", "898ba65368d480525b2a742e5080577354dfecc8faea910222de70e945f5cd3f"),
         ("proof/host/bundle", "7809b584eaefbb34fb11efe12edf02232d287be713bde40ff1c3d401f0ee26f2"),
         ("proof/search/bundle", "45b658a8b20192b3a99246b765a30bc6258a922199ad7a340e47a0c0c7cba02e"),

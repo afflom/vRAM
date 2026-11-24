@@ -34,6 +34,8 @@ The three honesty levels (R2):
 | `VR-12` | `open` | A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse |  |
 | `VR-13` | `open` | Fitting a sparse XOR residual reads each candidate base at most once and restores the admitted page exactly |  |
 | `VR-14` | `open` | Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes |  |
+| `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, refuses with `capacity mismatch` |
+| `VR-16` | `open` | An untouched virtual extent has constant directory cost and range discard skips unallocated leaves |  |
 
 ## Cited authorities
 

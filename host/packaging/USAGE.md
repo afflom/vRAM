@@ -13,6 +13,20 @@ Run `vram-machine grow --state "$XDG_RUNTIME_DIR/workstation"` in a second termi
 
 The launcher reserves the configured total plus 4 KiB in an unlinked temporary file before boot. Unique dense literal bases use that file. Choose a local disk with sufficient free space using `--backing-dir DIRECTORY` or use the default user cache. Active pages, kernel cache and model metadata consume hypervisor RAM. Shut down the guest normally to release the temporary file and mount. The guest's VM disk holds persistent data. Like other volatile memory, this device loses its contents if the memory server or machine stops.
 
+### Size a virtualized workstation to its configured maximum
+
+Read the capacity report before starting the VM. Supply the libvirt XML for the same guest configuration you intend to boot. The launcher reads its memory limit. Supply the usual QEMU disk, machine and firmware options when launching.
+
+```sh
+vram-machine capacity --domain-xml workstation.xml
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib max --domain-xml workstation.xml -- \
+  -accel kvm -drive file=workstation.qcow2,format=qcow2
+```
+
+The platform ceiling comes from firmware (SMBIOS type 16 system-memory arrays) or an explicit documented `--platform-max-mib`. The guest ceiling comes from `--guest-max-mib` or the domain's `maxMemory`, falling back to `memory`. Use a ceiling supported by that guest kernel and QEMU machine. Unknown bounds appear as `null`. The report also includes free filesystem bytes, the file-size limit folded into the backing budget, and the process address-space limit. `--backing-dir` selects the filesystem for both commands.
+
+`max` requests the smaller of the platform and guest ceilings. It fails before launch if that target exceeds the modeled envelope. The final allocation must successfully reserve the entire target plus one 4 KiB replacement slot. Quotas, competing allocations and QEMU's own mappings can further limit admission. With `--add-mib`, the reserved DIMM counts toward the total. Numeric `--ram-mib` continues to specify boot memory.
+
 ## Directly booted Linux swap
 
 The package installs an amd64 server and a systemd service template. Services are enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.

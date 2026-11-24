@@ -27,6 +27,14 @@ int main(void)
         return 1;
     }
 #endif
+#ifdef TEST_DIMM
+    /* Give the capacity planner a filesystem with a reportable reserve. */
+    if (mount("tmpfs", "/tmp", "tmpfs", 0, "size=768m,mode=1777")) {
+        perror("mount DIMM test backing");
+        outb(1, 0xf4);
+        return 1;
+    }
+#endif
     pid_t pid = fork();
     if (!pid) {
         const char *script = access("/capacity.json", F_OK) == 0 ? "/capacity_manager.py" : "/manage.py";

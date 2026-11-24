@@ -133,20 +133,31 @@ static void *initialize(struct fuse_conn_info *conn, struct fuse_config *conf)
     conf->kernel_cache = 1;
     return NULL;
 }
-static int size_mib(const char *s, size_t *bytes)
+static bool number(const char *s, uint64_t *out)
 {
+    if (*s < '0' || *s > '9') return false;
     char *end;
     errno = 0;
-    unsigned long n = strtoul(s, &end, 10);
-    if (errno || end == s || *end || n > 1048576) return -1;
-    *bytes = (size_t)n << 20;
-    return 0;
+    *out = strtoull(s, &end, 10);
+    return !errno && !*end;
 }
 int main(int argc, char **argv)
 {
-    if (argc != 5 || size_mib(argv[1], &boot.bytes) || !boot.bytes ||
-        size_mib(argv[2], &dimm.bytes) || sizeof(size_t) < 8 || sysconf(_SC_PAGESIZE) != PAGE)
+    uint64_t boot_mib, dimm_mib, budget;
+    if (argc == 5 && !strcmp(argv[1], "--ceiling")) {
+        if (!number(argv[2], &boot_mib) || !number(argv[3], &dimm_mib) ||
+            !number(argv[4], &budget)) return 2;
+        printf("%" PRIu64 "\n", vram_capacity_ceiling(boot_mib, dimm_mib, budget));
+        return 0;
+    }
+    if (argc != 5 || !number(argv[1], &boot_mib) || !boot_mib ||
+        !number(argv[2], &dimm_mib) || sizeof(size_t) < 8 || sysconf(_SC_PAGESIZE) != PAGE)
         return 2;
+    /* Both FUSE extents and the extra replacement slot have signed file offsets. */
+    uint64_t max_mib = vram_capacity_ceiling(UINT64_MAX, UINT64_MAX, INT64_MAX);
+    if (boot_mib > max_mib || dimm_mib > max_mib - boot_mib) return 2;
+    boot.bytes = boot_mib << 20;
+    dimm.bytes = dimm_mib << 20;
     dimm.first = boot.bytes / PAGE;
     char *end;
     long fd = strtol(argv[3], &end, 10);

@@ -1,8 +1,8 @@
 # vRAM verification
 
-The root Prism project defines capacity decisions and pilot selection. Build and verify the checkout with Prism Code 0.11.0. The model carries 24 theorems and 29 executable acceptance vectors. The project verifier checks the built holo against the model on disk and replays its vectors. The artifact reports evidence level P0. Its project verification covers identity and replay. It carries no separately signed release attestation.
+The root Prism project defines capacity decisions and pilot selection. Build and verify the checkout with Prism Code 0.11.0. The model carries 28 theorems and 33 executable acceptance vectors. The project verifier checks the built holo against the model on disk and replays its vectors. The artifact reports evidence level P0. Its project verification covers identity and replay. It carries no separately signed release attestation.
 
-The runtime uses the published Verdant tensor crate and eleven local LexLean exports packaged in the locked offline Cargo registry. `python3 device/build.py --verify-only` verifies the five export receipt digests and their attestations, kernel-checked status, every registered binding, and the archive contents actually linked by Cargo. The host transport passes writes, reads and discards to this runtime. NBD negotiation, Linux reclaim, memory locking, the allocator, page I/O and the measurement harness are systems code exercised by integration tests. The proofs cover their named model definitions.
+The runtime uses the published Verdant tensor crate and twelve local LexLean exports packaged in the locked offline Cargo registry. `python3 device/build.py --verify-only` verifies the six export receipt digests and their attestations, kernel-checked status, every registered binding, and the archive contents actually linked by Cargo. The host transport passes writes, reads and discards to this runtime. NBD negotiation, Linux reclaim, memory locking, the allocator, page I/O and the measurement harness are systems code exercised by integration tests. The proofs cover their named model definitions.
 
 ## Fault injection
 
@@ -79,3 +79,42 @@ python3 device/validation/literal_reuse.py --file-backed \
 The inherited Qortara governance and security documents record the accountable owner and security process as `NOT_ESTABLISHED`. The repository-documents check reports these as open owner actions. The architecture index passes. An authorized repository owner must establish those policies.
 
 The Qortara owner-actions check also reports the inherited `external-instruction-lock-8931c560d6673f1b327e` action. Its owner must reconcile independent governance before qualifying protected operations.
+
+
+## Configured capacity and sparse scaling in 0.5.0
+
+For a configured virtual machine, let P be the platform ceiling in whole MiB, G the guest ceiling bounded by the QEMU process address-space limit, and B the backing byte budget. B includes available filesystem bytes, the process file-size limit and the signed file-offset limit. The policy computes
+
+```text
+D = floor(max(0, B − 4096) / 1048576)
+C = min(P, G, D)
+```
+
+The 4096 bytes preserve the previous literal until its replacement commits. For every natural-number triple P, G, D, the Prism module proves that C satisfies each limit, dominates every other feasible size, and is monotonic in D. When the target min(P,G) fits D, C reaches that target. The installed executable calls the Rust export of the same policy. Replacing the selection of the smaller input with the larger input makes `prism-code check .` reject VR-15 at `CapacityPolicy.admissible`. Restoring it passes the kernel check and vector replay. The launcher also compares the result against the original configured target so a low process limit cannot silently reduce a max request.
+
+These claims concern the supplied bounds. Firmware describes installed-system capabilities, the domain describes a guest configuration, and the backing budget is observed before reservation. QEMU startup, Linux onlining, metadata allocation, memory pressure and failure recovery are systems behaviors. The integration test boots at the computed size with a reserved DIMM and checks ordinary guest accesses after onlining. End-to-end latency depends on the working set, the kernel page cache and the backing device.
+
+The ordered directory has one key per live 64 MiB leaf. An empty extent has constant directory space and initialization work in the advertised capacity. A page lookup costs O(log(L+1)) for L live leaves. Discarding a range seeks to its first live leaf and visits only its K live leaves, with O((K+1) log(L+1)) directory work plus destruction of the affected entries. At most two partial leaves require boundary mask updates. Literal index maintenance is additional. Logical store charge includes live keys, pointers and leaf payloads. RSS also includes tree-node slack and the allocator.
+
+The sparse regression program sets a 64 MiB process address-space limit, writes eight distinct dense pages across leaf boundaries and at both ends of the range, and checks all bytes before and after partial and full discard. Its file-backed variant creates a sparse test file. The packaged VM launcher uses full preallocation. To reproduce after building the host:
+
+```sh
+cc -O2 -Wall -Wextra -Werror -Idevice/native device/validation/sparse_extent.c \
+  device/target/release/libverdant_memory.a -lpthread -ldl -lm -o /tmp/vram-sparse-extent
+/tmp/vram-sparse-extent 1024
+/tmp/vram-sparse-extent 1024 file
+python3 host/tests/capacity.py
+```
+
+The 0.4.1 baseline under the same address-space limit charged 131,256, 1,048,760 and 8,388,792 bytes for empty RAM stores at 1, 8 and 64 TiB. Opening the 1 PiB store failed. The new store charged 184 bytes at all four extents and returned to its starting charge after discard. The sparse file-backed variant charged 256 bytes empty. In a separate, fully reserved 1 GiB file-backed test, all 262,144 independent pages restored exactly at 39,956 KiB peak process RSS. The kernel page cache and the disk reserve have separate costs. [Sparse comparison](../measurements/sparse-extent-0.5.0.json) · [Dense readback](../measurements/dense-reserve-0.5.0.json)
+
+The same 128 MiB file-backed harness ran six paired trials against 0.4.1 on one CPU, alternating implementation order. Times below are medians in milliseconds; every trial checked all 32,768 pages. The increase in read time for the repeated and edited workloads is visible alongside the removal of capacity-dependent startup work. [Raw trials](../measurements/file-latency-0.5.0.json)
+
+| Workload | Write, 0.4.1 | Write, 0.5.0 | Read, 0.4.1 | Read, 0.5.0 |
+|---|---:|---:|---:|---:|
+| Repeated dense pages | 36.7 | 35.8 | 27.4 | 27.9 |
+| Sparse edits to repeated pages | 75.7 | 75.1 | 28.6 | 29.1 |
+| Independent pages | 143.2 | 132.3 | 49.1 | 49.1 |
+| Four colliding dense bases | 48.2 | 45.2 | 25.7 | 25.8 |
+
+The packaged launcher also booted Linux with a 512 MiB platform ceiling and 320 MiB guest ceiling supplied to `--ram-mib max`. It provided 192 MiB at boot and plugged the reserved 128 MiB while the guest ran. With swap disabled, MemTotal increased by exactly 131,072 KiB and the guest verified 95 MiB on the new DIMM. This run used stock QEMU 10.0.13 and KVM on emulated AMD SVM. [Guest and store counters](../measurements/linux-virtual-dimm-0.5.0.json)
