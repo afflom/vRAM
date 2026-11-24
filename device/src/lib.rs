@@ -276,47 +276,54 @@ impl Value {
         Ok(())
     }
 
-    // One signed activation row times a 64 x 64 byte page in logical row order.
-    fn project(&self, weights: &[i32; SIDE], out: &mut [i64; SIDE]) -> Result<bool, ()> {
+    fn project(&self, weights: &[[i32; SIDE]], out: &mut [[i64; SIDE]]) -> Result<bool, ()> {
         if let Self::Packed(p) = self {
             let table = p.table.map(i32::from);
-            let v = contract_packed_animation_tracks(weights, 1, SIDE, SIDE, &table, &p.codes)
-                .map_err(|_| ())?;
-            out.copy_from_slice(&v);
+            let product = contract_packed_animation_tracks(
+                weights.as_flattened(),
+                weights.len(),
+                SIDE,
+                SIDE,
+                &table,
+                &p.codes,
+            )
+            .map_err(|_| ())?;
+            out.as_flattened_mut().copy_from_slice(&product);
             for &(i, b) in p.exceptions.iter() {
                 let i = usize::from(i);
-                out[i % SIDE] +=
-                    i64::from(weights[i / SIDE]) * (i64::from(b) - i64::from(p.table[0]));
+                let delta = i64::from(b) - i64::from(p.table[0]);
+                for (w, sums) in weights.iter().zip(out.iter_mut()) {
+                    sums[i % SIDE] += i64::from(w[i / SIDE]) * delta;
+                }
             }
             return Ok(true);
         }
-        out.fill(0);
-        match self {
-            Self::Fill(v) => {
-                out.fill(weights.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(*v))
-            }
-            Self::Sparse(p) => {
-                out.fill(weights.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(p.base));
-                for &(i, b) in p.entries.iter() {
-                    let i = usize::from(i);
-                    out[i % SIDE] +=
-                        i64::from(weights[i / SIDE]) * (i64::from(b) - i64::from(p.base));
+        let mut expanded = [0; PAGE];
+        if !matches!(self, Self::Fill(_) | Self::Sparse(_)) {
+            self.decode(&mut expanded)?;
+        }
+        for (w, sums) in weights.iter().zip(out) {
+            match self {
+                Self::Fill(v) => {
+                    sums.fill(w.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(*v))
                 }
-            }
-            Self::Program(_)
-            | Self::Selector(_)
-            | Self::Corrected(_)
-            | Self::Residual(_)
-            | Self::Shared(_) => {
-                let mut expanded = [0u8; PAGE];
-                self.decode(&mut expanded)?;
-                for (row, &w) in expanded.chunks_exact(SIDE).zip(weights) {
-                    for (sum, &v) in out.iter_mut().zip(row) {
-                        *sum += i64::from(w) * i64::from(v);
+                Self::Sparse(p) => {
+                    sums.fill(w.iter().map(|x| i64::from(*x)).sum::<i64>() * i64::from(p.base));
+                    for &(i, b) in p.entries.iter() {
+                        let i = usize::from(i);
+                        sums[i % SIDE] +=
+                            i64::from(w[i / SIDE]) * (i64::from(b) - i64::from(p.base));
+                    }
+                }
+                _ => {
+                    sums.fill(0);
+                    for (row, &weight) in expanded.chunks_exact(SIDE).zip(w) {
+                        for (sum, &byte) in sums.iter_mut().zip(row) {
+                            *sum += i64::from(weight) * i64::from(byte);
+                        }
                     }
                 }
             }
-            Self::Packed(_) => unreachable!(),
         }
         Ok(false)
     }
@@ -875,13 +882,32 @@ pub unsafe extern "C" fn store_project(
     weights: &[i32; SIDE],
     out: &mut [i64; SIDE],
 ) -> c_int {
-    let values = s.values.read().unwrap();
-    if page >= s.count {
+    store_project_rows(s, page, 1, weights, out)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_project_rows(
+    s: &Store,
+    page: usize,
+    rows: usize,
+    weights: *const [i32; SIDE],
+    out: *mut [i64; SIDE],
+) -> c_int {
+    if page >= s.count
+        || rows == 0
+        || rows > isize::MAX as usize / size_of::<[i64; SIDE]>()
+        || weights.is_null()
+        || out.is_null()
+    {
         return -1;
     }
+    let values = s.values.read().unwrap();
     values
         .get(page)
-        .project(weights, out)
+        .project(
+            slice::from_raw_parts(weights, rows),
+            slice::from_raw_parts_mut(out, rows),
+        )
         .map(i32::from)
         .unwrap_or(-1)
 }

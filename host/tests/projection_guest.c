@@ -53,6 +53,63 @@ static __attribute__((noinline)) void dense(const uint8_t *src, const int32_t *w
             out[c] += (int64_t)w[r] * src[r * LANES + c];
 }
 
+static int batch_trials(int fd, uint8_t *page, uint64_t offset)
+{
+    enum { MAX_ROWS = 64, REPEATS = 8 };
+    const unsigned widths[] = {2, 5, 6, 8, VRAM_PROJECTION_TILE, VRAM_PROJECTION_TILE + 1, MAX_ROWS};
+    int32_t weights[MAX_ROWS][LANES];
+    int64_t expected[MAX_ROWS][LANES], got[MAX_ROWS][LANES];
+    uint8_t restored[PAGE];
+    struct vram_request q = {.offset = offset};
+    for (size_t w = 0; w < sizeof(widths) / sizeof(*widths); ++w) {
+        unsigned n = widths[w];
+        for (unsigned t = 0; t < REPEATS; ++t) {
+            page[1591] = 192 + t + w * REPEATS;
+            for (unsigned k = 0; k < n; ++k) {
+                for (unsigned r = 0; r < LANES; ++r)
+                    weights[k][r] = ((int)(r * (k + 3) + t) % 121) - 60;
+                weights[k][(k + t) % LANES] = k & 1 ? INT32_MIN : INT32_MAX;
+                for (unsigned c = 0; c < LANES; ++c) {
+                    int64_t total = 0;
+                    for (unsigned r = 0; r < LANES; ++r)
+                        total += (int64_t)weights[k][r] * page[r * LANES + c];
+                    expected[k][c] = total;
+                }
+            }
+            uint64_t elapsed[4];
+            for (unsigned j = 0; j < 4; ++j) {
+                unsigned route = (t + (t < 4 ? j : 3 - j)) % 4;
+                memset(got, 0xa5, n * sizeof(*got));
+                uint64_t start = now();
+                if (route == 0) {
+                    if (vram_project_batch(fd, offset, n, weights, got) != 1) return -1;
+                } else if (route == 1) {
+                    q.operation = VRAM_PROJECT;
+                    for (unsigned k = 0; k < n; ++k) {
+                        memcpy(q.weights, weights[k], sizeof q.weights);
+                        if (vram_projection_call(fd, &q, got[k]) != 1) return -1;
+                    }
+                } else {
+                    q.operation = VRAM_RESTORE;
+                    if (route == 2 && vram_projection_call(fd, &q, restored)) return -1;
+                    for (unsigned k = 0; k < n; ++k)
+                        dense(route == 2 ? restored : page, weights[k], got[k]);
+                }
+                elapsed[route] = now() - start;
+                if (!elapsed[route] || memcmp(got, expected, n * sizeof(*got)) ||
+                    (route == 2 && memcmp(restored, page, PAGE))) {
+                    printf("batch mismatch: rows=%u route=%u trial=%u\n", n, route, t);
+                    return -1;
+                }
+            }
+            printf("BATCH_TRIAL {\"rows\":%u,\"trial\":%u,\"packed_ns\":%" PRIu64
+                   ",\"scalar_ns\":%" PRIu64 ",\"restore_cpu_ns\":%" PRIu64
+                   ",\"resident_cpu_ns\":%" PRIu64 "}\n", n, t, elapsed[0], elapsed[1], elapsed[2], elapsed[3]);
+        }
+    }
+    return 0;
+}
+
 int projection_trial(uint8_t *page, uint64_t offset, uint64_t extent)
 {
     int fd = open_port();
@@ -66,6 +123,8 @@ int projection_trial(uint8_t *page, uint64_t offset, uint64_t extent)
     q.offset = offset + 1;
     if (vram_projection_call(fd, &q, got) != -EINVAL) return -1;
     q.offset = offset;
+    q.operation = VRAM_PROJECT_BATCH;
+    if (vram_projection_call(fd, &q, got) != -EINVAL) return -1;
     q.operation = 99;
     if (vram_projection_call(fd, &q, got) != -EINVAL) return -1;
     q.operation = VRAM_PROJECT;
@@ -113,6 +172,7 @@ int projection_trial(uint8_t *page, uint64_t offset, uint64_t extent)
         printf("PROJECTION_TRIAL {\"trial\":%u,\"packed_ns\":%" PRIu64 ",\"restore_cpu_ns\":%" PRIu64
                ",\"resident_cpu_ns\":%" PRIu64 "}\n", t, elapsed[0], elapsed[1], elapsed[2]);
     }
+    int status = batch_trials(fd, page, offset);
     close(fd);
-    return 0;
+    return status;
 }

@@ -233,6 +233,30 @@ static int failed_writes(struct store *s, int fd)
     return verify(s, 0, old);
 }
 
+static int project_literal_rows(struct store *s)
+{
+    u8 page[PAGE];
+    expected(73, 'U', page);
+    if (store_discard(s, 0, PAGES) || store_put(s, 0, page)) return 0;
+    int32_t weights[31][64];
+    int64_t output[31][64];
+    for (unsigned k = 0; k < 31; ++k)
+        for (unsigned r = 0; r < 64; ++r)
+            weights[k][r] = (k == r) ? INT32_MIN : (int32_t)(r + k);
+    uint64_t before, after, writes;
+    store_file_stats(s, &before, &writes);
+    if (store_project_rows(s, 0, 31, weights, output) != 0) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after - before != 1) return 0;
+    for (unsigned k = 0; k < 31; ++k)
+        for (unsigned c = 0; c < 64; ++c) {
+            int64_t sum = 0;
+            for (unsigned r = 0; r < 64; ++r) sum += (int64_t)weights[k][r] * page[64 * r + c];
+            if (sum != output[k][c]) return 0;
+        }
+    return store_project_rows(s, 0, 0, weights, output) < 0;
+}
+
 int main(void)
 {
     int fd = memfd_create("vram-admission", MFD_CLOEXEC | MFD_ALLOW_SEALING);
@@ -252,8 +276,10 @@ int main(void)
     int edits = incumbent_edits(s);
     if (!convergence) fprintf(stderr, "dictionary shrink was deferred after convergence\n");
     if (!edits) fprintf(stderr, "incumbent ownership or admission I/O differs\n");
+    int projected = project_literal_rows(s);
+    if (!projected) fprintf(stderr, "batched literal projection bytes or read count differ\n");
     int rollback = failed_writes(s, fd);
     store_free(s);
     close(fd);
-    return !(torn && fit && ranges && admissions && boundary && convergence && edits && rollback);
+    return !(torn && fit && ranges && admissions && boundary && convergence && edits && projected && rollback);
 }

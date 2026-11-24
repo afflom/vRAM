@@ -1,0 +1,261 @@
+{
+  "input_sha256": "5558d9f5d814a29589a4b30527d1e75302c5cc5850dd4cd953c477df1a70b0a8",
+  "model": "blake3:8c2246ead20c664413e9be0899d332f71260976d12167240fb601035a32bdc1e",
+  "package_sha256": "6716226114e5036c64eb3c736ceeda6e18c83543f8bca99be42d052253c303f7",
+  "accelerator": "KVM on emulated AMD SVM",
+  "stats": {
+    "packed": {
+      "total_ns": 134835572,
+      "median_ns": 5114158,
+      "max_ns": 10560668,
+      "rows_per_s": 177.99457253016288
+    },
+    "restore_cpu": {
+      "total_ns": 132687392,
+      "median_ns": 5567418.5,
+      "max_ns": 7172867,
+      "rows_per_s": 180.87626592283914
+    },
+    "resident_cpu": {
+      "total_ns": 1748523,
+      "median_ns": 16871,
+      "max_ns": 366318,
+      "rows_per_s": 13725.870348860151
+    }
+  },
+  "explicit_request": "restore",
+  "resident_available": "resident",
+  "batches": [
+    {
+      "rows": 2,
+      "tiles": 1,
+      "stats": {
+        "packed": {
+          "total_ns": 92440038,
+          "median_ns": 7970056.5,
+          "max_ns": 33724413,
+          "rows_per_s": 173.08517333149516
+        },
+        "restore_cpu": {
+          "total_ns": 54519692,
+          "median_ns": 6013036,
+          "max_ns": 10710903,
+          "rows_per_s": 293.47194404546525
+        },
+        "resident_cpu": {
+          "total_ns": 579336,
+          "median_ns": 30686,
+          "max_ns": 196404,
+          "rows_per_s": 27617.824543960673
+        },
+        "scalar": {
+          "total_ns": 141349898,
+          "median_ns": 13087516,
+          "max_ns": 53244578,
+          "rows_per_s": 113.19428047977792
+        }
+      },
+      "batch_smaller_than_restore": true,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 5,
+      "tiles": 1,
+      "stats": {
+        "packed": {
+          "total_ns": 64415010,
+          "median_ns": 7386562.5,
+          "max_ns": 14251964,
+          "rows_per_s": 620.9732793645456
+        },
+        "restore_cpu": {
+          "total_ns": 52888942,
+          "median_ns": 6708262,
+          "max_ns": 9689785,
+          "rows_per_s": 756.3017615289033
+        },
+        "resident_cpu": {
+          "total_ns": 1206467,
+          "median_ns": 79043,
+          "max_ns": 483925,
+          "rows_per_s": 33154.65735904919
+        },
+        "scalar": {
+          "total_ns": 201445679,
+          "median_ns": 23649712,
+          "max_ns": 32174323,
+          "rows_per_s": 198.56469594465713
+        }
+      },
+      "batch_smaller_than_restore": true,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 6,
+      "tiles": 1,
+      "stats": {
+        "packed": {
+          "total_ns": 71020016,
+          "median_ns": 7150924.5,
+          "max_ns": 13072969,
+          "rows_per_s": 675.8658009877103
+        },
+        "restore_cpu": {
+          "total_ns": 60772098,
+          "median_ns": 5437810.5,
+          "max_ns": 13343870,
+          "rows_per_s": 789.8361514522668
+        },
+        "resident_cpu": {
+          "total_ns": 1748768,
+          "median_ns": 155122.5,
+          "max_ns": 565276,
+          "rows_per_s": 27447.894746472946
+        },
+        "scalar": {
+          "total_ns": 218971914,
+          "median_ns": 26927636,
+          "max_ns": 32844817,
+          "rows_per_s": 219.2061946355367
+        }
+      },
+      "batch_smaller_than_restore": false,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 8,
+      "tiles": 1,
+      "stats": {
+        "packed": {
+          "total_ns": 85064253,
+          "median_ns": 9007330.5,
+          "max_ns": 15428690,
+          "rows_per_s": 752.372444862356
+        },
+        "restore_cpu": {
+          "total_ns": 67895246,
+          "median_ns": 7517333.5,
+          "max_ns": 15613312,
+          "rows_per_s": 942.6285899310241
+        },
+        "resident_cpu": {
+          "total_ns": 2037411,
+          "median_ns": 160776,
+          "max_ns": 854469,
+          "rows_per_s": 31412.415069909803
+        },
+        "scalar": {
+          "total_ns": 636102246,
+          "median_ns": 39422522,
+          "max_ns": 355779891,
+          "rows_per_s": 100.61275589333479
+        }
+      },
+      "batch_smaller_than_restore": false,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 31,
+      "tiles": 1,
+      "stats": {
+        "packed": {
+          "total_ns": 109221219,
+          "median_ns": 13124323,
+          "max_ns": 20272106,
+          "rows_per_s": 2270.6210594481645
+        },
+        "restore_cpu": {
+          "total_ns": 74100057,
+          "median_ns": 8037243.5,
+          "max_ns": 15823126,
+          "rows_per_s": 3346.826035504939
+        },
+        "resident_cpu": {
+          "total_ns": 5274135,
+          "median_ns": 563163.5,
+          "max_ns": 981189,
+          "rows_per_s": 47021.92871437686
+        },
+        "scalar": {
+          "total_ns": 1673470194,
+          "median_ns": 203609962,
+          "max_ns": 240684347,
+          "rows_per_s": 148.19505055373577
+        }
+      },
+      "batch_smaller_than_restore": false,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 32,
+      "tiles": 2,
+      "stats": {
+        "packed": {
+          "total_ns": 135636697,
+          "median_ns": 17048570.5,
+          "max_ns": 22981181,
+          "rows_per_s": 1887.394825015534
+        },
+        "restore_cpu": {
+          "total_ns": 75247015,
+          "median_ns": 9586204.5,
+          "max_ns": 13097977,
+          "rows_per_s": 3402.128310338955
+        },
+        "resident_cpu": {
+          "total_ns": 6887550,
+          "median_ns": 821725,
+          "max_ns": 1537912,
+          "rows_per_s": 37168.51420316368
+        },
+        "scalar": {
+          "total_ns": 2095856902,
+          "median_ns": 227208559,
+          "max_ns": 520185584,
+          "rows_per_s": 122.14574370784023
+        }
+      },
+      "batch_smaller_than_restore": false,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    },
+    {
+      "rows": 64,
+      "tiles": 3,
+      "stats": {
+        "packed": {
+          "total_ns": 215388865,
+          "median_ns": 24119655.5,
+          "max_ns": 41750177,
+          "rows_per_s": 2377.095956190679
+        },
+        "restore_cpu": {
+          "total_ns": 129134490,
+          "median_ns": 13329883.5,
+          "max_ns": 28288742,
+          "rows_per_s": 3964.8586524018488
+        },
+        "resident_cpu": {
+          "total_ns": 9418097,
+          "median_ns": 1156706,
+          "max_ns": 1494046,
+          "rows_per_s": 54363.423948595984
+        },
+        "scalar": {
+          "total_ns": 4297710957,
+          "median_ns": 512615188,
+          "max_ns": 734179600,
+          "rows_per_s": 119.13318627584009
+        }
+      },
+      "batch_smaller_than_restore": false,
+      "explicit_request": "restore",
+      "resident_available": "resident"
+    }
+  ]
+}

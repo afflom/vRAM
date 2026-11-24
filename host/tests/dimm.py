@@ -103,4 +103,12 @@ with tempfile.TemporaryDirectory() as folder:
             or any(min(r[k] for k in ("packed_ns", "restore_cpu_ns", "resident_cpu_ns")) <= 0 for r in trials)):
         raise RuntimeError("missing validated projection trials")
     result["projection"] = dict(port="org.verdant.project.1", columns=64, verified_trials=len(trials), trials=trials)
+    batches = [json.loads(match) for match in re.findall(r"^BATCH_TRIAL (.+)$", log, re.M)]
+    expected = [(width, i) for width in (2, 5, 6, 8, 31, 32, 64) for i in range(8)]
+    if ([(r["rows"], r["trial"]) for r in batches] != expected or
+            any(min(r[k] for k in ("packed_ns", "scalar_ns", "restore_cpu_ns", "resident_cpu_ns")) <= 0
+                for r in batches)):
+        raise RuntimeError("missing validated batch projection trials")
+    result["projection"]["batch_version"] = 1
+    result["projection"]["batch_trials"] = batches
     args.result.write_text(json.dumps(result, indent=2) + "\n")

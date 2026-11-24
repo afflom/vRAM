@@ -215,3 +215,21 @@ Feature: capacity
     Given packed execution takes eight ticks and restore followed by CPU execution takes ten
     When resident execution takes two ticks but requires an existing guest copy
     Then packed execution is selected without that copy and resident CPU execution is selected with it
+
+  @VR-30 @open
+  Scenario: Stream more projection rows than fit in a single device transfer
+    Given a guest keeps one online DIMM page stable and supplies successive signed weight rows
+    When a batch crosses the bounded ioctl payload
+    Then each output row agrees with its own guest CPU projection and the DIMM is published once for the request
+
+  @VR-05 @build
+  Scenario: Refuse an empty batch before accepting any additional weight rows
+    Given a guest submits a batch header with zero rows
+    When the broker validates the frame
+    Then it reports an invalid request and can accept the next scalar frame
+
+  @VR-31 @build
+  Scenario: Count traffic for the two explicit routes on the existing projection port
+    Given a complete batch has at least two rows and one to as many result tiles as rows
+    When five rows are projected together
+    Then the batch transfers fewer application bytes than restoring the page once, and a six-row batch transfers more

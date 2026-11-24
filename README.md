@@ -10,7 +10,7 @@ Get the amd64 package built for your distribution. The Ubuntu 24.04 build is in 
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.5.7_amd64.deb qemu-system-x86 fuse3
+sudo apt install ./vram-host_0.5.8_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Size a virtualized workstation to its configured maximum
@@ -26,6 +26,8 @@ vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib max --domain-x
 The platform ceiling comes from firmware (SMBIOS type 16 system-memory arrays) or an explicit documented `--platform-max-mib`. The guest ceiling comes from `--guest-max-mib` or the domain's `maxMemory`, falling back to `memory`. Use a ceiling supported by that guest kernel and QEMU machine. Unknown bounds appear as `null`. The report also includes free filesystem bytes, the file-size limit folded into the backing budget, and the process address-space limit. `--backing-dir` selects the filesystem for both commands.
 
 `max` requests the smaller of the platform and guest ceilings. It fails before launch if that target exceeds the modeled envelope. The final allocation must successfully reserve the entire target plus one 4 KiB replacement slot. Quotas, competing allocations and QEMU's own mappings can further limit admission. With `--add-mib`, the reserved DIMM counts toward the total. Numeric `--ram-mib` continues to specify boot memory.
+
+Version 0.5.8 adds a batched projection call. A guest can send multiple signed weight rows for one stable DIMM page, pay for publication once, and receive the results in row order. [Batch API](host/packaging/USAGE.md#multiple-weight-rows-for-one-dimm-page) · [Scaling measurements](docs/device-verification.md#streamed-projection-batches)
 
 In 0.5.7 a trusted guest can request a signed matrix projection on a page of its online vRAM DIMM. Start the VM with `--projection` and `--add-mib`. The packed route returns 64 sums directly from the Verdant tensor core. [Guest interface](host/packaging/USAGE.md#guest-projection-port) · [Paired benchmark](docs/device-verification.md#guest-projection-on-an-online-dimm)
 
@@ -86,7 +88,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.5.7_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.5.8_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

@@ -147,12 +147,32 @@ static int ram_sync(const char *p, int datasync, struct fuse_file_info *fi)
     /* All preceding FUSE writes have committed to the volatile page store. */
     return 0;
 }
+static int batch_ioctl(unsigned cmd, void *data)
+{
+    struct vram_batch_header h;
+    if (_IOC_DIR(cmd) != (_IOC_READ | _IOC_WRITE) || _IOC_SIZE(cmd) < sizeof(h)) return -EINVAL;
+    memcpy(&h, data, sizeof(h));
+    if (!h.rows || h.rows > VRAM_PROJECTION_TILE || cmd != VRAM_BATCH_IOCTL(h.rows) ||
+        h.reserved || !vram_range(h.offset, PAGE, dimm.bytes)) return -EINVAL;
+    /* FUSE supplies one in/out buffer. Rust's two borrows must be disjoint. */
+    int32_t weights[VRAM_PROJECTION_TILE][64];
+    int64_t columns[VRAM_PROJECTION_TILE][64];
+    char *payload = (char *)data + sizeof(h);
+    memcpy(weights, payload, h.rows * sizeof(weights[0]));
+    int route = store_project_rows(memory, dimm.first + h.offset / PAGE, h.rows, weights, columns);
+    if (route < 0) return -EIO;
+    memcpy(payload, columns, h.rows * sizeof(columns[0]));
+    return route;
+}
+
 static int ram_ioctl(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
                      unsigned flags, void *data)
 {
     (void)arg; (void)fi; (void)flags;
-    if ((unsigned)cmd != VRAM_PROJECT_IOCTL) return -ENOTTY;
+    if (_IOC_TYPE(cmd) != 'V') return -ENOTTY;
     if (extent_for(path) != &dimm || !data) return -EINVAL;
+    if (_IOC_NR(cmd) == 0x52) return batch_ioctl((unsigned)cmd, data);
+    if ((unsigned)cmd != VRAM_PROJECT_IOCTL) return -ENOTTY;
     struct vram_projection q;
     memcpy(&q.request, data, sizeof(q.request));
     if (q.request.operation != VRAM_PROJECT || q.request.reserved ||

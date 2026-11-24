@@ -27,6 +27,8 @@ void store_io_times(struct store *, uint64_t nanoseconds[4]);
 int store_discard(struct store *, size_t start, size_t count);
 uint64_t vram_host_auto_mib(uint64_t available_mib);
 int store_get(struct store *, size_t page, uint8_t *bytes4096);
+int store_project_rows(struct store *, size_t page, size_t rows,
+                       const int32_t weights[][64], int64_t output[][64]);
 int store_project(struct store *, size_t page, const int32_t *weights64, int64_t *output64);
 void store_selector_stats(struct store *, uint64_t *pages, uint64_t *restores);
 void store_stats(struct store *, uint64_t counters[5]);

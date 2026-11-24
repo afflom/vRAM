@@ -191,3 +191,16 @@ level = "build"
 suite = "capacity"
 statement = "For equal verified projections the model selects an available route with minimum measured elapsed time, considering resident CPU execution only when its input is resident"
 theorems = ["Performance.projectionAvailable", "Performance.projectionMinimum"]
+
+[[id]]
+id = "VR-30"
+level = "open"
+suite = "capacity"
+statement = "A guest can publish one stable DIMM page once per batch and stream signed projection rows through bounded multi-row Verdant contractions with exact ordered results"
+
+[[id]]
+id = "VR-31"
+level = "build"
+suite = "capacity"
+statement = "For a completed batch of at least two projection rows the port carries fewer application bytes than repeated scalar calls, and fewer than a single page restore exactly through five rows"
+theorems = ["Performance.batchBelowScalar", "Performance.batchRestoreCrossing"]

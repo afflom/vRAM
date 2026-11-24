@@ -89,11 +89,11 @@ jobs:
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
-      - name: Check out the 0.5.6 guest benchmark control
+      - name: Check out the 0.5.7 guest benchmark control
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 489a03670294ce4a216f623e6743f452ea902da2
+          ref: ed3a0a82003c7231d1f8f1ff129f44f22288cf6e
           path: measurements/local/control
       - name: Build the control on the same distribution
         run: |
