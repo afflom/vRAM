@@ -47,6 +47,8 @@ The three honesty levels (R2):
 | `VR-25` | `open` | One range read restores adjacent pages sharing an immutable file literal from one backing read per run within a policy group, including pages with distinct XOR residuals |  |
 | `VR-26` | `open` | A multi-page writer can reuse its last successful immutable file literal read for admission without retaining ownership or bypassing exact candidate selection |  |
 | `VR-27` | `build` | An eligible candidate's timing decision is stable at every looser deadline; a plan dominated in both tail and elapsed time cannot improve the result after its dominator | `Performance.stableAtLooserDeadline`, `Performance.dominatedPlan` |
+| `VR-28` | `open` | An explicit guest projection on a synchronized Verdant DIMM page produces the signed 64-column result of restoring the same bytes and computing in the guest; packed dispatch and end-to-end costs are measured |  |
+| `VR-29` | `build` | For equal verified projections the model selects an available route with minimum measured elapsed time, considering resident CPU execution only when its input is resident | `Performance.projectionAvailable`, `Performance.projectionMinimum` |
 
 ## Cited authorities
 

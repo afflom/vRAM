@@ -201,6 +201,8 @@ def run(args):
     extra = args.options[1:] if args.options[:1] == ["--"] else args.options
     if "-daemonize" in extra or "--daemonize" in extra:
         raise ValueError("vram-machine requires foreground QEMU")
+    if args.projection and args.add_mib <= 0:
+        raise ValueError("the projection port needs a reserved DIMM (--add-mib)")
     if args.add_mib < 0:
         raise ValueError("DIMM size must be nonnegative")
     if args.ram_mib == "max":
@@ -224,7 +226,7 @@ def run(args):
         raise ValueError("use a shorter state path without commas")
     state.mkdir(mode=0o700)
     mount = state / "ram"
-    vm = server = None
+    vm = server = broker = channel = None
     pending = []
 
     def forward(signum, frame):
@@ -258,10 +260,21 @@ def run(args):
             size += f",slots=1,maxmem={args.ram_mib + args.add_mib}M"
             command.extend(["-object", f"memory-backend-file,id=vram-extra,size={args.add_mib}M,"
                             f"mem-path={mount}/dimm,share=on"])
+        if args.projection:
+            channel, peer = socket.socketpair()
+            with peer:
+                broker = subprocess.Popen([HELPER, "--serve-projection", mount / "dimm"],
+                                          stdin=peer, stdout=peer, start_new_session=True)
+            command.extend(["-chardev", f"socket,id=vram-proj,fd={channel.fileno()}",
+                            "-device", "virtio-serial-pci,id=vram-ports",
+                            "-device", "virtserialport,bus=vram-ports.0,chardev=vram-proj,name=org.verdant.project.1"])
         command.extend(["-m", size, *extra])
         if pending:
             return 128 + pending[-1]
-        vm = subprocess.Popen(command, start_new_session=True)
+        vm = subprocess.Popen(command, start_new_session=True,
+                              pass_fds=(channel.fileno(),) if channel else ())
+        if channel:
+            channel.close()
         if pending:
             vm.send_signal(pending[-1])
         while True:
@@ -269,6 +282,10 @@ def run(args):
                 rc = vm.wait(timeout=1)
                 break
             except subprocess.TimeoutExpired:
+                if broker is not None and broker.poll() is not None:
+                    if broker.returncode:
+                        print(f"vram-machine: projection broker exited ({broker.returncode})", file=sys.stderr)
+                    broker = None
                 if server.poll() is not None:
                     raise RuntimeError("Verdant memory server exited while QEMU was running")
         return 128 - rc if rc < 0 else rc
@@ -276,6 +293,11 @@ def run(args):
         if vm is not None and vm.poll() is None:
             vm.terminate()
             vm.wait()
+        if channel:
+            channel.close()
+        if broker is not None:
+            broker.terminate()
+            broker.wait()
         if server is not None:
             server.terminate()
             server.wait()
@@ -301,6 +323,7 @@ def main():
     launch.add_argument("--state", type=Path, required=True, help="private runtime directory to create")
     launch.add_argument("--ram-mib", required=True, help="boot MiB, or max for the configured total less the reserved DIMM")
     launch.add_argument("--add-mib", type=int, default=0, help="reserve this much hot-pluggable RAM")
+    launch.add_argument("--projection", action="store_true", help="attach the DIMM projection virtio port")
     sizing_options(launch)
     inspect = commands.add_parser("capacity", help="report capacity bounds without reserving storage")
     sizing_options(inspect)

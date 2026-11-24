@@ -13,6 +13,7 @@ with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     for source, dest, mode in [
         ("build/vram-ram-file", "usr/lib/vram/vram-ram-file", 0o755),
+        ("projection.h", "usr/include/vram/projection.h", 0o644),
         ("vram-machine", "usr/bin/vram-machine", 0o755),
         ("build/vram-host", "usr/sbin/vram-host", 0o755),
         ("packaging/vram@.service", "usr/lib/systemd/system/vram@.service", 0o644),
@@ -37,7 +38,7 @@ with tempfile.TemporaryDirectory() as directory:
             ["dpkg-shlibdeps", "-O", "-e" + str(root / "usr/lib/vram/vram-ram-file")],
             cwd=build_dir, text=True).strip().removeprefix("shlibs:Depends=")
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.5.6\nArchitecture: amd64\n"
+        "Package: vram-host\nVersion: 0.5.7\nArchitecture: amd64\n"
         f"Maintainer: vRAM maintainers <noreply@github.com>\nDepends: {shlibs}, systemd, kmod, python3\nRecommends: fuse3, qemu-system-x86\n"
         "Description: Verdant tensor-backed Linux swap and virtual machine system RAM\n"
         "Homepage: https://github.com/afflom/vRAM\n")

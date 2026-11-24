@@ -44,6 +44,8 @@ static void contents(uint32_t *words, unsigned page)
     }
     words[1] = page;
 }
+int projection_trial(uint8_t *page, uint64_t offset, uint64_t extent);
+
 int main(void)
 {
     int tty = open("/dev/ttyS0", O_RDWR);
@@ -86,6 +88,8 @@ int main(void)
         }
     }
     if (sample == pages) fail("no DIMM sample");
+    uint8_t *operand = mem + sample * PAGE;
+    if (mlock(operand, PAGE)) fail("mlock operand");
     printf("WRITTEN %zu %u %" PRIu64 "\n", bytes, sample, within);
     char ack;
     if (scanf(" %c", &ack) != 1 || ack != 'G') fail("sync acknowledgement");
@@ -109,6 +113,14 @@ int main(void)
     printf("DIMM_RESULT {\"before_kib\":%lu,\"after_kib\":%lu,\"swap_kib\":0,"
            "\"verified_bytes\":%zu,\"verified_on_dimm_bytes\":%zu}\n",
            before, after, bytes, (size_t)added * PAGE);
+    if (projection_trial(operand, within, size)) fail("DIMM projection");
+    uint64_t final_entry;
+    if (pread(map, &final_entry, sizeof final_entry, (uintptr_t)operand / PAGE * sizeof final_entry)
+            != sizeof final_entry || !(final_entry >> 63) ||
+            (final_entry & ((1ull << 55) - 1)) * PAGE != address + within)
+        fail("operand placement changed");
+    munlock(operand, PAGE);
+    puts("PROJECTION_VERIFIED");
     tcdrain(1);
     reboot(RB_POWER_OFF);
     return 1;

@@ -178,3 +178,16 @@ level = "build"
 suite = "capacity"
 statement = "An eligible candidate's timing decision is stable at every looser deadline; a plan dominated in both tail and elapsed time cannot improve the result after its dominator"
 theorems = ["Performance.stableAtLooserDeadline", "Performance.dominatedPlan"]
+
+[[id]]
+id = "VR-28"
+level = "open"
+suite = "capacity"
+statement = "An explicit guest projection on a synchronized Verdant DIMM page produces the signed 64-column result of restoring the same bytes and computing in the guest; packed dispatch and end-to-end costs are measured"
+
+[[id]]
+id = "VR-29"
+level = "build"
+suite = "capacity"
+statement = "For equal verified projections the model selects an available route with minimum measured elapsed time, considering resident CPU execution only when its input is resident"
+theorems = ["Performance.projectionAvailable", "Performance.projectionMinimum"]

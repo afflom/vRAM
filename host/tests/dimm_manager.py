@@ -10,7 +10,7 @@ import subprocess
 def exercise(cli, state, qemu, bios, kernel, initrd, accelerator):
     command = [cli, "run", "--qemu", qemu, "--backing-dir", state.parent, "--state", state,
                "--ram-mib", "max", "--platform-max-mib", "512", "--guest-max-mib", "320",
-               "--add-mib", "128", "--", "-accel", accelerator, *(["-L", bios] if bios else []),
+               "--add-mib", "128", "--projection", "--", "-accel", accelerator, *(["-L", bios] if bios else []),
                "-kernel", kernel, "-initrd", initrd, "-append",
                "console=ttyS0 quiet nokaslr nmi_watchdog=0 rdinit=/init memhp_default_state=online panic=-1",
                "-nodefaults", "-display", "none", "-serial", "stdio", "-no-reboot"]

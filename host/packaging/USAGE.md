@@ -41,3 +41,20 @@ The default logical size is one eighth of Linux MemAvailable at startup, rounded
 Keep the serving process alive while its swap is active. Power loss, SIGKILL or a server crash can lose paged-out data. Use a disk-backed swap device for hibernation. The service never writes page payloads to disk itself.
 
 Source, verification receipts and QEMU guest RAM instructions are at https://github.com/afflom/vRAM.
+
+## Guest projection port
+
+Add `--projection` before the QEMU options in the workstation example, reserve a DIMM with `--add-mib`, and run `vram-machine grow` to attach it. The grow response gives the guest physical base address and size of the DIMM. The launcher adds a virtio-serial port named `org.verdant.project.1`. Linux with virtio console support and udev normally exposes it as `/dev/virtio-ports/org.verdant.project.1`. In a minimal guest, match that name in `/sys/class/virtio-ports/*/name` and open the corresponding `/dev/vport*`.
+
+Give the port to a single trusted guest process or kernel service. Its authority covers **every page on that VM's reserved DIMM**. The protocol takes an aligned byte offset relative to the DIMM base. A guest service must own the operand, keep its physical location stable, and exclude concurrent writes to it until the reply completes. The host broker flushes the DIMM inode before each accepted request. Ordinary resident CPU access continues to work while the port is idle.
+
+The package supplies `/usr/include/vram/projection.h`. Use the header when building the guest caller. For example, given an open port, a stable DIMM offset, and 64 signed row weights:
+
+```c
+struct vram_request q = {.operation = VRAM_PROJECT, .offset = dimm_offset};
+memcpy(q.weights, weights, sizeof q.weights);
+int64_t columns[64];
+int route = vram_projection_call(port_fd, &q, columns);
+```
+
+Column `c` equals the sum over rows `r` of `weights[r] * page[64*r+c]`, with unsigned byte input and signed 64-bit accumulation. Return value 1 identifies the packed Verdant contraction, including palette exceptions. Return value 0 identifies another exact store route. For a guest CPU computation, `VRAM_RESTORE` returns the committed 4,096 bytes in a caller-provided page buffer. The blocking stream protocol uses a 272-byte little-endian request, a signed 32-bit status, and a payload on success. Unknown operations, nonzero reserved bits and invalid offsets return `-EINVAL`. Publication or backing-store failures return `-EIO`. Serialize access to the stream across the entire request and reply.

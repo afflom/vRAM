@@ -1,21 +1,13 @@
 // Evaluate equal-work guest trials against every observed latency threshold.
-import {execFileSync} from 'node:child_process';
+import {verifiedModel} from './verified-model.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync, writeFileSync} from 'node:fs';
-import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {load} from 'prism-code';
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw Error('Usage: node automation/performance.mjs parallel-guest.json frontier.json');
 const raw = readFileSync(input);
 const receipt = JSON.parse(raw);
-const root = fileURLToPath(new URL('../', import.meta.url));
-const result = JSON.parse(execFileSync(join(root, 'automation/node_modules/.bin/prism-code'),
-    ['verify', '.', '--json'], {cwd: root, encoding: 'utf8'}));
-if (!result.ok || !result.summary.identitiesVerified) throw Error('Performance model did not verify');
-const model = await load(join(root, result.summary.artifact));
-if (!model.identities.verified) throw Error('Unverified model artifact');
+const {model, address} = await verifiedModel();
 
 // The current parallel guest writes 16,384 pages and runs four trials per CPU count.
 const rows = receipt.trials.filter(row => row.backend === 'vram');
@@ -90,7 +82,7 @@ for (const [index, point] of ordered.entries()) {
         frontier.push({minimum_p99_budget_ns: limit, vcpus: best.vcpus});
 }
 const report = {input_sha256: createHash('sha256').update(raw).digest('hex'),
-    model: result.summary.address, accelerator: receipt.accelerator, host_cpus: receipt.host_cpus,
+    model: address, accelerator: receipt.accelerator, host_cpus: receipt.host_cpus,
     guest_kernel: receipt.kernel, qemu: receipt.qemu, package_sha256: receipt.package_sha256,
     workload_mib_per_trial: receipt.workload_mib, trials_per_width: 4, rank_and_lane_witnesses: hasWitnesses, points, frontier};
 writeFileSync(output, JSON.stringify(report, null, 2) + '\n');

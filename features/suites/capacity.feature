@@ -197,3 +197,21 @@ Feature: capacity
     Given two equal-work plans first qualify at the same deadline
     When the faster has been considered and a later deadline admits more plans
     Then the slower plan cannot improve the incumbent and earlier eligible plans need no second evaluation
+
+  @VR-28 @open
+  Scenario: Execute a signed projection on an owned DIMM page
+    Given a guest holds a 64 by 64 byte matrix stable on its online Verdant DIMM
+    When it supplies a signed weight per row and requests a projection after publication
+    Then every returned column agrees with an independent guest computation and the reply identifies packed kernel execution when used
+
+  @VR-05 @build
+  Scenario: Reject a projection outside the selected DIMM
+    Given a projection port scoped to one DIMM
+    When the request has an unknown operation or an unaligned or out-of-range byte offset
+    Then the device reports an invalid request
+
+  @VR-29 @build
+  Scenario: Compare eligible routes on verified equal work
+    Given packed execution takes eight ticks and restore followed by CPU execution takes ten
+    When resident execution takes two ticks but requires an existing guest copy
+    Then packed execution is selected without that copy and resident CPU execution is selected with it

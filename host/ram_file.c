@@ -3,6 +3,7 @@
 #define FUSE_USE_VERSION 31
 #include <fuse.h>
 #include "pager.h"
+#include "projection_ioctl.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -146,6 +147,23 @@ static int ram_sync(const char *p, int datasync, struct fuse_file_info *fi)
     /* All preceding FUSE writes have committed to the volatile page store. */
     return 0;
 }
+static int ram_ioctl(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
+                     unsigned flags, void *data)
+{
+    (void)arg; (void)fi; (void)flags;
+    if ((unsigned)cmd != VRAM_PROJECT_IOCTL) return -ENOTTY;
+    if (extent_for(path) != &dimm || !data) return -EINVAL;
+    struct vram_projection q;
+    memcpy(&q.request, data, sizeof(q.request));
+    if (q.request.operation != VRAM_PROJECT || q.request.reserved ||
+        !vram_range(q.request.offset, PAGE, dimm.bytes)) return -EINVAL;
+    int route = store_project(memory, dimm.first + q.request.offset / PAGE,
+                              q.request.weights, q.columns);
+    if (route < 0) return -EIO;
+    memcpy(data, &q, sizeof(q));
+    return route;
+}
+
 static void *initialize(struct fuse_conn_info *conn, struct fuse_config *conf)
 {
     if (conn->capable & FUSE_CAP_WRITEBACK_CACHE) conn->want |= FUSE_CAP_WRITEBACK_CACHE;
@@ -162,6 +180,8 @@ static bool number(const char *s, uint64_t *out)
 }
 int main(int argc, char **argv)
 {
+    if (argc == 3 && !strcmp(argv[1], "--serve-projection"))
+        return serve_projection(argv[2]);
     uint64_t boot_mib, dimm_mib, budget;
     if (argc == 5 && !strcmp(argv[1], "--ceiling")) {
         if (!number(argv[2], &boot_mib) || !number(argv[3], &dimm_mib) ||
@@ -185,7 +205,7 @@ int main(int argc, char **argv)
     close((int)fd);
     if (!memory) return 1;
     const struct fuse_operations ops = { .getattr = attributes, .readdir = list,
-        .read = ram_read, .write = ram_write, .fsync = ram_sync, .utimens = ram_times, .init = initialize };
+        .ioctl = ram_ioctl, .read = ram_read, .write = ram_write, .fsync = ram_sync, .utimens = ram_times, .init = initialize };
     const char *profile = getenv("VRAM_PROFILE_IO");
     profile_io = profile && !strcmp(profile, "1");
     char *args[] = {argv[0], "-f", "-o", "default_permissions", argv[4]};

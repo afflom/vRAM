@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import stat
+import os
 import subprocess
 import sys
 import tempfile
@@ -33,13 +34,13 @@ with tempfile.TemporaryDirectory() as folder:
     staged.write_bytes(payload)
     subprocess.run(["dpkg-deb", "-x", staged, tmp/"pkg"], check=True)
     cflags = ["cc", "-O2", "-static", "-Wall", "-Wextra", "-Werror"]
-    subprocess.run([*cflags, here/"dimm_guest.c", "-o", tmp/"init"], check=True)
+    subprocess.run([*cflags, "-I", tmp/"pkg/usr/include", here/"dimm_guest.c", here/"projection_guest.c", "-o", tmp/"init"], check=True)
     guest = base_entries()
     add(guest, "init", tmp/"init", 0o755)
     save(guest, tmp/"guest.gz")
     if args.native:
         cmd = [sys.executable, here/"dimm_manager.py", tmp/"pkg/usr/bin/vram-machine", tmp/"vm",
-               args.qemu, args.bios_dir or "", args.kernel, tmp/"guest.gz", "tcg"]
+               args.qemu, args.bios_dir or "", args.kernel, tmp/"guest.gz", "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"]
     else:
         outer = base_entries()
         subprocess.run([*cflags, "-DTEST_DIMM", *(["-DTEST_SVM"] if args.svm_modules else []),
@@ -94,7 +95,12 @@ with tempfile.TemporaryDirectory() as folder:
         raise RuntimeError("missing Linux or Verdant memory traffic")
     result = dict(guest=guest, store=store, dimm_mib=128, initial_mib=192,
                   sizing="max", platform_max_mib=512, guest_max_mib=320,
-                  acceleration="KVM on emulated AMD SVM" if args.svm_modules else ("TCG" if args.native else "nested TCG"),
+                  acceleration="KVM on emulated AMD SVM" if args.svm_modules else (cmd[-1].upper() if args.native else "nested TCG"),
                   qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
                   kernel=args.kernel.name, package_sha256=digest)
+    trials = [json.loads(match) for match in re.findall(r"^PROJECTION_TRIAL (.+)$", log, re.M)]
+    if (log.splitlines().count("PROJECTION_VERIFIED") != 1 or [r["trial"] for r in trials] != list(range(24))
+            or any(min(r[k] for k in ("packed_ns", "restore_cpu_ns", "resident_cpu_ns")) <= 0 for r in trials)):
+        raise RuntimeError("missing validated projection trials")
+    result["projection"] = dict(port="org.verdant.project.1", columns=64, verified_trials=len(trials), trials=trials)
     args.result.write_text(json.dumps(result, indent=2) + "\n")

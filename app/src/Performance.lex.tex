@@ -103,5 +103,24 @@ theorem{
   statement: ((bestTime d (q + tailGap) (t + timeGap) (bestTime d q t i)) = (bestTime d q t i)),
   proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: projectionRoute, parameters: [warm : Nat, packed : Nat, restore : Nat, cpu : Nat], result: Nat,
+  body: (if ((warm =? 1) && ((cpu <=? packed) && (cpu <=? restore))) then 2 else (if (packed <? restore) then 1 else 0)),
+  executable: true
+}
+definition{
+  name: projectionCost, parameters: [route : Nat, packed : Nat, restore : Nat, cpu : Nat], result: Nat,
+  body: (if (route =? 2) then cpu else (if (route =? 1) then packed else restore))
+}
+theorem{
+  name: projectionAvailable, parameters: [w : Nat, p : Nat, r : Nat, c : Nat],
+  statement: ((((projectionRoute w p r c) <=? 1) || ((w =? 1) && ((projectionRoute w p r c) =? 2))) = true),
+  proof: linear_arithmetic{definitions: [projectionRoute]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: projectionMinimum, parameters: [w : Nat, p : Nat, r : Nat, c : Nat],
+  statement: ((((projectionCost (projectionRoute w p r c) p r c) <=? p) && (((projectionCost (projectionRoute w p r c) p r c) <=? r) && ((not (w =? 1)) || ((projectionCost (projectionRoute w p r c) p r c) <=? c)))) = true),
+  proof: linear_arithmetic{definitions: [projectionCost, projectionRoute]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

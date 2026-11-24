@@ -19,11 +19,12 @@ build/vram-scale: $(DEVICE)/validation/scale.c $(DEVICE)/validation/capacity_pat
 FUSE_CFLAGS ?= $(shell pkg-config --cflags fuse3)
 FUSE_LIBS ?= $(shell pkg-config --libs fuse3)
 
-build/vram-ram-file: ram_file.c $(DEVICE)/native/pager.h runtime
+build/vram-ram-file: ram_file.c projection.c projection_ioctl.h projection.h $(DEVICE)/native/pager.h runtime
 	mkdir -p build
-	$(CC) $(CFLAGS) -Wall -Wextra -O2 $(FUSE_CFLAGS) -I$(DEVICE)/native $< $(LIB) $(RAM_FILE_LDFLAGS) $(FUSE_LIBS) $(LDLIBS) -o $@
+	$(CC) $(CFLAGS) -Wall -Wextra -O2 $(FUSE_CFLAGS) -I$(DEVICE)/native $< projection.c $(LIB) $(RAM_FILE_LDFLAGS) $(FUSE_LIBS) $(LDLIBS) -o $@
 
 install:
+	install -Dm644 projection.h $(DESTDIR)$(PREFIX)/include/vram/projection.h
 	install -Dm755 build/vram-ram-file $(DESTDIR)$(PREFIX)/lib/vram/vram-ram-file
 	install -Dm755 vram-machine $(DESTDIR)$(PREFIX)/bin/vram-machine
 	install -Dm755 build/vram-host $(DESTDIR)$(PREFIX)/sbin/vram-host

@@ -89,11 +89,11 @@ jobs:
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
-      - name: Check out the 0.5.5 guest benchmark control
+      - name: Check out the 0.5.6 guest benchmark control
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 281e6a79a02a1fd4064e1cc544c3ba088bc215f1
+          ref: 489a03670294ce4a216f623e6743f452ea902da2
           path: measurements/local/control
       - name: Build the control on the same distribution
         run: |
@@ -107,8 +107,9 @@ jobs:
           python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
           sudo modprobe fuse
-          python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
+          sudo python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/linux-dimm.json
+          node automation/projection.mjs dist/linux-dimm.json dist/projection-routes.json
           sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --baseline-package "$RUNNER_TEMP/control.deb" --result dist/parallel-guest.json
           node automation/performance.mjs dist/parallel-guest.json dist/performance-frontier.json
