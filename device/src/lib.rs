@@ -117,7 +117,7 @@ impl Value {
         }
     }
 
-    fn encode(previous: &Value, bytes: &[u8; PAGE]) -> Self {
+    fn encode(prior: Option<&Selector>, bytes: &[u8; PAGE]) -> Self {
         use vram_representation::Adt0 as Plan;
         let choose = vram_representation::run;
         let absent = PAGE as u64;
@@ -148,7 +148,6 @@ impl Value {
         let sparse_cost = size_of::<Exceptions>()
             + (PAGE - histogram[usize::from(base)]) * size_of::<(u16, u8)>();
         let mut base_bytes = [0; PAGE];
-        let prior = previous.selector_base();
         let mut corrected_cost = PAGE;
         if let Some(model) = prior {
             if model.decode(&mut base_bytes).is_ok() {
@@ -433,8 +432,18 @@ pub unsafe extern "C" fn store_io_times(s: &Store, out: &mut [u64; 4]) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn store_fit_counts(s: &Store, out: &mut [u64; 2]) {
+    *out = s.profile.as_ref().map_or([0; 2], |p| {
+        [
+            p.prepared.load(Ordering::Relaxed),
+            p.used.load(Ordering::Relaxed),
+        ]
+    });
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) -> c_int {
-    put_locked(s, &mut s.write_directory(), page, data)
+    store_write_pages(s, page, 1, data.as_ptr())
 }
 
 /// Commit full pages in address order, releasing the lock at each policy group boundary.
@@ -454,14 +463,37 @@ pub unsafe extern "C" fn store_write_pages(
     };
     let mut page = first;
     loop {
-        let mut values = s.write_directory();
+        // A free writer keeps the existing batch fast path. On contention borrow
+        // only model inputs, so a long fit can proceed alongside another writer.
+        let (mut values, mut prepared) = match s.values.try_write() {
+            Ok(dir) => (dir, None),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                let dir = s.read_directory();
+                if end > dir.count {
+                    return -1;
+                }
+                let snapshot = if page < end {
+                    let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
+                    FitInputs::snapshot(s, &dir, page, src)
+                } else {
+                    None
+                };
+                drop(dir);
+                let prepared = snapshot.map(|inputs| {
+                    let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
+                    inputs.prepare(s, src)
+                });
+                (s.write_directory(), prepared)
+            }
+            Err(std::sync::TryLockError::Poisoned(e)) => panic!("{e}"),
+        };
         if end > values.count {
             return -1;
         }
         let n = (end - page).min(directory::GROUP - page % directory::GROUP);
         for _ in 0..n {
             let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
-            if put_locked(s, &mut values, page, src) != 0 {
+            if put_locked(s, &mut values, page, src, prepared.take()) != 0 {
                 return -1;
             }
             page += 1;
@@ -495,7 +527,85 @@ pub unsafe extern "C" fn store_patch(
         return -1;
     }
     bytes[offset..offset + len].copy_from_slice(slice::from_raw_parts(data, len));
-    put_locked(s, &mut values, page, &bytes)
+    put_locked(s, &mut values, page, &bytes, None)
+}
+
+struct FitInputs {
+    selector: Option<Selector>,
+    region: search::Region,
+}
+
+struct PreparedFit {
+    inputs: FitInputs,
+    next_region: search::Region,
+    value: Value,
+}
+
+fn literal_fast(s: &Store, credits: u64, slot: &Value, data: &[u8; PAGE]) -> bool {
+    matches!(
+        vram_schedule::run(s.adaptive, credits, false),
+        vram_schedule::Adt0::C2
+    ) && matches!(slot, Value::Fill(_) | Value::Shared(_))
+        && literals::diverse_axes(data)
+}
+
+impl FitInputs {
+    fn snapshot(
+        s: &Store,
+        dir: &directory::Directory,
+        page: usize,
+        data: &[u8; PAGE],
+    ) -> Option<Self> {
+        let slot = dir.get(page)?;
+        let group = dir.group_at(page);
+        if data.iter().all(|&b| b == data[0])
+            || dir.literals.has_candidate(data, slot.literal_base())
+            || literal_fast(s, group.map_or(0, |g| g.literal_credits), slot, data)
+        {
+            return None;
+        }
+        Some(Self {
+            selector: slot.selector_base().cloned(),
+            region: group.map(|g| g.region.clone()).unwrap_or_default(),
+        })
+    }
+
+    fn prepare(self, s: &Store, data: &[u8; PAGE]) -> PreparedFit {
+        let mut next_region = self.region.clone();
+        let value = fit(s, self.selector.as_ref(), data, &mut next_region);
+        if let Some(p) = &s.profile {
+            p.prepared.fetch_add(1, Ordering::Relaxed);
+        }
+        PreparedFit {
+            inputs: self,
+            next_region,
+            value,
+        }
+    }
+}
+
+fn fit(
+    s: &Store,
+    prior: Option<&Selector>,
+    data: &[u8; PAGE],
+    region: &mut search::Region,
+) -> Value {
+    let incumbent = Value::encode(prior, data);
+    let result = search::optimize(
+        data,
+        incumbent.charge(),
+        s.node_budget,
+        s.adaptive.then_some(region),
+    );
+    s.searches.fetch_add(result.probes, Ordering::Relaxed);
+    s.nodes_visited
+        .fetch_add(result.nodes as u64, Ordering::Relaxed);
+    s.refits.fetch_add(result.refits, Ordering::Relaxed);
+    s.skips.fetch_add(result.skips, Ordering::Relaxed);
+    match result.program {
+        Some(program) => Value::Program(Box::new(program)),
+        None => incumbent,
+    }
 }
 
 fn put_locked(
@@ -503,6 +613,7 @@ fn put_locked(
     values: &mut directory::Directory,
     page: usize,
     data: &[u8; PAGE],
+    prepared: Option<PreparedFit>,
 ) -> c_int {
     let Some(dst) = values.get(page) else {
         return -1;
@@ -527,29 +638,22 @@ fn put_locked(
         return 0;
     }
     let credits = group.literal_credits;
-    let fast = matches!(
-        vram_schedule::run(s.adaptive, credits, false),
-        vram_schedule::Adt0::C2
-    ) && matches!(slot, Value::Fill(_) | Value::Shared(_))
-        && literals::diverse_axes(data);
+    let fast = literal_fast(s, credits, slot, data);
     let capture = if fast {
         literals::Capture::Borrowed(data)
     } else {
-        let incumbent = Value::encode(slot, data);
-        let result = search::optimize(
-            data,
-            incumbent.charge(),
-            s.node_budget,
-            s.adaptive.then_some(&mut group.region),
-        );
-        s.searches.fetch_add(result.probes, Ordering::Relaxed);
-        s.nodes_visited
-            .fetch_add(result.nodes as u64, Ordering::Relaxed);
-        s.refits.fetch_add(result.refits, Ordering::Relaxed);
-        s.skips.fetch_add(result.skips, Ordering::Relaxed);
-        let candidate = match result.program {
-            Some(program) => Value::Program(Box::new(program)),
-            None => incumbent,
+        let candidate = match prepared {
+            Some(p)
+                if p.inputs.selector.as_ref() == slot.selector_base()
+                    && p.inputs.region == group.region =>
+            {
+                group.region = p.next_region;
+                if let Some(p) = &s.profile {
+                    p.used.fetch_add(1, Ordering::Relaxed);
+                }
+                p.value
+            }
+            _ => fit(s, slot.selector_base(), data, &mut group.region),
         };
         match candidate {
             Value::Raw(bytes) => literals::Capture::Owned(bytes),
@@ -766,7 +870,7 @@ mod runtime_tests {
             }
         });
         let mut page = original;
-        let mut value = Value::encode(&Value::Fill(0), &page);
+        let mut value = Value::encode(None, &page);
         assert!(matches!(value, Value::Selector(_)));
         for (index, mask, edits) in [
             (0, 18, 1),
@@ -776,7 +880,7 @@ mod runtime_tests {
             (4095, 42, 0),
         ] {
             page[index] ^= mask;
-            value = Value::encode(&value, &page);
+            value = Value::encode(value.selector_base(), &page);
             recover(&value, &page);
             if edits == 0 {
                 assert!(matches!(value, Value::Selector(_)));
@@ -786,11 +890,11 @@ mod runtime_tests {
         }
         assert_eq!(page, original);
         let entropy = std::array::from_fn(|i| (i % 256) as u8);
-        value = Value::encode(&value, &entropy);
+        value = Value::encode(value.selector_base(), &entropy);
         assert!(matches!(value, Value::Raw(_)));
         recover(&value, &entropy);
         let rows = std::array::from_fn(|i| (i / SIDE) as u8);
-        let value = Value::encode(&value, &rows);
+        let value = Value::encode(value.selector_base(), &rows);
         assert!(matches!(value, Value::Selector(_)));
         recover(&value, &rows);
     }
@@ -817,6 +921,79 @@ mod runtime_tests {
 #[cfg(test)]
 mod host_tests {
     use super::*;
+
+    fn profiled_store(adaptive: bool) -> Box<Store> {
+        let mut store =
+            unsafe { Box::from_raw(store_new_config(128, search::MAX_NODES, adaptive)) };
+        store.profile = Some(Arc::default());
+        store
+    }
+
+    #[test]
+    fn writer_can_finish_fitting_while_reader_holds_directory() {
+        let s = profiled_store(true);
+        let page = std::array::from_fn(|i| (i / SIDE) as u8);
+        let read = s.read_directory();
+        std::thread::scope(|scope| {
+            let worker = scope.spawn(|| unsafe { store_put(&s, 0, &page) });
+            let profile = s.profile.as_ref().unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            while profile.prepared.load(Ordering::Relaxed) == 0
+                && std::time::Instant::now() < deadline
+            {
+                std::thread::yield_now();
+            }
+            let fitted = profile.prepared.load(Ordering::Relaxed);
+            drop(read);
+            assert_eq!(worker.join().unwrap(), 0);
+            assert_eq!(fitted, 1, "fit needed the exclusive lock");
+            assert_eq!(profile.used.load(Ordering::Relaxed), 1);
+        });
+        let mut restored = [0; PAGE];
+        assert_eq!(unsafe { store_get(&s, 0, &mut restored) }, 0);
+        assert_eq!(restored, page);
+    }
+
+    #[test]
+    fn commit_revalidates_selector_region_and_new_literal() {
+        let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+        let selector = std::array::from_fn(|i| {
+            let row = (i / SIDE) as u8;
+            if i % 2 == 0 {
+                row
+            } else {
+                !row
+            }
+        });
+        let mut edited = selector;
+        edited[63] ^= 41;
+        for (adaptive, competing_page, competing_bytes, submitted) in [
+            (false, 0, &selector, &edited), // only the incumbent selector changes
+            (true, 1, &dense, &edited),     // only the regional search inputs change
+            (true, 64, &dense, &dense),     // exact base appears in another group
+        ] {
+            let s = profiled_store(adaptive);
+            let inputs = FitInputs::snapshot(&s, &s.read_directory(), 0, submitted).unwrap();
+            let prepared = inputs.prepare(&s, submitted);
+            assert_eq!(unsafe { store_put(&s, competing_page, competing_bytes) }, 0);
+            let mut dir = s.write_directory();
+            assert_eq!(put_locked(&s, &mut dir, 0, submitted, Some(prepared)), 0);
+            assert_eq!(
+                s.profile.as_ref().unwrap().used.load(Ordering::Relaxed),
+                0,
+                "used stale fit after competing write to page {competing_page}"
+            );
+            if competing_page == 0 {
+                assert!(matches!(dir.get(0), Some(Value::Corrected(_))));
+            }
+            if competing_page == 64 {
+                assert_eq!((dir.literals.live(), dir.literals.hits), (1, 1));
+            }
+            let mut restored = [0; PAGE];
+            dir.get(0).unwrap().decode(&mut restored).unwrap();
+            assert_eq!(&restored, submitted);
+        }
+    }
 
     #[test]
     fn full_write_validates_extent_before_committing_and_crosses_groups() {

@@ -6,7 +6,7 @@ use verdant_tensor::coded::{
 };
 use vram_selector_admission::run as matches_cell;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Selector {
     values: [[u8; 2]; SIDE],
     columns: u64,

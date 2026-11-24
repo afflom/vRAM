@@ -133,3 +133,9 @@ id = "VR-20"
 level = "open"
 suite = "capacity"
 statement = "Concurrent partial writes to disjoint bytes of one page survive full readback and a failed patch preserves the committed page"
+
+[[id]]
+id = "VR-21"
+level = "open"
+suite = "capacity"
+statement = "A contended full-page write can fit a candidate outside the directory lock and uses it only while its selector and regional search inputs still match at commit"

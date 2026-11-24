@@ -19,6 +19,7 @@ int store_put(struct store *, size_t page, const uint8_t *bytes4096);
 int store_patch(struct store *, size_t page, size_t offset, const uint8_t *bytes, size_t len);
 int store_write_pages(struct store *, size_t first, size_t count, const uint8_t *data);
 int store_read_pages(struct store *, size_t first, size_t count, uint8_t *out);
+void store_fit_counts(struct store *, uint64_t counts[2]);
 void store_io_times(struct store *, uint64_t nanoseconds[4]);
 int store_discard(struct store *, size_t start, size_t count);
 uint64_t vram_host_auto_mib(uint64_t available_mib);

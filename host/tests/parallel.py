@@ -91,8 +91,8 @@ with tempfile.TemporaryDirectory() as temp:
                    tmp / "guest.gz", "-append", "console=ttyS0 quiet rdinit=/init nokaslr panic=-1",
                    "-nodefaults", "-display", "none", "-serial", "stdio", "-no-reboot"]
         backends = ["ordinary", *launchers]
-        for repeat in range(2):
-            for backend in (backends if repeat == 0 else reversed(backends)):
+        for repeat in range(4):
+            for backend in (backends if repeat % 2 == 0 else reversed(backends)):
                 command = ([args.qemu.resolve(), "-m", "384"] if backend == "ordinary" else
                            [launchers[backend], "run", "--state", tmp / "vm",
                             "--backing-dir", tmp, "--ram-mib", "384", "--qemu", args.qemu.resolve(), "--"])
@@ -103,24 +103,31 @@ with tempfile.TemporaryDirectory() as temp:
                     row["store"] = receipt(log, "VRAM_FILE")
                 rows.append(dict(backend=backend, repeat=repeat, **row))
                 print(rows[-1], flush=True)
-    stop = threading.Event()
-    samples = []
-    observer = threading.Thread(target=sample_fuse, args=(tmp / "vm/ram", stop, samples))
-    observer.start()
-    try:
-        row, log = trial(["/usr/bin/env", "VRAM_PROFILE_IO=1", launchers["vram"], "run",
-                          "--state", tmp / "vm", "--backing-dir", tmp, "--ram-mib", "384",
-                          "--qemu", args.qemu.resolve(), "--", *options])
-    finally:
-        stop.set()
-        observer.join()
-    profile = dict(**row, times=receipt(log, "VRAM_TIMES"), store=receipt(log, "VRAM_FILE"),
-                   fuse_waiting_samples=len(samples), fuse_waiting_peak=max(samples, default=None),
-                   fuse_waiting_mean=sum(samples)/len(samples) if samples else None)
-    if profile["vcpus"] != 8 or min(profile["times"].values()) <= 0 or not samples:
-        raise ValueError(f"incomplete eight-vCPU diagnostic: {profile}")
-    print("VM profile", profile, flush=True)
+    profiles = {}
+    for backend in launchers:
+        stop = threading.Event()
+        samples = []
+        observer = threading.Thread(target=sample_fuse, args=(tmp / "vm/ram", stop, samples))
+        observer.start()
+        try:
+            row, log = trial(["/usr/bin/env", "VRAM_PROFILE_IO=1", launchers[backend], "run",
+                              "--state", tmp / "vm", "--backing-dir", tmp, "--ram-mib", "384",
+                              "--qemu", args.qemu.resolve(), "--", *options])
+        finally:
+            stop.set()
+            observer.join()
+        profile = dict(**row, times=receipt(log, "VRAM_TIMES"), store=receipt(log, "VRAM_FILE"),
+                       fuse_waiting_samples=len(samples), fuse_waiting_peak=max(samples, default=None),
+                       fuse_waiting_mean=sum(samples)/len(samples) if samples else None)
+        if profile["vcpus"] != 8 or min(profile["times"].values()) <= 0 or not samples:
+            raise ValueError(f"incomplete eight-vCPU diagnostic: {profile}")
+        if backend == "vram":
+            profile["fits"] = receipt(log, "VRAM_FITS")
+            if not 0 <= profile["fits"]["used"] <= profile["fits"]["prepared"]:
+                raise ValueError(f"inconsistent fit counts: {profile}")
+        print("VM profile", backend, profile, flush=True)
+        profiles[backend] = profile
 args.result.write_text(json.dumps(dict(**runner,
     package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(), guest_mib=384,
-    workload_mib=64, profile=profile, trials=rows,
+    workload_mib=64, profile=profiles["vram"], baseline_profile=profiles.get("previous"), trials=rows,
     baseline_package_sha256=hashlib.sha256(args.baseline_package.read_bytes()).hexdigest() if args.baseline_package else None), indent=2) + "\n")

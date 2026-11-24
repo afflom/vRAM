@@ -198,6 +198,9 @@ int main(int argc, char **argv)
             ",\"store_bytes\":%" PRIu64 "}\n", reads, writes, disk_reads, disk_writes, stats[4]);
     if (profile_io) {
         uint64_t ns[4];
+        uint64_t fits[2];
+        store_fit_counts(memory, fits);
+        fprintf(stderr, "VRAM_FITS {\"prepared\":%" PRIu64 ",\"used\":%" PRIu64 "}\n", fits[0], fits[1]);
         store_io_times(memory, ns);
         fprintf(stderr, "VRAM_TIMES {\"read_callback_ns\":%" PRIu64 ",\"write_callback_ns\":%" PRIu64
                 ",\"read_lock_ns\":%" PRIu64 ",\"write_lock_ns\":%" PRIu64

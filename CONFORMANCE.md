@@ -40,6 +40,7 @@ The three honesty levels (R2):
 | `VR-18` | `open` | A converging overwrite applies the existing index policy when it retires the last owner of a dense base |  |
 | `VR-19` | `open` | An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes |  |
 | `VR-20` | `open` | Concurrent partial writes to disjoint bytes of one page survive full readback and a failed patch preserves the committed page |  |
+| `VR-21` | `open` | A contended full-page write can fit a candidate outside the directory lock and uses it only while its selector and regional search inputs still match at commit |  |
 
 ## Cited authorities
 

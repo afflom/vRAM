@@ -131,3 +131,9 @@ Feature: capacity
     Given a full-page write spanning two Verdant policy groups
     When a later page fails to commit
     Then the committed prefix is readable and the failing page retains its previous bytes
+
+  @VR-21 @open
+  Scenario: Revalidate an independently fitted page
+    Given a candidate fitted against a snapshot of the incumbent selector and regional search state
+    When a concurrent operation changes those inputs or creates a matching shared literal
+    Then the commit uses the current inputs and exact literal admission and restores the submitted bytes

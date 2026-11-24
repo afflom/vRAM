@@ -4,6 +4,8 @@ use std::time::Instant;
 
 #[derive(Default)]
 pub(super) struct Profile {
+    pub prepared: AtomicU64,
+    pub used: AtomicU64,
     pub read_lock_ns: AtomicU64,
     pub write_lock_ns: AtomicU64,
     pub pread_ns: AtomicU64,

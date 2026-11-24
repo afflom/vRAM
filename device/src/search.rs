@@ -349,7 +349,7 @@ fn decode_tile(code: &mut &[u8], t: Tile, out: &mut [u8; PAGE], reference: bool)
 
 /// The region cache contains only operation tags. Each page's dictionary,
 /// ranks, indices and literal bytes are rebuilt from that page's own contents.
-#[derive(Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct Region {
     shape: Box<[u8]>,
     credits: u64,

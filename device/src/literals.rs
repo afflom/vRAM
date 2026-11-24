@@ -86,6 +86,21 @@ impl Pool {
     pub(super) fn active(&self) -> bool {
         !self.buckets.is_empty()
     }
+    /// An indexed or still-shared incumbent deserves exact admission before fitting.
+    pub(super) fn has_candidate(
+        &self,
+        data: &[u8; PAGE],
+        incumbent: Option<&Arc<Literal>>,
+    ) -> bool {
+        if !self.active() {
+            return false;
+        }
+        let hash = self.fingerprint(data);
+        incumbent.is_some_and(|base| Arc::strong_count(base) > 1)
+            || self.buckets[hash as usize & (self.buckets.len() - 1)]
+                .iter()
+                .any(|(tag, weak)| *tag == hash && weak.strong_count() > 0)
+    }
     pub(super) fn lookup(
         &mut self,
         hash: u64,
