@@ -167,3 +167,27 @@ Feature: capacity
     Given neighboring pages consume credits while a template refit is prepared
     When the live schedule still admits the same template
     Then the prepared refit advances the live credits and leaves the next mandatory probe due at its original boundary
+
+  @VR-24 @build
+  Scenario: Certify a tail rank at the deadline
+    Given strict, equal and greater latency counts for a nonempty timed workload
+    When the tied block contains the nearest rank at 99 percent
+    Then at most one percent of pages are strictly slower and the strictly faster pages fall short of the rank
+
+  @VR-24 @build
+  Scenario: Shortening the longest worker exposes the next longest
+    Given a worker takes twelve ticks and all remaining workers finish within nine ticks with the longest taking nine
+    When that worker saves five ticks and the other durations and common overhead stay fixed
+    Then elapsed time falls by three ticks
+
+  @VR-25 @open
+  Scenario: Read a run of dense pages sharing a literal with different edits
+    Given adjacent pages in one group backed by the same immutable literal
+    When the memory device reads the range
+    Then it reads the literal once and applies each page's own edits to its output
+
+  @VR-26 @open
+  Scenario: Consecutive residual admissions examine the same literal
+    Given a range write supplies different sparse changes to an existing file literal
+    When several pages nominate the same live base
+    Then the first admission reads its bytes and later admissions can reuse them while checking each exact reconstruction

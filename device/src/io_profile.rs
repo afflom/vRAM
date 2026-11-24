@@ -12,6 +12,7 @@ pub(super) struct Profile {
     pub overlap_ns: AtomicU64,
     pub snapshot_ns: AtomicU64,
     pub reacquire_ns: AtomicU64,
+    pub reacquire_commit_ns: AtomicU64,
     pub validation_ns: AtomicU64,
     commits: Mutex<CommitClock>,
     pub used: AtomicU64,
@@ -66,16 +67,28 @@ impl Profile {
         (now, clock.at(now))
     }
 
-    pub(super) fn measure_fit<T>(&self, fit: impl FnOnce() -> T) -> T {
+    fn measure_overlap<T>(
+        &self,
+        total: &AtomicU64,
+        overlap: &AtomicU64,
+        action: impl FnOnce() -> T,
+    ) -> T {
         let (start, before) = self.sample();
-        let result = fit();
+        let result = action();
         let (end, after) = self.sample();
-        self.fit_ns
-            .fetch_add((end - start).as_nanos() as u64, Ordering::Relaxed);
-        self.overlap_ns
-            .fetch_add((after - before).as_nanos() as u64, Ordering::Relaxed);
+        total.fetch_add((end - start).as_nanos() as u64, Ordering::Relaxed);
+        overlap.fetch_add((after - before).as_nanos() as u64, Ordering::Relaxed);
+        result
+    }
+
+    pub(super) fn measure_fit<T>(&self, fit: impl FnOnce() -> T) -> T {
+        let result = self.measure_overlap(&self.fit_ns, &self.overlap_ns, fit);
         self.prepared.fetch_add(1, Ordering::Relaxed);
         result
+    }
+
+    pub(super) fn measure_reacquire<T>(&self, acquire: impl FnOnce() -> T) -> T {
+        self.measure_overlap(&self.reacquire_ns, &self.reacquire_commit_ns, acquire)
     }
 }
 

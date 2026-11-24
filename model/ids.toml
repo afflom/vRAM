@@ -152,3 +152,22 @@ id = "VR-23"
 level = "open"
 suite = "capacity"
 statement = "A region-only change permits reuse of the selector-dependent page encoding and replay of an equivalent skip or successful refit against live credits"
+
+[[id]]
+id = "VR-24"
+level = "build"
+suite = "capacity"
+statement = "Nearest-rank p99 is certified from strict and tied counts, and shortening one sequential worker has an exact elapsed-time gain in a fixed parallel schedule"
+theorems = ["Performance.rankWitness", "Performance.missBudget", "Performance.laneFloor", "Performance.laneGain"]
+
+[[id]]
+id = "VR-25"
+level = "open"
+suite = "capacity"
+statement = "One range read restores adjacent pages sharing an immutable file literal from one backing read per run within a policy group, including pages with distinct XOR residuals"
+
+[[id]]
+id = "VR-26"
+level = "open"
+suite = "capacity"
+statement = "A multi-page writer can reuse its last successful immutable file literal read for admission without retaining ownership or bypassing exact candidate selection"

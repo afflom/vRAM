@@ -421,12 +421,10 @@ impl Store {
         after_fit: bool,
     ) -> std::sync::RwLockWriteGuard<'_, directory::Directory> {
         self.waiting_writers.fetch_add(1, Ordering::Relaxed);
-        let reacquire = self
-            .profile
-            .as_ref()
-            .filter(|_| after_fit)
-            .map(|p| &p.reacquire_ns);
-        let values = io_profile::measured(reacquire, || self.write_directory());
+        let values = match self.profile.as_ref().filter(|_| after_fit) {
+            Some(profile) => profile.measure_reacquire(|| self.write_directory()),
+            None => self.write_directory(),
+        };
         self.waiting_writers.fetch_sub(1, Ordering::Relaxed);
         values
     }
@@ -453,6 +451,13 @@ pub unsafe extern "C" fn store_fit_counts(s: &Store, out: &mut [u64; 2]) {
             p.used.load(Ordering::Relaxed),
         ]
     });
+}
+
+#[no_mangle]
+pub extern "C" fn store_reacquire_commit_ns(s: &Store) -> u64 {
+    s.profile
+        .as_ref()
+        .map_or(0, |p| p.reacquire_commit_ns.load(Ordering::Relaxed))
 }
 
 #[no_mangle]
@@ -496,6 +501,7 @@ pub unsafe extern "C" fn store_write_pages(
     }
     let mut pages = slice::from_raw_parts(data.cast::<[u8; PAGE]>(), count);
     let mut first = first;
+    let mut cache = (count > 1).then(literals::FileCandidate::new);
     while !pages.is_empty() {
         let n = pages.len().min(directory::GROUP - first % directory::GROUP);
         let (group, rest) = pages.split_at(n);
@@ -524,7 +530,7 @@ pub unsafe extern "C" fn store_write_pages(
                     values = s.wait_for_writer(true);
                 }
             }
-            if put_locked(s, &mut values, page, src, prepared) != 0 {
+            if put_locked(s, &mut values, page, src, prepared, cache.as_mut()) != 0 {
                 return -1;
             }
         }
@@ -555,7 +561,7 @@ pub unsafe extern "C" fn store_patch(
         return -1;
     }
     bytes[offset..offset + len].copy_from_slice(slice::from_raw_parts(data, len));
-    put_locked(s, &mut values, page, &bytes, None)
+    put_locked(s, &mut values, page, &bytes, None, None)
 }
 
 struct FitInputs {
@@ -711,6 +717,7 @@ fn put_locked(
     page: usize,
     data: &[u8; PAGE],
     prepared: Option<PreparedFit>,
+    cache: Option<&mut literals::FileCandidate>,
 ) -> c_int {
     let _commit_interval = s.profile.as_ref().map(|p| p.begin_commit());
     let dst = values.get(page);
@@ -729,7 +736,7 @@ fn put_locked(
     let (group, literals) = values.write_group(page);
     let slot = &mut group.values[page % directory::GROUP];
     let hash = literals.active().then(|| literals.fingerprint(data));
-    if let Some(shared) = hash.and_then(|h| literals.lookup(h, data, slot.literal_base())) {
+    if let Some(shared) = hash.and_then(|h| literals.lookup(h, data, slot.literal_base(), cache)) {
         slot.replace(shared, literals);
         return 0;
     }
@@ -786,6 +793,39 @@ pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]
     }
     0
 }
+// The caller holds a read guard for the entire group. A run can use its first
+// destination as the pristine base until every other page has received a copy.
+fn decode_group(mut values: &[Value], mut pages: &mut [[u8; PAGE]]) -> Result<u64, ()> {
+    let mut restores = 0;
+    while let Some((first, rest)) = values.split_first() {
+        let (head, tail) = pages.split_first_mut().unwrap();
+        if let Some(base) = first.literal_base() {
+            base.read(head)?;
+            let shared = rest
+                .iter()
+                .take_while(|next| next.literal_base().is_some_and(|b| Arc::ptr_eq(base, b)));
+            let mut copies = 0;
+            for (value, dst) in shared.zip(tail.iter_mut()) {
+                verdant_tensor::memory::copy_storage_block(head, dst).map_err(|_| ())?;
+                if let Value::Residual(residual) = value {
+                    residual.apply(dst);
+                }
+                copies += 1;
+            }
+            if let Value::Residual(residual) = first {
+                residual.apply(head);
+            }
+            pages = &mut tail[copies..];
+            values = &rest[copies..];
+        } else {
+            first.decode(head)?;
+            restores += u64::from(first.selector_base().is_some());
+            values = rest;
+            pages = tail;
+        }
+    }
+    Ok(restores)
+}
 /// Read consecutive full pages. An absent group is one contiguous zero range.
 #[no_mangle]
 pub unsafe extern "C" fn store_read_pages(
@@ -812,14 +852,10 @@ pub unsafe extern "C" fn store_read_pages(
         let n = (count - done).min(directory::GROUP - lane);
         let dst = out.add(done * PAGE);
         if let Some(group) = values.group_at(page) {
-            for (i, value) in group.values[lane..lane + n].iter().enumerate() {
-                if value
-                    .decode(&mut *dst.add(i * PAGE).cast::<[u8; PAGE]>())
-                    .is_err()
-                {
-                    return -1;
-                }
-                restores += u64::from(value.selector_base().is_some());
+            let pages = slice::from_raw_parts_mut(dst.cast::<[u8; PAGE]>(), n);
+            match decode_group(&group.values[lane..lane + n], pages) {
+                Ok(decoded) => restores += decoded,
+                Err(()) => return -1,
             }
         } else {
             ptr::write_bytes(dst, 0, n * PAGE);
@@ -1069,7 +1105,10 @@ mod host_tests {
             let prepared = inputs.prepare(&s, submitted);
             assert_eq!(unsafe { store_put(&s, competing_page, competing_bytes) }, 0);
             let mut dir = s.write_directory();
-            assert_eq!(put_locked(&s, &mut dir, 0, submitted, Some(prepared)), 0);
+            assert_eq!(
+                put_locked(&s, &mut dir, 0, submitted, Some(prepared), None),
+                0
+            );
             assert_eq!(
                 s.profile.as_ref().unwrap().used.load(Ordering::Relaxed),
                 0,

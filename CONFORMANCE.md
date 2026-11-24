@@ -43,6 +43,9 @@ The three honesty levels (R2):
 | `VR-21` | `open` | A contended full-page write can fit a candidate outside the directory lock and uses it only while its selector and regional search inputs still match at commit |  |
 | `VR-22` | `build` | For equal verified work, modeled overlap improves makespan exactly when it exceeds additional critical-path cost; page latency and deadline misses have separate break-even conditions, and selection minimizes measured elapsed time among eligible alternatives | `Performance.overlapBreakEven`, `Performance.idealBreakEven`, `Performance.pageBreakEven`, `Performance.tailNonincrease`, `Performance.bestAtDeadline`, `Performance.attainable` |
 | `VR-23` | `open` | A region-only change permits reuse of the selector-dependent page encoding and replay of an equivalent skip or successful refit against live credits |  |
+| `VR-24` | `build` | Nearest-rank p99 is certified from strict and tied counts, and shortening one sequential worker has an exact elapsed-time gain in a fixed parallel schedule | `Performance.rankWitness`, `Performance.missBudget`, `Performance.laneFloor`, `Performance.laneGain` |
+| `VR-25` | `open` | One range read restores adjacent pages sharing an immutable file literal from one backing read per run within a policy group, including pages with distinct XOR residuals |  |
+| `VR-26` | `open` | A multi-page writer can reuse its last successful immutable file literal read for admission without retaining ownership or bypassing exact candidate selection |  |
 
 ## Cited authorities
 

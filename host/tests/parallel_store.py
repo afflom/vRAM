@@ -24,10 +24,10 @@ with tempfile.TemporaryDirectory() as tmp:
                         "-lpthread", "-ldl", "-lm", "-o", binaries[name]], check=True)
     for repeat in range(8):
         for version in (("control", "current") if repeat % 2 == 0 else ("current", "control")):
-            output = subprocess.check_output([binaries[version], "UDPF"], text=True)
+            output = subprocess.check_output([binaries[version], "UDPFA"], text=True)
             rows = [json.loads(line) for line in output.splitlines()]
-            if ([r["profile"] for r in rows] != list("UDPF") or
-                    any(r["verified_pages"] != 4096 or r["write_ns"] <= 0 for r in rows)):
+            if ([r["profile"] for r in rows] != list("UDPFA") or
+                    any(r["verified_pages"] != 4096 or min(r["write_ns"], r["read_ns"], r["range_read_p99_ns"]) <= 0 for r in rows)):
                 raise ValueError(f"incomplete parallel store trial: {rows}")
             trials.extend(dict(version=version, repeat=repeat, **r) for r in rows)
 args.result.write_text(json.dumps(dict(commits=commits, workers=8, mib=16, batch_pages=4,

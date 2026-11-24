@@ -21,6 +21,7 @@ int store_write_pages(struct store *, size_t first, size_t count, const uint8_t 
 int store_read_pages(struct store *, size_t first, size_t count, uint8_t *out);
 /* Encoding-only reuse count, fit wall ns, overlapping commit ns, snapshot ns, validation ns, live credit replays, reacquisition ns. */
 void store_fit_profile(struct store *, uint64_t metrics[7]);
+uint64_t store_reacquire_commit_ns(struct store *);
 void store_fit_counts(struct store *, uint64_t counts[2]);
 void store_io_times(struct store *, uint64_t nanoseconds[4]);
 int store_discard(struct store *, size_t start, size_t count);

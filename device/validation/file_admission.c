@@ -41,6 +41,59 @@ static int collisions(struct store *s)
     return !store_discard(s, 0, 2) && verify(s, 2, edited) && verify(s, 3, b);
 }
 
+static int shared_range(struct store *s)
+{
+    /* The run starts on a residual and crosses a group boundary. Two distinct
+     * dense bases have identical fingerprint samples. Page 68 is a hole. */
+    enum { FIRST = 62, COUNT = 8 };
+    u8 want[COUNT][PAGE], out[COUNT][PAGE];
+    expected(0, 'C', want[1]);
+    expected(1, 'C', want[4]);
+    unsigned bases[] = {1, 1, 1, 1, 4, 4, 0, 1};
+    if (store_discard(s, 0, PAGES) || store_put(s, 0, want[1]) || store_put(s, 1, want[4]))
+        return 0;
+    for (unsigned i = 0; i < COUNT; ++i) {
+        if (i == 6) {
+            memset(want[i], 0, PAGE);
+            continue;
+        }
+        if (bases[i] != i) memcpy(want[i], want[bases[i]], PAGE);
+        if (i == 0 || i == 2 || i == 3 || i == 5) want[i][125 + i] ^= 73;
+        if (store_put(s, FIRST + i, want[i])) return 0;
+    }
+    uint64_t before, after, writes;
+    store_file_stats(s, &before, &writes);
+    if (store_read_pages(s, FIRST, COUNT, out[0]) || memcmp(out, want, sizeof(out))) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after - before != 4) {
+        fprintf(stderr, "range restore used %lu backing reads, expected 4\n", after - before);
+        return 0;
+    }
+    return 1;
+}
+
+static int shared_admissions(struct store *s)
+{
+    u8 base[PAGE], batch[5][PAGE];
+    expected(23, 'U', base);
+    if (store_discard(s, 0, PAGES) || store_put(s, 0, base)) return 0;
+    for (unsigned i = 0; i < 5; ++i) {
+        memcpy(batch[i], base, PAGE);
+        if (i != 2) batch[i][347 + i] ^= 31;
+    }
+    uint64_t before, after, writes, previous_writes;
+    store_file_stats(s, &before, &previous_writes);
+    if (store_write_pages(s, 62, 5, batch[0])) return 0;
+    store_file_stats(s, &after, &writes);
+    if (after - before != 1 || writes != previous_writes) {
+        fprintf(stderr, "range admission used %lu backing reads, expected 1\n", after - before);
+        return 0;
+    }
+    for (unsigned i = 0; i < 5; ++i)
+        if (!verify(s, 62 + i, batch[i])) return 0;
+    return 1;
+}
+
 static int edit_limit(struct store *s)
 {
     u8 a[PAGE], near[PAGE], far[PAGE];
@@ -192,6 +245,8 @@ int main(void)
     s = store_new_file(PAGES, fd);
     if (!s) return 1;
     int fit = collisions(s);
+    int ranges = shared_range(s);
+    int admissions = shared_admissions(s);
     int boundary = edit_limit(s);
     int convergence = converging_overwrites(s);
     int edits = incumbent_edits(s);
@@ -200,5 +255,5 @@ int main(void)
     int rollback = failed_writes(s, fd);
     store_free(s);
     close(fd);
-    return !(torn && fit && boundary && convergence && edits && rollback);
+    return !(torn && fit && ranges && admissions && boundary && convergence && edits && rollback);
 }

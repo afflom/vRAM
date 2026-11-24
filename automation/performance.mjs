@@ -22,29 +22,59 @@ const rows = receipt.trials.filter(row => row.backend === 'vram');
 const widths = [1, 2, 4, 8];
 if (receipt.workload_mib !== 64 || rows.length !== widths.length * 4)
     throw Error('Expected the complete 64 MiB vRAM guest sweep');
-const points = widths.map(vcpus => {
+async function decision(tag, values, bytes) {
+    const request = Buffer.alloc(1 + bytes * values.length);
+    request.write(tag);
+    values.forEach((n, i) => {
+        if (bytes === 4) request.writeUInt32BE(n, 1 + 4 * i);
+        else request.writeBigUInt64BE(BigInt(n), 1 + 8 * i);
+    });
+    const answer = new TextDecoder().decode(await model.dispatch(request));
+    if (answer !== 'yes' && answer !== 'no') throw Error('Unexpected performance-model response');
+    return answer === 'yes';
+}
+
+const witnessFields = ['lane_write_ns', 'below_p99', 'at_p99'];
+const hasWitnesses = receipt.timing_evidence_version === 1 ||
+    rows.some(row => witnessFields.some(field => field in row));
+if (receipt.timing_evidence_version !== undefined && receipt.timing_evidence_version !== 1)
+    throw Error('Unknown timing evidence format');
+const nonnegative = n => Number.isSafeInteger(n) && n >= 0;
+
+async function certify(row) {
+    const {below_p99: below, at_p99: equal, lane_write_ns: lanes} = row;
+    const above = row.verified_pages - below - equal;
+    if (![below, equal, above].every(nonnegative) || !Array.isArray(lanes) ||
+        lanes.length !== row.vcpus || !lanes.every(nonnegative) ||
+        !await decision('r', [below, equal, above], 4)) throw Error('Invalid guest rank or lane evidence');
+    const [longest, other = 0] = [...lanes].sort((a, b) => b - a);
+    const work = lanes.reduce((sum, n) => sum + BigInt(n), 0n);
+    if (!longest || longest > row.write_ns || row.page_write_p99_ns > longest ||
+        BigInt(row.page_write_p99_ns) * BigInt(equal + above) > work ||
+        (row.page_write_p99_ns === 0 && below > 0)) throw Error('Inconsistent page and lane timings');
+    const gain = longest - other;
+    if (!await decision('k', [0, longest, other, gain], 8)) throw Error('Invalid single-lane gain bound');
+    return {repeat: row.repeat, longest_lane_ns: longest, next_lane_ns: other,
+        outside_longest_lane_ns: row.write_ns - longest, max_single_lane_gain_ns: gain};
+}
+
+const points = [];
+for (const vcpus of widths) {
     const trials = rows.filter(row => row.vcpus === vcpus);
     if (trials.map(row => row.repeat).sort().join(',') !== '0,1,2,3')
         throw Error('Missing or duplicate repetition at ' + vcpus + ' vCPUs');
+    const bounds = [];
     for (const row of trials) {
         if (row.verified_pages !== 16384 || !Number.isSafeInteger(row.write_ns) || row.write_ns <= 0 ||
             !Number.isSafeInteger(row.page_write_p99_ns) || row.page_write_p99_ns < 0 ||
             row.page_write_p99_ns > row.write_ns) throw Error('Invalid guest timing or readback');
+        if (hasWitnesses) bounds.push(await certify(row));
     }
     const elapsed = trials.reduce((sum, row) => sum + row.write_ns, 0);
     if (!Number.isSafeInteger(elapsed)) throw Error('Aggregate time exceeds exact integer precision');
-    return {vcpus, max_trial_p99_ns: Math.max(...trials.map(row => row.page_write_p99_ns)),
-        total_write_ns: elapsed, throughput_mib_s: trials.length * receipt.workload_mib * 1e9 / elapsed};
-});
-
-async function improves(limit, point, incumbent) {
-    const request = Buffer.alloc(33);
-    request.write('b');
-    [limit, point.max_trial_p99_ns, point.total_write_ns, incumbent.total_write_ns]
-        .forEach((n, i) => request.writeBigUInt64BE(BigInt(n), 1 + 8 * i));
-    const answer = new TextDecoder().decode(await model.dispatch(request));
-    if (answer !== 'yes' && answer !== 'no') throw Error('Unexpected performance-model response');
-    return answer === 'yes';
+    points.push({vcpus, max_trial_p99_ns: Math.max(...trials.map(row => row.page_write_p99_ns)),
+        total_write_ns: elapsed, throughput_mib_s: trials.length * receipt.workload_mib * 1e9 / elapsed,
+        ...(hasWitnesses ? {lane_bounds: bounds} : {})});
 }
 
 const deadlines = [...new Set(points.map(p => p.max_trial_p99_ns))].sort((a, b) => a - b);
@@ -52,7 +82,8 @@ let best = points.find(p => p.max_trial_p99_ns === deadlines[0]);
 const frontier = [];
 for (const limit of deadlines) {
     for (const point of points) {
-        if (await improves(limit, point, best)) best = point;
+        if (await decision('b', [limit, point.max_trial_p99_ns, point.total_write_ns, best.total_write_ns], 8))
+            best = point;
     }
     if (frontier.at(-1)?.vcpus !== best.vcpus)
         frontier.push({minimum_p99_budget_ns: limit, vcpus: best.vcpus});
@@ -60,6 +91,6 @@ for (const limit of deadlines) {
 const report = {input_sha256: createHash('sha256').update(raw).digest('hex'),
     model: result.summary.address, accelerator: receipt.accelerator, host_cpus: receipt.host_cpus,
     guest_kernel: receipt.kernel, qemu: receipt.qemu, package_sha256: receipt.package_sha256,
-    workload_mib_per_trial: receipt.workload_mib, trials_per_width: 4, points, frontier};
+    workload_mib_per_trial: receipt.workload_mib, trials_per_width: 4, rank_and_lane_witnesses: hasWitnesses, points, frontier};
 writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report));

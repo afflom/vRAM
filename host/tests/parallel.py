@@ -137,13 +137,14 @@ with tempfile.TemporaryDirectory() as temp:
             if backend == "vram" and (
                     not 0 <= fits["encoding_only"] <= fits["prepared"] - fits["used"]
                     or not 0 <= fits["credit_replays"] <= fits["used"]
+                    or not 0 <= fits["reacquire_commit_ns"] <= fits["reacquire_ns"]
                     or not 0 <= fits["commit_overlap_ns"] <= fits["fit_ns"]
                     or bool(fits["prepared"]) != bool(fits["fit_ns"])):
                 raise ValueError(f"inconsistent fit reuse or overlap: {fits}")
             profile["fits"] = fits
         print("VM profile", backend, profile, flush=True)
         profiles[backend] = profile
-args.result.write_text(json.dumps(dict(**runner,
+args.result.write_text(json.dumps(dict(**runner, timing_evidence_version=1,
     package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(), guest_mib=384,
     workload_mib=64, profile=profiles["vram"], baseline_profile=profiles.get("previous"), trials=rows,
     baseline_package_sha256=hashlib.sha256(args.baseline_package.read_bytes()).hexdigest() if args.baseline_package else None), indent=2) + "\n")

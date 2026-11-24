@@ -51,5 +51,47 @@ theorem{
   statement: ((((bestTime d q t i) =? i) || ((q <=? d) && ((bestTime d q t i) =? t))) = true),
   proof: linear_arithmetic{definitions: [bestTime]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: allowance, parameters: [n : Nat], result: Nat, body: (prim quotient n 100 0 : Nat), executable: true
+}
+definition{
+  name: rank99, parameters: [n : Nat], result: Nat,
+  body: (prim subtract n (allowance n) : Nat)
+}
+definition{
+  name: rankCounts, parameters: [below : Nat, equal : Nat, above : Nat], result: Bool,
+  body: (let n : Nat := ((below + equal) + above);
+    ((above <=? (allowance n)) && ((allowance n) <? (equal + above)))),
+  executable: true
+}
+theorem{
+  name: rankWitness, parameters: [b : Nat, e : Nat, a : Nat],
+  statement: ((disagree (rankCounts b e a) ((b <? (rank99 ((b + e) + a))) && ((rank99 ((b + e) + a)) <=? (b + e)))) = false),
+  proof: linear_arithmetic{definitions: [disagree, rank99, rankCounts]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: missBudget, parameters: [onTime : Nat, late : Nat],
+  statement: ((disagree ((rank99 (onTime + late)) <=? onTime) (late <=? (allowance (onTime + late)))) = false),
+  proof: linear_arithmetic{definitions: [disagree, rank99]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+definition{
+  name: longest, parameters: [lane : Nat, other : Nat], result: Nat,
+  body: (if (lane <? other) then other else lane)
+}
+definition{
+  name: laneGainTicks, parameters: [remaining : Nat, saved : Nat, other : Nat], result: Nat,
+  body: (let lead : Nat := (prim subtract (remaining + saved) other : Nat);
+         (if (saved <? lead) then saved else lead)), executable: true
+}
+theorem{
+  name: laneFloor, parameters: [lane : Nat, other : Nat, overhead : Nat],
+  statement: (((lane <=? ((longest lane other) + overhead)) && (other <=? ((longest lane other) + overhead))) = true),
+  proof: linear_arithmetic{definitions: [longest]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: laneGain, parameters: [remaining : Nat, saved : Nat, other : Nat, overhead : Nat],
+  statement: ((((longest remaining other) + overhead) + (laneGainTicks remaining saved other)) = ((longest (remaining + saved) other) + overhead)),
+  proof: linear_arithmetic{definitions: [laneGainTicks, longest]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

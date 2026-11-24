@@ -41,6 +41,33 @@ impl Drop for Literal {
         self.live.fetch_sub(1, Ordering::Relaxed);
     }
 }
+// A weak identity cannot keep a file slot alive. It also prevents the allocator
+// from recycling this identity while a concurrent commit replaces the last owner.
+pub(super) struct FileCandidate {
+    identity: Weak<Literal>,
+    bytes: [u8; PAGE],
+}
+impl FileCandidate {
+    pub(super) fn new() -> Self {
+        Self {
+            identity: Weak::new(),
+            bytes: [0; PAGE],
+        }
+    }
+
+    fn view<'a>(&'a mut self, base: &'a Arc<Literal>) -> Option<&'a [u8; PAGE]> {
+        let Payload::File(slot) = &base.payload else {
+            return base.view(&mut self.bytes);
+        };
+        if self.identity.as_ptr() != Arc::as_ptr(base) {
+            // A short read can overwrite part of the previous candidate.
+            self.identity = Weak::new();
+            slot.read(&mut self.bytes).ok()?;
+            self.identity = Arc::downgrade(base);
+        }
+        Some(&self.bytes)
+    }
+}
 type Entry = (u64, Weak<Literal>);
 pub(super) struct Pool {
     pub(super) arena: Option<Arc<literal_file::Arena>>,
@@ -88,6 +115,7 @@ impl Pool {
         hash: u64,
         data: &[u8; PAGE],
         incumbent: Option<&Arc<Literal>>,
+        mut cache: Option<&mut FileCandidate>,
     ) -> Option<super::Value> {
         let bucket = &self.buckets[hash as usize & (self.buckets.len() - 1)];
         let indexed = bucket
@@ -105,7 +133,11 @@ impl Pool {
         let mut best: Option<Residual> = None;
         for page in indexed.filter_map(Weak::upgrade).chain(extra.cloned()) {
             let mut scratch = [0; PAGE];
-            let Some(bytes) = page.view(&mut scratch) else {
+            let bytes = match cache.as_deref_mut() {
+                Some(cache) => cache.view(&page),
+                None => page.view(&mut scratch),
+            };
+            let Some(bytes) = bytes else {
                 continue;
             };
             let verdict = decide_uorc_challenger_admission(
@@ -305,7 +337,7 @@ impl Residual {
         self.apply(out);
         Ok(())
     }
-    fn apply(&self, out: &mut [u8; PAGE]) {
+    pub(super) fn apply(&self, out: &mut [u8; PAGE]) {
         for &(i, delta) in &self.edits {
             out[usize::from(i)] ^= delta;
         }
@@ -320,6 +352,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn candidate_identity_survives_short_reads_and_slot_recycling() {
+        use std::fs::{remove_file, OpenOptions};
+        let path = std::env::temp_dir().join(format!("vram-candidate-{}", std::process::id()));
+        let file = OpenOptions::new()
+            .create_new(true)
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        remove_file(path).unwrap();
+        file.set_len(3 * PAGE as u64).unwrap();
+        let mut pool = Pool::new();
+        pool.arena = literal_file::Arena::new(file.try_clone().unwrap(), 2);
+        let a = pool.insert(None, &[91; PAGE]).unwrap();
+        let b = pool.insert(None, &[37; PAGE]).unwrap();
+        let mut cache = FileCandidate::new();
+        assert_eq!(cache.view(&a), Some(&[91; PAGE]));
+        assert_eq!(Arc::strong_count(&a), 1);
+        file.set_len((PAGE + 400) as u64).unwrap();
+        assert!(cache.view(&b).is_none());
+        assert_eq!(cache.view(&a), Some(&[91; PAGE]));
+        drop(a);
+        let c = pool.insert(None, &[82; PAGE]).unwrap();
+        assert_eq!(cache.view(&c), Some(&[82; PAGE]));
+    }
+
+    #[test]
     fn a_later_base_with_fewer_edits_wins() {
         let mut pool = Pool::new();
         let a = [5; PAGE];
@@ -330,13 +389,14 @@ mod tests {
         let tag = pool.fingerprint(&a);
         let _first = pool.insert(Some(tag), &a).unwrap();
         let second = pool.insert(Some(tag), &b).unwrap();
-        let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near, None) else {
+        let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near, None, None)
+        else {
             panic!("expected a sparse residual");
         };
         assert!(Arc::ptr_eq(&residual.base, &second));
         assert_eq!(residual.edits.len(), 30);
         assert!(
-            matches!(pool.lookup(tag, &b, None), Some(super::super::Value::Shared(exact)) if Arc::ptr_eq(&exact, &second))
+            matches!(pool.lookup(tag, &b, None, None), Some(super::super::Value::Shared(exact)) if Arc::ptr_eq(&exact, &second))
         );
     }
 
@@ -351,7 +411,7 @@ mod tests {
         }
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None, None),
                 Some(super::super::Value::Shared(_))
             ));
         }
@@ -360,7 +420,7 @@ mod tests {
         pool.try_rebuild(usize::MAX);
         assert_eq!(pool.buckets.len(), full);
         assert!(pool
-            .lookup(1024, owners[1024].view(&mut [0; PAGE]).unwrap(), None)
+            .lookup(1024, owners[1024].view(&mut [0; PAGE]).unwrap(), None, None)
             .is_some());
         owners.truncate(257);
         pool.resize_for_live_bases();
@@ -371,7 +431,7 @@ mod tests {
         );
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap(), None, None),
                 Some(super::super::Value::Shared(_))
             ));
         }
