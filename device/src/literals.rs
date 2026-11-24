@@ -18,21 +18,19 @@ impl Drop for Literal {
         self.live.fetch_sub(1, Ordering::Relaxed);
     }
 }
-type Entry = Option<(u64, Weak<Literal>)>;
+type Entry = (u64, Weak<Literal>);
 pub(super) struct Pool {
     keys: RandomState,
-    slots: Vec<Entry>,
-    limit: usize,
+    buckets: Vec<Vec<Entry>>,
     live: Arc<AtomicU64>,
     pub(super) hits: u64,
     pub(super) residuals: u64,
 }
 impl Pool {
-    pub(super) fn new(pages: usize) -> Self {
+    pub(super) fn new() -> Self {
         Self {
             keys: RandomState::new(),
-            slots: Vec::new(),
-            limit: pages.clamp(4, 16384).next_power_of_two(),
+            buckets: Vec::new(),
             live: Arc::default(),
             hits: 0,
             residuals: 0,
@@ -43,11 +41,11 @@ impl Pool {
             .hash_one((&data[..8], &data[PAGE / 2..PAGE / 2 + 8], &data[PAGE - 8..]))
     }
     pub(super) fn active(&self) -> bool {
-        !self.slots.is_empty()
+        !self.buckets.is_empty()
     }
     pub(super) fn lookup(&mut self, hash: u64, data: &[u8; PAGE]) -> Option<super::Value> {
-        let index = (hash as usize & (self.limit - 1)) & !3;
-        for (tag, weak) in self.slots[index..index + 4].iter().flatten() {
+        let bucket = &self.buckets[hash as usize & (self.buckets.len() - 1)];
+        for (tag, weak) in bucket {
             if *tag != hash {
                 continue;
             }
@@ -66,9 +64,8 @@ impl Pool {
                 return Some(super::Value::Shared(page));
             }
         }
-        let residual = self.slots[index..index + 4]
+        let residual = bucket
             .iter()
-            .flatten()
             .filter(|(tag, _)| *tag == hash)
             .filter_map(|(_, weak)| Residual::fit(weak.upgrade()?, data))
             .min_by_key(Residual::charge)?;
@@ -77,46 +74,81 @@ impl Pool {
     }
     pub(super) fn insert(&mut self, hash: Option<u64>, bytes: Box<[u8; PAGE]>) -> Arc<Literal> {
         let hash = hash.unwrap_or_else(|| self.fingerprint(&bytes));
-        if self.slots.is_empty() {
-            self.slots.resize_with(self.limit, || None);
-        }
         let page = Arc::new(Literal {
             bytes,
             live: self.live.clone(),
         });
         self.live.fetch_add(1, Ordering::Relaxed);
-        let index = (hash as usize & (self.limit - 1)) & !3;
-        let bucket = &mut self.slots[index..index + 4];
-        let way = bucket
-            .iter()
-            .position(|entry| {
-                entry
-                    .as_ref()
-                    .is_none_or(|(_, weak)| weak.strong_count() == 0)
-            })
-            .unwrap_or((hash >> 32) as usize & 3);
-        bucket[way] = Some((hash, Arc::downgrade(&page)));
+        self.resize_for_live_bases();
+        if self.buckets.is_empty() {
+            return page;
+        }
+        let index = hash as usize & (self.buckets.len() - 1);
+        let bucket = &mut self.buckets[index];
+        bucket.retain(|(_, weak)| weak.strong_count() != 0);
+        let entry = (hash, Arc::downgrade(&page));
+        // Bound full-page comparisons for identical samples. Unrelated
+        // fingerprints in the same bucket keep their own candidates.
+        if let Some(last) = bucket.iter_mut().filter(|(tag, _)| *tag == hash).nth(3) {
+            *last = entry;
+        } else if bucket.try_reserve(1).is_ok() {
+            bucket.push(entry);
+        }
         page
     }
     pub(super) fn live(&self) -> u64 {
         self.live.load(Ordering::Relaxed)
     }
-    pub(super) fn release_if_empty(&mut self) {
-        // Residuals also own bases. Their last drop retires the index just as
-        // removing the final exact reference does. Keep lifetime hit counters.
-        if self.active() && self.live() == 0 {
-            self.slots = Vec::new();
+    pub(super) fn resize_for_live_bases(&mut self) {
+        let live = self.live();
+        let mut count = self.buckets.len();
+        loop {
+            count = match vram_index_step::run(count as u64, live) {
+                0 => {
+                    self.buckets = Vec::new();
+                    return;
+                }
+                1 => 4,
+                2 => count * 2,
+                3 => count / 2,
+                4 => break,
+                _ => unreachable!("invalid index policy step"),
+            };
         }
+        if count != self.buckets.len() {
+            self.try_rebuild(count);
+        }
+    }
+    fn try_rebuild(&mut self, count: usize) {
+        // Keep the old index usable if memory pressure prevents a rebuild.
+        // Every logical page owns its base independently of either index.
+        let mut buckets: Vec<Vec<Entry>> = Vec::new();
+        if buckets.try_reserve_exact(count).is_err() {
+            return;
+        }
+        buckets.resize_with(count, Vec::new);
+        for (hash, weak) in self.buckets.iter().flatten() {
+            if weak.strong_count() != 0 {
+                let bucket = &mut buckets[*hash as usize & (count - 1)];
+                if bucket.try_reserve(1).is_err() {
+                    return;
+                }
+                bucket.push((*hash, weak.clone()));
+            }
+        }
+        self.buckets = buckets;
     }
     pub(super) fn charge(&self) -> usize {
         let live = self.live() as usize;
+        let allocated: usize = self.buckets.iter().map(Vec::capacity).sum();
         let dead = self
-            .slots
+            .buckets
             .iter()
             .flatten()
-            .filter(|(_, w)| w.strong_count() == 0)
+            .filter(|(_, weak)| weak.strong_count() == 0)
             .count();
-        self.slots.capacity() * size_of::<Entry>()
+        self.buckets.capacity() * size_of::<Vec<Entry>>()
+            + allocated * size_of::<Entry>()
             + live * PAGE
             + (live + dead) * (size_of::<Literal>() + 2 * size_of::<usize>())
     }
@@ -178,5 +210,48 @@ impl Residual {
     }
     pub(super) fn charge(&self) -> usize {
         size_of::<Self>() + std::mem::size_of_val(&*self.edits)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn large_dictionary_survives_growth_and_partial_trim() {
+        let mut pool = Pool::new();
+        let mut owners = Vec::new();
+        for tag in 0..32768u64 {
+            let mut bytes = Box::new([0; PAGE]);
+            bytes[..8].copy_from_slice(&tag.to_le_bytes());
+            owners.push(pool.insert(Some(tag), bytes));
+        }
+        for (tag, base) in owners.iter().enumerate() {
+            assert!(matches!(
+                pool.lookup(tag as u64, &base.bytes),
+                Some(super::super::Value::Shared(_))
+            ));
+        }
+        let full = pool.buckets.len();
+        // Force a capacity error before replacing a populated index.
+        pool.try_rebuild(usize::MAX);
+        assert_eq!(pool.buckets.len(), full);
+        assert!(pool.lookup(1024, &owners[1024].bytes).is_some());
+        owners.truncate(257);
+        pool.resize_for_live_bases();
+        assert!(pool.buckets.len() < full);
+        assert_eq!(
+            pool.buckets.iter().map(Vec::len).sum::<usize>(),
+            owners.len()
+        );
+        for (tag, base) in owners.iter().enumerate() {
+            assert!(matches!(
+                pool.lookup(tag as u64, &base.bytes),
+                Some(super::super::Value::Shared(_))
+            ));
+        }
+        owners.clear();
+        pool.resize_for_live_bases();
+        assert_eq!(pool.charge(), 0);
     }
 }

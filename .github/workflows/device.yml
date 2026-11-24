@@ -9,7 +9,7 @@ on:
         description: Workload (S for two-class pages, F for tiled factors, U for pseudorandom, M for mixed)
         default: F
         type: choice
-        options: [S, F, U, M, R, D]
+        options: [S, F, U, M, R, D, W]
       ceiling:
         description: Logical ceiling in MiB
         default: '256'
@@ -52,6 +52,9 @@ jobs:
         run: |
           (cd device && cargo test --locked --offline)
           make -C host LDFLAGS=-static
+          cc -Wall -Wextra -O2 -Idevice/native device/validation/churn.c \
+            device/target/release/libverdant_memory.a -lpthread -ldl -lm -o "$RUNNER_TEMP/vram-churn"
+          "$RUNNER_TEMP/vram-churn"
       - name: Boot Linux and verify Verdant swap
         run: |
           sudo apt-get update -qq
@@ -66,11 +69,13 @@ jobs:
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* \
             --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
             --result measurements/local/linux-host.json
-          for profile in R D U; do
+          for profile in R D U W; do
+            size=32
+            if [ "$profile" = W ]; then size=256; fi
             python3 host/tests/boot.py --qemu "$(command -v qemu-system-x86_64)" \
               --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* \
               --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
-              --managed --profile "$profile" --result "measurements/local/managed-$profile.json"
+              --managed --mib "$size" --profile "$profile" --result "measurements/local/managed-$profile.json"
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json

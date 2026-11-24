@@ -63,3 +63,10 @@ id = "VR-09"
 level = "open"
 suite = "capacity"
 statement = "Dense pages sharing a literal base may be stored as exact sparse XOR residuals"
+
+[[id]]
+id = "VR-10"
+level = "build"
+suite = "capacity"
+statement = "Literal index sizing follows live bases through growth, reuse and release"
+theorems = ["IndexPolicy.releaseEmpty", "IndexPolicy.firstBase", "IndexPolicy.growAtLoad", "IndexPolicy.stableAtLoad", "IndexPolicy.shrinkAfterTrim"]

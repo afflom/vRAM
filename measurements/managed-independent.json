@@ -1,39 +1,42 @@
 {
   "verified_bytes": 67108864,
-  "linux_swap_writes": 16385,
-  "linux_swap_reads": 15615,
+  "linux_swap_writes": 16384,
+  "linux_swap_reads": 15616,
+  "swapped_ptes": 16384,
+  "present_ptes": 0,
+  "resident_or_cached": 768,
   "managed": true,
   "live": [
     {
-      "store_bytes": 68175037,
+      "store_bytes": 68587844,
       "raw_pages": 16384,
       "unique_literals": 16384,
       "literal_hits": 0,
-      "literal_fast_writes": 15359,
+      "literal_fast_writes": 15360,
       "residual_captures": 0
     },
     {
-      "store_bytes": 2913165,
-      "raw_pages": 640,
-      "unique_literals": 539,
-      "literal_hits": 101,
-      "literal_fast_writes": 15384,
+      "store_bytes": 4293524,
+      "raw_pages": 1089,
+      "unique_literals": 1024,
+      "literal_hits": 65,
+      "literal_fast_writes": 15360,
       "residual_captures": 0
     }
   ],
   "store": {
-    "write_pages": 16513,
-    "read_pages": 15745,
-    "trim_pages": 15872,
-    "raw_pages": 640,
+    "write_pages": 16449,
+    "read_pages": 15808,
+    "trim_pages": 15360,
+    "raw_pages": 1089,
     "selector_pages": 0,
     "selector_restores": 0,
-    "store_bytes": 2913165
+    "store_bytes": 4293524
   },
   "kernel": "vmlinuz-6.12.117+deb13-amd64",
   "linux_ram_mib": 320,
   "workload_memcg_mib": 48,
-  "server_sha256": "93ad735973e4b2cc88a7bfb0c2d86b1335ec7b1b7485050de72d6e01550b7886",
+  "server_sha256": "6c4b1889775e5a11ac23b4f760d23940cf07189c405b03f2b5d2c30c7a273ff1",
   "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
   "accelerator": "TCG",
   "profile": "U"

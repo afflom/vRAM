@@ -89,13 +89,18 @@ print("VRAM_SQLITE",json.dumps(result),flush=True)
 '''
 with tempfile.TemporaryDirectory() as temp:
     tmp = Path(temp)
+    # A concurrent rebuild may replace the original .deb during these boots.
+    # Hash the exact bytes supplied to the seed image.
+    package = args.deb.read_bytes()
+    package_digest = hashlib.sha256(package).hexdigest()
+    (tmp / "vram.deb").write_bytes(package)
     for name, content in {"user-data":install, "meta-data":"instance-id: vram-package-test\nlocal-hostname: vram\n",
                           "network-config":"version: 2\nethernets: {}\n", "second.service":second,
                           "workload.py":workload}.items():
         (tmp/name).write_text(content)
     subprocess.run([args.genisoimage,"-quiet","-o",tmp/"seed.iso","-volid","cidata","-joliet","-rock","-graft-points",
                     *[name+"="+str(tmp/name) for name in ("user-data","meta-data","network-config","second.service","workload.py")],
-                    "vram.deb="+str(args.deb.resolve())],check=True)
+                    "vram.deb="+str(tmp/"vram.deb")],check=True)
     argv = [args.qemu,"-machine","pc","-accel","tcg","-cpu","max","-smp","2","-m","1536","-nodefaults",
             "-drive",f"if=ide,index=0,format=qcow2,snapshot=on,file={args.image.resolve()}",
             "-drive",f"if=ide,index=2,media=cdrom,format=raw,readonly=on,file={tmp/'seed.iso'}",
@@ -109,7 +114,7 @@ with tempfile.TemporaryDirectory() as temp:
     match=re.search(r"VRAM_SQLITE (\{[^\n]+\})",log)
     if proc.returncode or not match or "VRAM_INSTALLED_AND_DRAINED" not in log or "VRAM_REBOOT_PASSED" not in log:
         raise SystemExit(log[-6000:])
-    result=dict(workload=json.loads(match[1]),package_sha256=hashlib.sha256(args.deb.read_bytes()).hexdigest(),
+    result=dict(workload=json.loads(match[1]),package_sha256=package_digest,
                 image_sha256=hashlib.file_digest(args.image.open('rb'),'sha256').hexdigest(),enabled_after_reboot=True,
                 guest_ram_mib=1536,workload_memory_max_mib=40)
     args.result.write_text(json.dumps(result,indent=2)+"\n")

@@ -19,14 +19,14 @@ for name in ("qemu", "kernel", "nbd", "result"):
     parser.add_argument("--" + name, type=Path, required=True)
 parser.add_argument("--bios-dir", type=Path, help="firmware directory for a custom QEMU build")
 parser.add_argument("--mib", type=int, default=32)
-parser.add_argument("--profile", choices=("S", "M", "R", "U", "D"), default="M")
+parser.add_argument("--profile", choices=("S", "M", "R", "U", "D", "W"), default="M")
 parser.add_argument("--managed", action="store_true", help="exercise automatic swapon, readiness, status and drain")
 args = parser.parse_args()
 if not 16 <= args.mib <= 8192:
     parser.error("use a workload between 16 and 8192 MiB")
 server = root / "host/build/vram-host"
 payload = server.read_bytes()
-vm_mib = 256 + (args.mib if args.profile in ("M", "U") else args.mib // 8)
+vm_mib = (512 if args.profile == "W" else 256) + (args.mib if args.profile in ("M", "U") else args.mib // 8)
 with tempfile.TemporaryDirectory() as directory:
     tmp = Path(directory)
     subprocess.run(["cc", "-static", "-O2", f"-DWORK_MIB={args.mib}", f"-DMANAGED={int(args.managed)}",
@@ -62,6 +62,10 @@ with tempfile.TemporaryDirectory() as directory:
         if args.profile == "R" and (live[0]["literal_hits"] < args.mib * 128 or
                                      live[0]["unique_literals"] >= live[0]["raw_pages"]):
             sys.exit("Repeated literals were not shared")
+        if args.profile == "W" and args.mib >= 256 and (
+                live[0]["raw_pages"] < args.mib * 192 or live[0]["unique_literals"] > 32770
+                or live[0]["literal_hits"] < live[0]["raw_pages"] - 32770):
+            sys.exit("Wide dense dictionary lost indexed bases")
         if args.profile == "D" and live[0]["residual_captures"] < args.mib * 128:
             sys.exit("Dense residuals were not admitted")
         if args.profile == "U" and live[0]["literal_fast_writes"] < args.mib * 128:

@@ -10,9 +10,9 @@ import {load} from 'prism-code';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [profile, ceilingText, budgetText, filename] = process.argv.slice(2);
 const ceiling = Number(ceilingText), budget = Number(budgetText);
-if (!/^[SFUMRD]$/.test(profile ?? '') || !Number.isSafeInteger(ceiling) || ceiling < 4 ||
-    ceiling > 65536 || !Number.isSafeInteger(budget) || budget < 8 || budget > 65536 || !filename) {
-  throw Error('Usage: node automation/operate.mjs S|F|U|M|R|D CEILING_MiB(4..65536) RSS_BUDGET_MiB(8..65536) OUTPUT.json');
+if (!/^[SFUMRDW]$/.test(profile ?? '') || !Number.isSafeInteger(ceiling) || ceiling < 4 ||
+    ceiling > 1048576 || !Number.isSafeInteger(budget) || budget < 8 || budget > 65536 || !filename) {
+  throw Error('Usage: node automation/operate.mjs S|F|U|M|R|D|W CEILING_MiB(4..1048576) RSS_BUDGET_MiB(8..65536) OUTPUT.json');
 }
 const out = resolve(filename);
 if (existsSync(out)) throw Error('Use a fresh output path for each experiment');
@@ -50,7 +50,7 @@ function assess(row, limit) {
 async function nextExtent(previous) {
   const response = await dispatch(packet('g', [previous, ceiling]));
   const next = Number(response);
-  if (!/^\d{5}$/.test(response) || next <= previous || next > ceiling) throw Error('Invalid extent from model');
+  if (!/^\d{5,7}$/.test(response) || next <= previous || next > ceiling) throw Error('Invalid extent from model');
   return next;
 }
 function trial(mib, nodes) {

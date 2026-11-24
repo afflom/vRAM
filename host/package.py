@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as directory:
     meta = root / "DEBIAN"
     meta.mkdir()
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.2.1\nArchitecture: amd64\n"
+        "Package: vram-host\nVersion: 0.3.0\nArchitecture: amd64\n"
         "Maintainer: vRAM maintainers <noreply@github.com>\nDepends: systemd, kmod\n"
         "Description: Verdant tensor-backed volatile Linux swap service\n"
         "Homepage: https://github.com/afflom/vRAM\n")

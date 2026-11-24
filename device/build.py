@@ -11,17 +11,23 @@ root = Path(__file__).resolve().parent
 
 
 def verify_packages():
-    host = root / "proof/host"
-    manifest = json.loads((host / "build-manifest.json").read_bytes())
-    attestation = json.loads((host / "bundle/evidence/attestation.json").read_bytes())
-    source, = [item for item in manifest["inputs"] if item["kind"] == "source"]
-    # Bind the model used by the service to the source checked by the root Prism project.
-    if (hashlib.sha256((host / "build-manifest.json").read_bytes()).hexdigest() != "204dbd353c4b049a801f4efd22a69cd20f4aac931f40da6d72699016a3c27bb6"
-        or manifest["build_id"] != attestation["build_id"]
-        or hashlib.sha256((root.parent / "app" / source["path"]).read_bytes()).hexdigest() != source["sha256"]):
-        raise ValueError("host policy differs from the certified native export")
+    # Each manifest binds the compiled native export to the canonical Prism module.
+    for policy, digest in (
+        ("host", "204dbd353c4b049a801f4efd22a69cd20f4aac931f40da6d72699016a3c27bb6"),
+        ("index", "55e68570fb4a1d97c2f04e36c3007bfd1db92a8dad353798b7af725a46f5ca13"),
+    ):
+        directory = root / "proof" / policy
+        raw = (directory / "build-manifest.json").read_bytes()
+        manifest = json.loads(raw)
+        attestation = json.loads((directory / "bundle/evidence/attestation.json").read_bytes())
+        source, = [item for item in manifest["inputs"] if item["kind"] == "source"]
+        if (hashlib.sha256(raw).hexdigest() != digest
+            or manifest["build_id"] != attestation["build_id"]
+            or hashlib.sha256((root.parent / "app" / source["path"]).read_bytes()).hexdigest() != source["sha256"]):
+            raise ValueError(f"{policy} policy differs from the certified native export")
     locked = {p["name"]: p for p in tomllib.loads((root / "Cargo.lock").read_text())["package"]}
     for location, pinned in (
+        ("proof/index/bundle", "898ba65368d480525b2a742e5080577354dfecc8faea910222de70e945f5cd3f"),
         ("proof/host/bundle", "7809b584eaefbb34fb11efe12edf02232d287be713bde40ff1c3d401f0ee26f2"),
         ("proof/search/bundle", "45b658a8b20192b3a99246b765a30bc6258a922199ad7a340e47a0c0c7cba02e"),
         ("proof/bundle", "6ccd8c2fe515cd0b4b5c6321c4a03e12c1692b8a81fa655b3f01f33b765f598c"),

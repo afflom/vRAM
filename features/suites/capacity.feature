@@ -53,3 +53,9 @@ Feature: capacity
     Given high-entropy pages with a small number of changed coordinates
     When the original address is overwritten or discarded
     Then every dependent page still reconstructs its original bytes
+
+  @VR-10 @build
+  Scenario: Resize the dense-base index with the live dictionary
+    Given an index with 4096 buckets
+    When the number of live bases increases from 16383 to 16384
+    Then the next bucket count increases from 4096 to 8192

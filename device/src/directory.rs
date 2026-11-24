@@ -32,7 +32,7 @@ impl Directory {
         Some(Self {
             count,
             leaves,
-            literals: super::literals::Pool::new(count),
+            literals: super::literals::Pool::new(),
         })
     }
     pub(super) fn get(&self, page: usize) -> Option<&Value> {
@@ -92,7 +92,7 @@ impl Directory {
             }
             start += n;
         }
-        self.literals.release_if_empty();
+        self.literals.resize_for_live_bases();
     }
     fn groups(&self) -> impl Iterator<Item = &Group> {
         self.leaves

@@ -148,6 +148,7 @@ dependencies = [
  "vram_advance",
  "vram_empty_group",
  "vram_host_size",
+ "vram_index_step",
  "vram_lifecycle",
  "vram_range",
  "vram_representation",
@@ -737,6 +738,12 @@ name = "vram_host_size"
 version = "0.1.0"
 source = "sparse+http://127.0.0.1:17943/"
 checksum = "9db124e764bebbc7b7cd31ced5067be743892f16ff084e8dd498b5fda8931c1e"
+
+[[package]]
+name = "vram_index_step"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "b858efb30092e3c9c3b26daf3fb296cbc482b6fdafb4acdc443b8a2530164c6d"
 
 [[package]]
 name = "vram_lifecycle"

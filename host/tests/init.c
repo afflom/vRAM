@@ -57,6 +57,31 @@ static void load(const char *path, const char *args)
 	close(fd);
 }
 
+static size_t swapped_pages(const void *mapping, size_t pages)
+{
+	int fd = open("/proc/self/pagemap", O_RDONLY);
+	if (fd < 0) fail("open pagemap");
+	off_t offset = (uintptr_t)mapping / PAGE * sizeof(uint64_t);
+	size_t swapped = 0;
+	uint64_t entries[512];
+	while (pages) {
+		size_t n = pages < 512 ? pages : 512;
+		size_t bytes = n * sizeof(*entries);
+		ssize_t received;
+		do { received = pread(fd, entries, bytes, offset); } while (received < 0 && errno == EINTR);
+		if (received != (ssize_t)bytes) fail("read pagemap");
+		for (size_t i = 0; i < n; ++i) {
+			unsigned state = entries[i] >> 62;
+			if (state == 1) ++swapped;
+			else if (state != 2) fail("expected present or swapped page");
+		}
+		pages -= n;
+		offset += bytes;
+	}
+	close(fd);
+	return swapped;
+}
+
 int main(void)
 {
 	if (ioperm(0xf4, 4, 1)) return 2;
@@ -84,11 +109,18 @@ int main(void)
 		char message[160] = {0};
 		if (poll(&pollfd, 1, 30000) != 1 || recv(notify, message, sizeof(message)-1, 0) <= 0 ||
 		    !strstr(message, "READY=1")) fail("missing readiness");
-	}
-	int retries = 0;
-	while (!MANAGED && (access("/sys/block/nbd0/pid", F_OK) || swapon("/dev/nbd0", 0))) {
-		if (++retries > 60) fail("swapon");
-		usleep(100000);
+	} else {
+		unsigned long expected_sectors = strtoul(SWAP_SIZE, NULL, 10) * 2048;
+		for (unsigned attempt = 0; ; ++attempt) {
+			unsigned long sectors;
+			FILE *size = fopen("/sys/block/nbd0/size", "r");
+			if (!size || fscanf(size, "%lu", &sectors) != 1) fail("read NBD capacity");
+			fclose(size);
+			if (sectors == expected_sectors) break;
+			if (attempt == 200) fail("NBD capacity not ready");
+			usleep(50000);
+		}
+		if (swapon("/dev/nbd0", 0)) fail("swapon");
 	}
 	if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", 0, NULL)) fail("cgroup2");
 	control("/sys/fs/cgroup/cgroup.subtree_control", "+memory");
@@ -113,16 +145,17 @@ int main(void)
 	   eviction before counting any read as a Verdant restore. */
 	u8 *present = calloc(pages, 1);
 	if (!present) fail("mincore allocation");
+	size_t resident = 0;
 	for (int attempt = 0; attempt < 100; attempt++) {
 		if (mincore(mem, bytes, present)) fail("mincore");
-		size_t resident = 0;
+		resident = 0;
 		for (size_t i = 0; i < pages; i++) resident += present[i] & 1;
 		if (resident <= pages / 8) break;
 		usleep(50000);
 		if (madvise(mem, bytes, MADV_PAGEOUT)) fail("drain swap cache");
 	}
 	control("/sys/fs/cgroup/test/memory.max", "50331648");
-	unsigned long written = vmstat("pswpout") - writes_before;
+	size_t swapped = swapped_pages(mem, pages);
 	unsigned long reads_before = vmstat("pswpin");
 	if (MANAGED) { if (kill(host, SIGUSR1)) fail("live stats"); usleep(100000); }
 	for (size_t i = 0; i < pages; i++) {
@@ -134,6 +167,7 @@ int main(void)
 			fail("drop verified tile");
 	}
 	unsigned long read = vmstat("pswpin") - reads_before;
+	unsigned long written = vmstat("pswpout") - writes_before;
 	/* Release the verified virtual extent before fork. Linux otherwise
 	   charges a potential copy of that entire private mapping to commit. */
 	int status;
@@ -161,6 +195,9 @@ int main(void)
 		if (waitpid(host, &status, 0) != host || status) fail("host exit");
 	}
 	printf("VRAM_RESULT {\"verified_bytes\":%zu,\"linux_swap_writes\":%lu,"
-	       "\"linux_swap_reads\":%lu}\n", bytes, written, read);
-	stop(written < pages || read < pages * 3 / 4);
+	       "\"linux_swap_reads\":%lu,\"swapped_ptes\":%zu,\"present_ptes\":%zu,"
+	       "\"resident_or_cached\":%zu}\n", bytes, written, read, swapped, pages - swapped, resident);
+	/* A swap PTE can still point at a resident swap-cache page. */
+	stop(resident > pages / 8 || swapped < pages * 7 / 8 ||
+	     written < pages - resident || read < pages * 3 / 4);
 }

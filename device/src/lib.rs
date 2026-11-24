@@ -412,7 +412,7 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
     } else {
         group.literal_credits = 0;
         *slot = candidate;
-        literals.release_if_empty();
+        literals.resize_for_live_bases();
     }
     0
 }
@@ -639,6 +639,39 @@ mod host_tests {
             assert_eq!(stats[4], initial);
             assert_eq!(stats[0], n as u64);
             store_free(s as *const _ as *mut _);
+        }
+    }
+
+    #[test]
+    fn readers_restore_whole_pages_during_overwrite_and_trim() {
+        use std::sync::Barrier;
+        unsafe {
+            let store = Box::from_raw(store_new(256));
+            let dense = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let mut edited = dense;
+            edited[77] ^= 43;
+            let zero = [0; PAGE];
+            let start = Barrier::new(2);
+            std::thread::scope(|scope| {
+                scope.spawn(|| {
+                    start.wait();
+                    for _ in 0..8 {
+                        for page in 0..256 {
+                            assert_eq!(store_put(&store, page, &dense), 0);
+                            assert_eq!(store_put(&store, page, &edited), 0);
+                        }
+                        assert_eq!(store_discard(&store, 1, 254), 0);
+                        assert_eq!(store_discard(&store, 0, 256), 0);
+                    }
+                });
+                start.wait();
+                let mut restored = [0; PAGE];
+                for i in 0..4096 {
+                    assert_eq!(store_get(&store, (i * 37) % 256, &mut restored), 0);
+                    assert!(restored == zero || restored == dense || restored == edited);
+                }
+            });
+            assert_eq!(store.values.read().unwrap().literals.live(), 0);
         }
     }
 

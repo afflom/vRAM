@@ -2,6 +2,20 @@
   "verified_bytes": 33554432,
   "linux_swap_writes": 8192,
   "linux_swap_reads": 7168,
+  "swapped_ptes": 8192,
+  "present_ptes": 0,
+  "resident_or_cached": 1024,
+  "managed": false,
+  "live": [
+    {
+      "store_bytes": 17775812,
+      "raw_pages": 4096,
+      "unique_literals": 4096,
+      "literal_hits": 0,
+      "literal_fast_writes": 0,
+      "residual_captures": 0
+    }
+  ],
   "store": {
     "write_pages": 8192,
     "read_pages": 7169,
@@ -9,12 +23,12 @@
     "raw_pages": 4096,
     "selector_pages": 4096,
     "selector_restores": 3584,
-    "store_bytes": 17736900
+    "store_bytes": 17775812
   },
   "kernel": "vmlinuz-6.12.117+deb13-amd64",
   "linux_ram_mib": 288,
   "workload_memcg_mib": 48,
-  "server_sha256": "f4107a38f2e9fa0d7ea93e85f56273ab65838bfbdd5023020888fd59f189932b",
+  "server_sha256": "6c4b1889775e5a11ac23b4f760d23940cf07189c405b03f2b5d2c30c7a273ff1",
   "kernel_sha256": "14159c607ad9762133db41e479dafecde1d6a5fe715a8d65d292a3262e4b6bed",
   "accelerator": "TCG",
   "profile": "M"

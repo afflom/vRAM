@@ -6,11 +6,11 @@ On a write, the store measures candidate representations, including fills, spars
 
 ## Install on a Linux computer
 
-On amd64 Debian or Ubuntu with systemd, download `vram-host_0.2.1_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
+On amd64 Debian or Ubuntu with systemd, download `vram-host_0.3.0_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.2.1_amd64.deb
+sudo apt install ./vram-host_0.3.0_amd64.deb
 ```
 
 The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
@@ -26,11 +26,11 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.1_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
+To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.3.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 
-Two pages with high byte diversity can share every coordinate, or differ at only a few. Verdant maintains a bounded index of literal bases across the whole running store. A fingerprint proposes a candidate. Verdant compares the bytes before sharing an immutable allocation. For near matches it builds a sparse list of coordinate-wise XOR differences and admits it after exact reconstruction. A write to the original swap address cannot change any dependent page. Discarding or overwriting the final page that references a literal also frees the lookup table.
+Two pages with high byte diversity can share every coordinate, or differ at only a few. Verdant indexes literal bases across the running store. Prism grows and shrinks its bucket directory with the number of live bases. Unrelated fingerprints that land in one bucket remain searchable. Up to four candidates with identical fingerprint samples receive full byte comparisons. A fingerprint proposes a candidate. Verdant compares the bytes before sharing an immutable allocation. For near matches it builds a sparse list of coordinate-wise XOR differences and admits it after exact reconstruction. A write to the original swap address cannot change any dependent page. Discarding or overwriting the final page that references a literal also frees the lookup table.
 
 Independent pages can still inform scheduling. In a 64-page region, a full literal result allows the Prism scheduler to reduce subsequent fitting work when samples on both axes have high byte diversity. The credits expire and trigger another full probe. This saves CPU on sustained high-entropy writes. Sampling can pass over a compressible page until a later probe. Every representation retains the original bytes.
 
@@ -43,6 +43,16 @@ The native comparison times 128 MiB of writes with the same harness and input ge
 | Independent pseudorandom pages | 128.51 MiB | 129.77 MiB | 0.286 s → 0.117 s | 0.026 s → 0.031 s |
 
 Store charges include the directory, lookup table and live representations. Process RSS, kernel memory and allocator overhead can be higher. The independent control spent more bytes on metadata and less time searching for representations.
+
+## Scaling a dense working set
+
+The wide-dictionary workload cycles through 32,768 distinct pseudorandom 4 KiB pages (128 MiB of unique data). With 512 MiB written, the median store charge across three native trials fell from 432.77 MiB in 0.2.1 to 132.39 MiB in 0.3.0. The newer store kept exactly 32,768 bases. Under a 768 MiB RSS budget, the earlier build stopped after verifying 928.75 MiB of a 64 GiB request. The newer build verified all 64 GiB with 403.63 MiB peak RSS.
+
+The independent 256 MiB control used 259.30 MiB of store in 0.2.1 and 261.63 MiB in 0.3.0. Median write times in that run were 0.294 and 0.322 seconds respectively. A separate six-phase mixed trace exercised writes, overwrites, collisions and discards across 65,536 addresses. Both versions checked every byte after each phase. The new store returned to its 208-byte initial charge on the final discard. Store charge measures owned data structures. Process RSS also includes allocations retained by the system allocator. [Paired trials and mixed trace](measurements/wide-dictionary.json)
+
+The Prism-controlled sweep selected a search budget of seven nodes and advanced through a 256 GiB logical trial. It verified all 67,108,864 pages with 1.19 GiB peak process RSS. Each logical page still needs a directory entry. The measured working set contained 128 MiB of distinct payloads. [Controller checkpoints](measurements/scale-wide-256gib.json)
+
+In a separate Linux trial, a 1 GiB VM used the host server's NBD swap path for a 4 GiB anonymous mapping. Before readback, 1,048,576 page-table entries were swapped and 0 were present. Linux registered 1,047,347 swap-ins. The application checked every byte, and the service drained cleanly. [Linux working-set trial](measurements/linux-wide-4gib.json)
 
 ## Use it as guest main RAM
 
@@ -69,7 +79,7 @@ make -C host
 node automation/operate.mjs F 256 96 measurements/local/factors.json
 ```
 
-The arguments are workload, logical ceiling in MiB, process RSS budget in MiB and output file. Use `S` for rank-two pages, `F` for tiled factors, `M` for alternating structured and pseudorandom pages, `U` for independent pseudorandom bytes, `R` for repeated literals or `D` for dense pages with sparse edits. The receipt records every pilot, selected budget, requested extent, actual page count, byte checks, store charge, RSS and timing. A partial final trial retains its actual verified count. RSS is sampled after groups of 64 writes and may cross the budget. Each trial runs in a fresh process.
+The arguments are workload, logical ceiling in MiB, process RSS budget in MiB and output file. Use `S` for rank-two pages, `F` for tiled factors, `M` for alternating structured and pseudorandom pages, `U` for independent pseudorandom bytes, `R` for repeated literals `D` for dense pages with sparse edits or `W` for 32,768 recurring dense bases. The controller accepts logical ceilings up to 1 TiB and checks the RSS budget at each trial. The receipt records every pilot, selected budget, requested extent, actual page count, byte checks, store charge, RSS and timing. A partial final trial retains its actual verified count. RSS is sampled after groups of 64 writes and may cross the budget. Each trial runs in a fresh process.
 
 For a matching workload, pass the receipt's `search_nodes` as the fourth argument to `vram-host attach`, or as QEMU's `x-search-nodes`. Calibration on representative pages matters. For the earlier 4 MiB tiled-factor pilot, the controller selected 49 nodes and reduced store charge from 4,210,808 to 710,184 bytes. The 64 MiB follow-up verified 16,384 pages and recorded 15,360 template refits. [Pilot and follow-up](measurements/scale-F.json)
 

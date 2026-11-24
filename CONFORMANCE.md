@@ -29,6 +29,7 @@ The three honesty levels (R2):
 | `VR-07` | `build` | Host autosizing reserves headroom and empty page groups can be released | `HostPolicy.sizeFromAvailable`, `HostPolicy.retainOccupied`, `HostPolicy.releaseEmpty` |
 | `VR-08` | `open` | Instance-wide exact literal reuse is measured on repeated and independent high-entropy input |  |
 | `VR-09` | `open` | Dense pages sharing a literal base may be stored as exact sparse XOR residuals |  |
+| `VR-10` | `build` | Literal index sizing follows live bases through growth, reuse and release | `IndexPolicy.releaseEmpty`, `IndexPolicy.firstBase`, `IndexPolicy.growAtLoad`, `IndexPolicy.stableAtLoad`, `IndexPolicy.shrinkAfterTrim` |
 
 ## Cited authorities
 
