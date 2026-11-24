@@ -45,6 +45,7 @@ jobs:
           echo RUSTUP_TOOLCHAIN=1.97.1 >> "$GITHUB_ENV"
       - name: Check and build the Prism model
         run: |
+          python3 automation/facet_queries.py
           automation/node_modules/.bin/prism-code check .
           automation/node_modules/.bin/prism-code build .
           git diff --exit-code -- CONFORMANCE.md
@@ -113,6 +114,7 @@ jobs:
              --backing-dir "$RUNNER_TEMP/reserve-a" --backing-dir "$RUNNER_TEMP/reserve-b" > dist/full-capacity.json)
           python3 -c 'import json; r=json.load(open("dist/full-capacity.json")); assert r["verified_bytes"] == 2**30 and len(r["reserved"]) == 2 and sum(e["files"] for e in r["reserved"]) == 3 and r["verdict"] == "complete"'
           node automation/qualification.mjs dist/full-capacity.json
+          python3 automation/test-qualification.py
           python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
           python3 host/tests/file_scale.py --control measurements/local/control --result dist/file-range.json

@@ -59,6 +59,8 @@ try {
   assert.equal(await evaluate('document.querySelector(".hero-art img").naturalWidth'), 1536);
   await evaluate('theme.value="dark"; theme.dispatchEvent(new Event("change"))');
   await call('Emulation.setDeviceMetricsOverride', {width: 375, height: 812, deviceScaleFactor: 1, mobile: true});
+  await call('Network.enable', {});
+  await call('Network.setBlockedURLs', {urls: ['*facets.json']});
   for (const path of ['./', 'facets.html', 'runtime/']) {
     await navigate(path);
     assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark');
@@ -74,8 +76,13 @@ try {
   await until(() => evaluate('answer.textContent === "complete"'), 'ceiling decision');
   await evaluate('checkpoint.elements.verified.click(); document.querySelector("#run").click()');
   await until(() => evaluate('answer.textContent === "failed readback"'), 'readback decision');
+  await until(() => evaluate('document.getElementById("facet-group").options.length === 10'), 'archived facet index');
+  await evaluate(`const group = document.getElementById('facet-group');
+    group.value = 'security'; group.dispatchEvent(new Event('change'))`);
+  await until(() => evaluate('document.getElementById("facet-record").value === "Product.Security::assetPages"'), 'archived security records');
+  assert.ok(await evaluate('document.getElementById("facet-fields").textContent.includes("componentIndex")'));
   await evaluate('replay.click()');
-  await until(() => evaluate('acceptance.textContent === "68 of 68 acceptance vectors passed."'), 'acceptance replay');
+  await until(() => evaluate('acceptance.textContent === "76 of 76 acceptance vectors passed."'), 'acceptance replay');
   console.log(await evaluate('acceptance.textContent'));
   socket.close();
 } finally {

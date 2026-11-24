@@ -20,6 +20,21 @@ definition{
   body: (ceiling platform guest (backingMib bytes)),
   executable: true, production: {effects: [], targets: [rust-core]}
 }
+definition{
+  name: confirmsTarget, parameters: [configured : Nat, feasible : Nat, target : Nat], result: Bool,
+  body: ((0 <? target) && ((target =? configured) && (target =? feasible))), executable: true
+}
+definition{
+  name: fullAdmission, parameters: [platform : Nat, guest : Nat, address : Nat, backing : Nat, target : Nat], result: Bool,
+  body: (confirmsTarget (smaller platform guest)
+    (plan platform (smaller guest (prim quotient address 1048576 0 : Nat)) backing) target),
+  executable: true
+}
+theorem{
+  name: fullAdmissionTarget, parameters: [c : Nat, f : Nat, t : Nat],
+  statement: (((confirmsTarget c f t) && (not ((t =? c) && (t =? f)))) = false),
+  proof: linear_arithmetic{definitions: [confirmsTarget]}, axioms: [Classical.choice, Quot.sound, propext]
+}
 theorem{
   name: admissible, parameters: [p : Nat, g : Nat, b : Nat],
   statement: ((((ceiling p g b) <=? p) && (((ceiling p g b) <=? g) && ((ceiling p g b) <=? b))) = true),

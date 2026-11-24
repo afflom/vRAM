@@ -24,7 +24,7 @@ The three honesty levels (R2):
 | `VR-02` | `build` | A failed byte check stops the sweep at any budget or ceiling | `Contract.failedBytesStop`, refuses with `failed readback` |
 | `VR-03` | `open` | Lossless capacity and cost are measured for each workload and host backend |  |
 | `VR-04` | `build` | Pilot optimization replaces the incumbent only for a verified improvement | `Contract.preferSmaller`, `Contract.preferFasterTie`, `Contract.replaceImprovement`, `Contract.keepIncumbent`, `Contract.rejectPilot` |
-| `VR-05` | `build` | Malformed requests are refused | `Contract.emptyRefused`, refuses with `invalid request` |
+| `VR-05` | `build` | Malformed requests are refused | `Contract.emptyRefused`, `FacetPolicy.missingRefused`, refuses with `invalid request` |
 | `VR-06` | `build` | The model schedules calibration candidates and growing extents, and assesses raw observations | `Contract.startSmall`, `Contract.growTwice`, `Contract.capAtCeiling`, `Contract.pilotSequenceEnds`, `Contract.partialStops`, `Contract.corruptionStops` |
 | `VR-07` | `build` | Host autosizing reserves headroom and empty page groups can be released | `HostPolicy.sizeFromAvailable`, `HostPolicy.retainOccupied`, `HostPolicy.releaseEmpty` |
 | `VR-08` | `open` | Instance-wide exact literal reuse is measured on repeated and independent high-entropy input |  |
@@ -34,7 +34,7 @@ The three honesty levels (R2):
 | `VR-12` | `open` | A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse |  |
 | `VR-13` | `open` | Fitting a sparse XOR residual reads each candidate base at most once and restores the admitted page exactly |  |
 | `VR-14` | `open` | Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes |  |
-| `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, refuses with `capacity mismatch` |
+| `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, `CapacityPolicy.fullAdmissionTarget`, refuses with `capacity mismatch` |
 | `VR-16` | `open` | An untouched virtual extent has constant directory cost and range discard skips unallocated leaves |  |
 | `VR-17` | `open` | Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents |  |
 | `VR-18` | `open` | A converging overwrite applies the existing index policy when it retires the last owner of a dense base |  |
@@ -58,6 +58,8 @@ The three honesty levels (R2):
 | `VR-36` | `open` | An installed capacity qualification writes and verifies every page at the configured maximum through the pooled store and reports elapsed read and write service time for equal verified bytes |  |
 | `VR-37` | `build` | For a common throughput floor, two measured ranges that each meet their required work also meet it in aggregate when their work and service times are summed | `Performance.composeRateFloor`, refuses with `budget` |
 | `VR-38` | `open` | The published product catalog resolves its Prism facet records to the workstation model, source evidence and product assets |  |
+| `VR-39` | `open` | The released Holo serves each catalog facet directly through its pure byte dispatcher, with records matching the checked source export |  |
+| `VR-40` | `build` | A successful facet lookup returns its record bytes unchanged | `FacetPolicy.exactReply` |
 
 ## Cited authorities
 

@@ -2,7 +2,7 @@
 
 [![vRAM product preview](site/assets/social-preview.png)](https://afflom.github.io/vRAM/)
 
-[Product and downloads](https://afflom.github.io/vRAM/) · [Prism facets](https://afflom.github.io/vRAM/facets.html) · [Brand guide](docs/brand.md) · [Publishing and verification](docs/product-presentation.md)
+[Product and downloads](https://afflom.github.io/vRAM/) · [Prism facets](https://afflom.github.io/vRAM/facets.html) · [Inspect the executable model](https://afflom.github.io/vRAM/runtime/#facet-heading) · [Brand guide](docs/brand.md) · [Publishing and verification](docs/product-presentation.md)
 
 vRAM supplies System RAM to a virtualized Linux operating system. The packaged `vram-machine` launcher boots an existing VM disk on Verdant-backed memory with stock QEMU and can plug an additional DIMM while applications run. Linux sees the memory in `/proc/meminfo` under `MemTotal`. The separate `vram-host` service supplies volatile swap to a directly booted Linux system. Both use the same Verdant Engine 2.20.0 store and Prism representation policy.
 

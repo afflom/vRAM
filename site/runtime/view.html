@@ -12,6 +12,14 @@
 <output id="answer" role="status" aria-live="polite">Loading the model…</output>
 </form>
 <noscript><p>Enable JavaScript to execute this model. The archive and model sources are available below.</p></noscript>
+<section class="ref-panel" aria-labelledby="facet-heading">
+<h2 id="facet-heading">Inspect a model record</h2>
+<p>Read the architecture, design, proofs and other facets carried by this Holo.</p>
+<label for="facet-group">Facet</label><select id="facet-group" disabled></select>
+<label for="facet-record">Record</label><select id="facet-record" disabled></select>
+<p id="facet-status" role="status"></p>
+<dl id="facet-fields"></dl>
+</section>
 <h2>Verify the model</h2>
 <p>The browser checks the archive identity and runs its WebAssembly locally. To measure your workstation, use <a href="../#install"><code>vram-machine qualify</code></a> on Linux.</p>
 <button type="button" id="replay" disabled>Replay acceptance vectors</button>

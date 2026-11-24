@@ -42,6 +42,7 @@ def write_json(name, value):
     (out / name).write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
 
 
+subprocess.run([sys.executable, root / "automation/facet_queries.py"], check=True)
 built = checked("build")
 verified = checked("verify")
 if not verified["identitiesVerified"] or built["address"] != verified["address"]:
@@ -80,13 +81,14 @@ for src in (root / "app/src").rglob("*.lex.tex"):
         raise ValueError(f"release source differs from {src}")
 facets["semanticId"] = record["semanticId"]
 write_json("facets.json", facets)
+subprocess.run(["node", root / "automation/verify-facet-queries.mjs", holo, out / "facets.json"], check=True)
 release = next(r["fields"] for f in facets["facets"] for r in f["records"] if r["kind"].endswith("::SystemModel"))
 if release["product"]["version"] != version:
     raise ValueError("package and modeled release versions differ")
 write_json("app.json", dict(name=record["name"], shortName="vRAM", live=base+"runtime/",
     purpose="Evaluate capacity checkpoints and replay the verified vRAM model in a browser.",
     repository=repo, report=repo+"/blob/main/CONFORMANCE.md", source="runtime/model/project.json",
-    archive="runtime/app.holo", identity=record, facets="facets.json",
+    archive="runtime/app.holo", identity=record, facets="facets.json", facetIndexRequest="F/",
     facetsSha256=hashlib.sha256((out / "facets.json").read_bytes()).hexdigest(),
     package=dict(version=version, path="downloads/"+package.name, sha256=digest)))
 landing = (out / "index.html").read_text()

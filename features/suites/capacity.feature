@@ -287,3 +287,33 @@ Feature: capacity
     Given the operator opens the facet catalog for this build
     When the catalog renders a feature, measure, threat or release record
     Then its record identifier resolves to the checked model and its evidence resolves to the repository
+
+  @VR-39 @open
+  Scenario: Read a facet from a standalone controller
+    Given a verified Holo with no network capabilities
+    When a client asks for the facet index and each named facet
+    Then every returned group equals the checked product catalog
+
+  @VR-05 @build @rejects
+  Scenario: Refuse an unknown facet
+    Given the released controller
+    When the client requests F/missing
+    Then the response is "invalid request"
+
+  @VR-40 @build
+  Scenario: Return the bytes of a matched archive facet
+    Given the facet lookup found a payload
+    When the model returns the lookup result
+    Then the reply contains exactly the payload bytes
+
+  @VR-15 @build
+  Scenario: Replay a four GiB full-target qualification
+    Given a 4096 MiB platform limit, an 8192 MiB guest limit and sufficient process address space
+    When the client supplies 4294971392 backing bytes in the full-target request
+    Then the model accepts a configured target of 4096 MiB
+
+  @VR-15 @build @rejects
+  Scenario: Detect a one-byte shortfall above the 32-bit boundary
+    Given the same four GiB target
+    When backing is one byte short of the full target and its spare page
+    Then the response is "capacity mismatch"

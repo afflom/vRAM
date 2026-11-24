@@ -1,0 +1,20 @@
+\begin{lexlean}{FacetPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+definition{
+  name: answer, parameters: [found : (Option Bytes)], result: Bytes,
+  body: (match found | Option.none => 0x696e76616c69642072657175657374 | Option.some payload => payload)
+}
+theorem{
+  name: missingRefused, parameters: [],
+  statement: ((answer (ctor Option.none [Bytes])) = 0x696e76616c69642072657175657374),
+  proof: reflexivity{}
+}
+theorem{
+  name: exactReply, parameters: [payload : Bytes],
+  statement: ((answer (ctor Option.some [Bytes] payload)) = payload),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}
