@@ -10,18 +10,19 @@ const completion = options[0] === '--completion';
 if (completion) options.shift();
 const windows = options[0] === '--read-windows';
 if (windows) options.shift();
-const literal = options[0] === '--kernel-literal';
+const fill = options[0] === '--kernel-fill';
+const literal = fill || options[0] === '--kernel-literal';
 if (literal) options.shift();
 const [traceOption, traceFile] = options;
 if (!input || !output || (options.length && (options.length !== 2 || traceOption !== '--trace')))
-    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--read-windows] [--kernel-literal] [--trace samples.json.gz]');
+    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--read-windows] [--kernel-literal|--kernel-fill] [--trace samples.json.gz]');
 const receipt = JSON.parse(readFileSync(input));
 const {model, address} = await verifiedModel();
-const candidate = literal ? 'kernel-literal' : 'vram';
-const control = literal ? 'vram-nbd' : 'control';
+const candidate = fill ? 'kernel-fill' : literal ? 'kernel-literal' : 'vram';
+const control = fill ? 'kernel-literal' : literal ? 'vram-nbd' : 'control';
 const backends = [control, candidate, 'zram-zstd'];
 const sameKeys = (obj, keys) => JSON.stringify(Object.keys(obj).sort()) === JSON.stringify([...keys].sort());
-if (literal !== Object.hasOwn(receipt, 'literal_policy') || (literal && (
+if (fill !== Object.hasOwn(receipt, 'fill_store') || literal !== Object.hasOwn(receipt, 'literal_policy') || (literal && (
     receipt.literal_policy !== address || receipt.literal_payload_bytes !== 64 * 1024 * 1024 ||
     !sameKeys(receipt.server_sha256, [control, candidate]) ||
     !Object.values(receipt.server_sha256).every(hash => /^[a-f0-9]{64}$/.test(hash)) ||
@@ -58,7 +59,7 @@ async function certify(suite, profiles, operations = ['write', 'read']) {
         }
         const meets = await parity(runs[candidate].map(r => r.p50_ns), runs['zram-zstd'].map(r => r.p50_ns));
         if (meets !== meets_zram ||
-            suite[key][literal ? 'literal_to_zram' : 'vram_to_zram'] !== median_ns[candidate] / median_ns['zram-zstd'])
+            suite[key][fill ? 'fill_to_zram' : literal ? 'literal_to_zram' : 'vram_to_zram'] !== median_ns[candidate] / median_ns['zram-zstd'])
             throw Error('Model verdict or ratio disagrees with timing evidence in ' + key);
         if (meets) passes++;
     }
@@ -72,9 +73,37 @@ if (receipt.operator_parity !== operatorParity || receipt.held_out_parity !== mi
     receipt.meets_parity !== (operatorParity && mixedParity)) throw Error('Aggregate verdict disagrees with model');
 receipt.prism_replay = {address, operator, mixed};
 if (literal) {
-    receipt.literal_at_most_nbd_p50 = {};
+    const comparison = {};
     for (const [key, {runs}] of Object.entries({...receipt.workloads, ...receipt.mixed_overwrites})) {
-        receipt.literal_at_most_nbd_p50[key] = await parity(runs[candidate].map(t => t.p50_ns), runs[control].map(t => t.p50_ns));
+        comparison[key] = await parity(runs[candidate].map(t => t.p50_ns), runs[control].map(t => t.p50_ns));
+    }
+    receipt[fill ? 'fill_at_most_literal_p50' : 'literal_at_most_nbd_p50'] = comparison;
+}
+if (fill) {
+    const slots = 16384;
+    const expected = [
+        ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 6 * 2048 + 320, []]),
+        ['all_literal', slots, slots, ['literal']],
+        ['half_fill', slots, slots / 2, ['fill', 'literal']],
+        ['all_fill', slots, 0, ['fill']],
+    ];
+    const rows = receipt.fill_store;
+    if (!Array.isArray(rows) || rows.length !== expected.length) throw Error('Incomplete Fill allocation evidence');
+    for (const [i, [stage, written, literals, kinds]] of expected.entries()) {
+        const row = rows[i];
+        const directory = row.directory_bytes;
+        if (row.stage !== stage || row.literal_pages !== literals || row.written_pages !== written ||
+            !Number.isSafeInteger(directory) || directory <= 0 || directory % 4096 || directory !== rows[0].directory_bytes ||
+            !Number.isSafeInteger(row.charged_bytes) || row.charged_bytes < 0 || row.charged_bytes > 0xffffffff ||
+            row.net_saved_bytes !== written * 4096 - row.charged_bytes ||
+            (kinds.length ? !row.read_p99_ns || !sameKeys(row.read_p99_ns, kinds) ||
+                !kinds.every(k => Number.isSafeInteger(row.read_p99_ns[k]) && row.read_p99_ns[k] > 0) : row.read_p99_ns !== null))
+            throw Error('Invalid Fill allocation evidence in ' + stage);
+        const packet = Buffer.alloc(13);
+        packet.write('M');
+        [directory, literals, row.charged_bytes].forEach((v, j) => packet.writeUInt32BE(v, 1 + j * 4));
+        if (new TextDecoder().decode(await model.dispatch(packet)) !== 'yes')
+            throw Error('Prism rejected the resident store charge in ' + stage);
     }
 }
 if (windows && !receipt.read_windows) throw Error('Missing direct read window evidence');

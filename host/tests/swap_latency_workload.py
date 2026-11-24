@@ -13,7 +13,10 @@ order = list(range(pages))
 random.Random(14).shuffle(order)
 buf = mmap.mmap(-1, size)
 literal = os.path.exists("/kernel-literal.ko")
-if literal:
+fill = os.path.exists("/kernel-fill.ko")
+if fill:
+    paths = (("zram-zstd", "/dev/zram0"), ("kernel-fill", "/dev/vramfill0"), ("kernel-literal", "/dev/vramlit0"))
+elif literal:
     paths = (("zram-zstd", "/dev/zram0"), ("kernel-literal", "/dev/vramlit0"), ("vram-nbd", "/dev/nbd0"))
 else:
     paths = (("zram-zstd", "/dev/zram0"), ("vram", "/dev/nbd1"), ("control", "/dev/nbd0"))
@@ -39,6 +42,11 @@ if literal:
     assert os.preadv(fd, [buf], 0) == size and buf[:] == bytes([19]) * size
     with open("/sys/module/vram_literal/parameters/policy") as policy:
         print("LITERAL_POLICY", policy.read().strip(), flush=True)
+if fill:
+    sys.path.insert(0, "/")
+    import swap_fill
+    fill_fd = dict(devices)["kernel-fill"]
+    swap_fill.transition(fill_fd, buf)
 print("INTERPRETER", sys.version.split()[0], flush=True)
 clock = None
 if os.path.exists("/store-clock"):
@@ -125,6 +133,10 @@ for trial in range(3):
             for name, samples in times.items():
                 print("MIXED_LATENCY", json.dumps([trial, label, name, op, statistics.median(samples),
                       sorted(samples)[(len(samples)*99+99)//100-1]]), flush=True)
+    if fill:
+        swap_fill.snapshot("mixed" + str(trial), 6 * pages + 384, 6 * pages + 320)
+if fill:
+    swap_fill.sweep(fill_fd, buf)
 if os.path.exists("/swap_read_windows.py"):
     sys.path.insert(0, "/")
     from swap_read_windows import measure

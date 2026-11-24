@@ -1,0 +1,61 @@
+\begin{lexlean}{Main}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+inductive{
+  name: Representation, type_parameters: [], parameters: [],
+  constructors: [{name: fill, fields: []}, {name: sparse, fields: []}, {name: palette, fields: []}, {name: raw, fields: []}, {name: selector, fields: []}, {name: corrected, fields: []}]
+}
+definition{
+  name: choose,
+  parameters: [uniform : Bool, sparse : Nat, palette : Nat, model : Nat, corrected : Nat],
+  result: Representation,
+  body: (if uniform then (ctor Representation.fill) else
+    (if ((model <? 4096) && ((model <=? corrected) && ((model <? sparse) && (model <? palette)))) then (ctor Representation.selector) else
+    (if ((corrected <? 4096) && ((corrected <? sparse) && (corrected <? palette))) then (ctor Representation.corrected) else
+    (if ((sparse <? 4096) && (sparse <? palette)) then (ctor Representation.sparse) else
+    (if (palette <? 4096) then (ctor Representation.palette) else (ctor Representation.raw)))))),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+inductive{
+  name: Event, type_parameters: [], parameters: [],
+  constructors: [{name: fault, fields: [Bool, Bool, Bool]}, {name: reclaim, fields: [Bool, Bool]}, {name: captured, fields: [Bool]}, {name: discarded, fields: [Bool]}, {name: budget, fields: [Nat, Nat]}, {name: permission, fields: [Bool, Bool, Bool, Bool, Bool, Bool]}]
+}
+inductive{
+  name: Action, type_parameters: [], parameters: [],
+  constructors: [{name: skip, fields: []}, {name: restoreClean, fields: []}, {name: restoreDirty, fields: []}, {name: markWritable, fields: []}, {name: capture, fields: []}, {name: discard, fields: []}, {name: releaseFrame, fields: []}, {name: retain, fields: []}, {name: trim, fields: []}, {name: allow, fields: []}]
+}
+definition{
+  name: step, parameters: [event : Event], result: Action,
+  body: (match event
+    | Event.fault protectedWrite writes tracking => (if protectedWrite then (ctor Action.markWritable) else (if tracking then (if writes then (ctor Action.restoreDirty) else (ctor Action.restoreClean)) else (ctor Action.restoreDirty)))
+    | Event.reclaim present dirty => (if present then (if dirty then (ctor Action.capture) else (ctor Action.discard)) else (ctor Action.skip))
+    | Event.captured success => (if success then (ctor Action.discard) else (ctor Action.retain))
+    | Event.discarded success => (if success then (ctor Action.releaseFrame) else (ctor Action.retain))
+    | Event.budget limit live => (if ((0 <? limit) && (limit <? live)) then (ctor Action.trim) else (ctor Action.skip))
+    | Event.permission opted quiescent tcg kvm captureAll migrationIdle => (if ((opted && quiescent) && ((tcg || (kvm && captureAll)) && migrationIdle)) then (ctor Action.allow) else (ctor Action.skip))),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+definition{
+  name: rangeAllowed, parameters: [offset : Nat, length : Nat, extent : Nat], result: Bool,
+  body: ((0 <? length) && (((prim remainder offset 4096 0 : Nat) =? 0) && (((prim remainder length 4096 0 : Nat) =? 0) && ((offset <=? extent) && (length <=? (prim subtract extent offset : Nat)))))),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+definition{
+  name: contractWord, axioms: [Quot.sound, propext], parameters: [left : UInt64, right : UInt64, mask : UInt64], result: UInt64,
+  body: (prim bit_xor left (prim bit_and (prim bit_xor left right : UInt64) mask : UInt64) : UInt64),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+theorem{ name: uniformAlwaysFits, parameters: [a : Nat, b : Nat, c : Nat, d : Nat], statement: ((choose true a b c d) = (ctor Representation.fill)), proof: reflexivity{} }
+theorem{ name: noDiscardOnFailedCapture, parameters: [], statement: ((step (ctor Event.captured false)) = (ctor Action.retain)), proof: reflexivity{} }
+theorem{ name: noReleaseOnFailedDiscard, parameters: [], statement: ((step (ctor Event.discarded false)) = (ctor Action.retain)), proof: reflexivity{} }
+theorem{ name: cleanBackedPage, parameters: [], statement: ((step (ctor Event.reclaim true false)) = (ctor Action.discard)), proof: reflexivity{} }
+theorem{ name: noTrackingIsDirty, parameters: [writes : Bool], statement: ((step (ctor Event.fault false writes false)) = (ctor Action.restoreDirty)), proof: reflexivity{} }
+theorem{ name: allCandidatesTooLarge, parameters: [], statement: ((choose false 4096 4096 4096 4096) = (ctor Representation.raw)), proof: reflexivity{} }
+theorem{ name: retainSparseChanges, parameters: [], statement: ((choose false 4096 4096 4096 164) = (ctor Representation.corrected)), proof: reflexivity{} }
+theorem{ name: outOfRange, parameters: [], statement: ((rangeAllowed 8192 4096 4096) = false), proof: reflexivity{} }
+theorem{ name: kvmCaptureAll, parameters: [], statement: ((step (ctor Event.permission true true false true true true)) = (ctor Action.allow)), proof: reflexivity{} }
+theorem{ name: denyKvmWithUntrackedWrites, parameters: [], statement: ((step (ctor Event.permission true true false true false true)) = (ctor Action.skip)), proof: reflexivity{} }
+\end{semanticmodule}
+\end{lexlean}

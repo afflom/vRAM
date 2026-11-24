@@ -382,3 +382,16 @@ id = "VR-58"
 level = "open"
 suite = "capacity"
 statement = "A disposable guest measures byte-verified literal page completion against zram and the shipping NBD server with the same direct IO workload"
+
+[[id]]
+id = "VR-59"
+level = "build"
+suite = "capacity"
+statement = "The resident page controller specializes the Verdant representation chooser to Fill and literal and charges every retained literal plus the store directory"
+theorems = ["ResidentPolicy.uniformFill", "ResidentPolicy.denseLiteral", "ResidentPolicy.breakEven"]
+
+[[id]]
+id = "VR-60"
+level = "open"
+suite = "capacity"
+statement = "A disposable guest measures byte-exact overwrites, resident store bytes and p99 recovery latency for Fill and literal pages alongside zram and the kernel literal control"

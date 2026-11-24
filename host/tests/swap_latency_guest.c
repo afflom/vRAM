@@ -57,13 +57,18 @@ int main(void) {
     load("/lz4_compress.ko", "");
     load("/lz4hc_compress.ko", "");
     load("/zram.ko", "num_devices=1");
-    load("/nbd.ko", "nbds_max=2 max_part=0");
     int literal = access("/kernel-literal.ko", F_OK) == 0;
-    int nbd_end = literal ? 2 : BACKENDS;
+    int fill = access("/kernel-fill.ko", F_OK) == 0;
+    if (!fill) load("/nbd.ko", "nbds_max=2 max_part=0");
+    int nbd_end = fill ? 1 : (literal ? 2 : BACKENDS);
     block_node("/sys/block/zram0/dev", paths[0]);
     if (literal) {
         load("/kernel-literal.ko", "");
         block_node("/sys/block/vramlit0/dev", "/dev/vramlit0");
+    }
+    if (fill) {
+        load("/kernel-fill.ko", "");
+        block_node("/sys/block/vramfill0/dev", "/dev/vramfill0");
     }
     for (int i = 1; i < nbd_end; ++i)
         if (mknod(paths[i], S_IFBLK | 0600, makedev(43, i-1))) fail("nbd node");

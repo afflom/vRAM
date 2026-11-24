@@ -443,3 +443,15 @@ Feature: capacity
     Given fresh equal-capacity literal, zram and shipping NBD devices in a disposable guest
     When the operator and mixed-overwrite workloads rotate across the devices
     Then all three return the submitted bytes and record independent read and write latencies
+
+  @VR-59 @build
+  Scenario: Account for exact fill and literal values
+    Given the complete page equality observation and the resident directory charge
+    When the Verdant controller chooses a representation
+    Then uniform pages need only their directory entry and other pages keep all literal bytes
+
+  @VR-60 @open
+  Scenario: Recover mixed pages while accounting for physical allocations
+    Given the fill device and fresh literal and zram controls
+    When the guest overwrites the same slots with differing page shapes
+    Then it verifies every read and records retained page and directory bytes alongside read and write latency

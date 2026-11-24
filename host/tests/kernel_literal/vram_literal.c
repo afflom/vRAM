@@ -7,11 +7,7 @@
 #include <linux/sizes.h>
 #include <linux/vmalloc.h>
 
-#include "literal_policy.h"
-
-#define SLOT SZ_4K
-#define SECTORS_PER_SLOT (SLOT >> SECTOR_SHIFT)
-#define CAPACITY_SECTORS (SZ_64M >> SECTOR_SHIFT)
+#include "page_io.h"
 
 static u8 *slots;
 static spinlock_t *slot_locks;
@@ -23,21 +19,13 @@ module_param_string(policy, policy, sizeof(policy), 0444);
 static void literal_submit(struct bio *bio)
 {
 	sector_t sector = bio->bi_iter.bi_sector;
-	unsigned int op, shape, action;
+	unsigned int action;
 	struct bvec_iter iter;
 	struct bio_vec vec;
 	unsigned long flags;
 	size_t index, offset;
 
-	switch (bio_op(bio)) {
-	case REQ_OP_READ: op = 0; break;
-	case REQ_OP_WRITE: op = 1; break;
-	default: op = 2; break;
-	}
-	shape = (!(sector % SECTORS_PER_SLOT) << 2) |
-		((bio->bi_iter.bi_size == SLOT) << 1) |
-		(sector <= CAPACITY_SECTORS - SECTORS_PER_SLOT);
-	action = literal_action[op * 8 + shape];
+	action = page_action(bio);
 	if (!action) {
 		bio_io_error(bio);
 		return;

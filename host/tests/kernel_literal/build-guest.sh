@@ -4,7 +4,7 @@ set -euo pipefail
 out=$(realpath -m "${1:?expected output directory}")
 src=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$out/debs"
-cp "$src/Kbuild" "$src/vram_literal.c" "$out/"
+cp "$src/Kbuild" "$src/vram_literal.c" "$src/vram_fill.c" "$src/page_io.h" "$out/"
 node "$src/../../../automation/kernel-literal.mjs" "$out/literal_policy.h"
 while read -r filename sha256 snapshot; do
     pkg="$out/debs/$filename"

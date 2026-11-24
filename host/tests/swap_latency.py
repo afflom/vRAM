@@ -17,8 +17,9 @@ sys.path.insert(0, str(root / "device/validation"))
 from run import archive
 
 parser = argparse.ArgumentParser(description=__doc__)
-for name in ("qemu", "kernel", "modules", "control", "result"):
+for name in ("qemu", "kernel", "modules", "result"):
     parser.add_argument("--" + name, type=Path, required=True)
+parser.add_argument("--control", type=Path, help="NBD control server for comparisons using NBD")
 parser.add_argument("--candidate", type=Path, default=root / "host/build/vram-host")
 parser.add_argument("--bios-dir", type=Path)
 parser.add_argument("--accel", choices=["kvm", "tcg"], required=True)
@@ -28,13 +29,18 @@ parser.add_argument("--local-completion", action="store_true",
                     help="compare rq_affinity=0 with the guest default on two copies of the candidate")
 parser.add_argument("--read-windows", action="store_true", help="compare byte-verified direct reads at six request sizes")
 parser.add_argument("--kernel-literal", type=Path, help="measure the resident literal module alongside the shipping server and zram")
+parser.add_argument("--kernel-fill", type=Path, help="compare the resident Fill store with the literal kernel control and zram")
 args = parser.parse_args()
+if args.kernel_fill and not args.kernel_literal:
+    parser.error("the Fill comparison requires the kernel literal control")
 if args.kernel_literal and (args.local_completion or args.read_windows or args.trace_output):
     parser.error("the literal comparison requires the ordinary single-page workload")
 if args.read_windows and (args.local_completion or args.trace_output):
     parser.error("read window measurements use the uninstrumented release comparison")
-servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
-if args.kernel_literal and servers["control"] != servers["candidate"]:
+if not args.kernel_fill and not args.control:
+    parser.error("NBD comparisons require --control")
+servers = {} if args.kernel_fill else {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
+if args.kernel_literal and not args.kernel_fill and servers["control"] != servers["candidate"]:
     parser.error("the literal comparison requires the shipping candidate as control")
 if args.local_completion and (servers["control"] != servers["candidate"] or args.trace_output):
     parser.error("completion placement requires identical uninstrumented servers")
@@ -59,8 +65,11 @@ with tempfile.TemporaryDirectory() as tmp:
                     root / "host/tests/swap_latency_guest.c", "-o", path / "init"], check=True)
     files = dict(servers, init=(path / "init").read_bytes())
     if args.kernel_literal:
-        del files["candidate"]
+        files.pop("candidate", None)
         files["kernel-literal.ko"] = args.kernel_literal.read_bytes()
+    if args.kernel_fill:
+        files["kernel-fill.ko"] = args.kernel_fill.read_bytes()
+        files["swap_fill.py"] = (root / "host/tests/swap_fill.py").read_bytes()
     files.update(python_files())
     files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
     if args.read_windows:
@@ -70,7 +79,10 @@ with tempfile.TemporaryDirectory() as tmp:
     if args.trace_output:
         files["store-clock"] = bytes(5 * 8)
         files["swap_clock.py"] = (root / "host/tests/swap_clock.py").read_bytes()
-    for name in ("nbd", "zram", "lz4_compress", "lz4hc_compress"):
+    modules = ["zram", "lz4_compress", "lz4hc_compress"]
+    if not args.kernel_fill:
+        modules.append("nbd")
+    for name in modules:
         module, = args.modules.rglob(name + ".ko.xz")
         files[name + ".ko"] = lzma.decompress(module.read_bytes())
     entries = {d: (stat.S_IFDIR | 0o755, b"", 0, 0) for d in ("dev", "sys", "proc")}
@@ -105,6 +117,9 @@ with tempfile.TemporaryDirectory() as tmp:
 candidate = "kernel-literal" if args.kernel_literal else "vram"
 control = "vram-nbd" if args.kernel_literal else "control"
 ratio = "literal_to_zram" if args.kernel_literal else "vram_to_zram"
+
+if args.kernel_fill:
+    candidate, control, ratio = "kernel-fill", "kernel-literal", "fill_to_zram"
 
 def observations(prefix, profiles, operations=("write", "read")):
     rows = {}
@@ -142,8 +157,14 @@ if args.kernel_literal:
         sys.exit("Missing kernel literal policy identity")
     result["literal_policy"] = addresses[0]
     result["literal_payload_bytes"] = 64 << 20
-    result["server_sha256"] = {control: hashlib.sha256(servers["control"]).hexdigest(),
-                               candidate: hashlib.sha256(files["kernel-literal.ko"]).hexdigest()}
+    if not args.kernel_fill:
+        result["server_sha256"] = {control: hashlib.sha256(servers["control"]).hexdigest(),
+                                   candidate: hashlib.sha256(files["kernel-literal.ko"]).hexdigest()}
+if args.kernel_fill:
+    if re.findall(r"^FILL_POLICY (blake3:[0-9a-f]{64})\s*$", log, re.M) != addresses:
+        sys.exit("Fill policy identity mismatch")
+    result["fill_store"] = [json.loads(row) for row in re.findall(r"^FILL_STORE (.+)$", log, re.M)]
+    result["server_sha256"] = {name: hashlib.sha256(files[name + ".ko"]).hexdigest() for name in (control, candidate)}
 if args.read_windows:
     sizes = [1, 2, 16, 64, 65, 128]
     result["read_windows"] = observations("WINDOW_LATENCY", [f"pages{n}" for n in sizes], ("read",))

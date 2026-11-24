@@ -1,0 +1,35 @@
+\begin{lexlean}{ResidentPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{Main}
+\importmodule{Performance}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: inlineFill, parameters: [uniform : Bool], result: Bool,
+  body: (match (Main::choose uniform 4096 4096 4096 4096)
+    | Main::Representation.fill => true
+    | Main::Representation.sparse => false
+    | Main::Representation.palette => false
+    | Main::Representation.raw => false
+    | Main::Representation.selector => false
+    | Main::Representation.corrected => false), executable: true
+}
+theorem{ name: uniformFill, parameters: [], statement: ((inlineFill true) = true), proof: reflexivity{} }
+theorem{ name: denseLiteral, parameters: [], statement: ((inlineFill false) = false), proof: reflexivity{} }
+definition{
+  name: residentBytes, parameters: [directory : Nat, payload : Nat], result: Nat,
+  body: (directory + payload), executable: true
+}
+definition{
+  name: charged, parameters: [directory : Nat, literals : Nat], result: Nat,
+  body: (residentBytes directory (prim multiply literals 4096 : Nat)), executable: true
+}
+theorem{
+  name: breakEven, parameters: [directory : Nat, literalBytes : Nat, fillBytes : Nat],
+  statement: ((Performance::disagree ((residentBytes directory literalBytes) <? (literalBytes + fillBytes))
+    (directory <? fillBytes)) = false),
+  proof: linear_arithmetic{definitions: [Performance::disagree, residentBytes]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
