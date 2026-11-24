@@ -85,6 +85,59 @@ fn palette(histogram: &[usize; 256]) -> [u8; 16] {
     table
 }
 
+fn uniform(bytes: &[u8; PAGE]) -> bool {
+    bytes[1..] == bytes[..PAGE - 1]
+}
+
+impl Exceptions {
+    // Above this count even the selector's fixed charge beats or ties the sparse
+    // encoding. The generated representation policy checks all other floors below.
+    const LIMIT: usize = (size_of::<Selector>() - size_of::<Self>() - 1) / size_of::<(u16, u8)>();
+    const BLOCK: usize = (Self::LIMIT + 1).next_power_of_two();
+
+    fn bounded(bytes: &[u8; PAGE]) -> Option<Value> {
+        const { assert!(PAGE.is_multiple_of(Self::BLOCK) && PAGE / Self::BLOCK > Self::LIMIT) };
+        let blocks = bytes.as_chunks::<{ Self::BLOCK }>().0;
+        // Each nonuniform block needs at least one edit. A uniform block wider
+        // than LIMIT forces its first byte to be the only possible sparse base.
+        let witness = blocks[..=Self::LIMIT]
+            .iter()
+            .find(|b| b[1..] == b[..Self::BLOCK - 1])?;
+        let base = witness[0];
+        let mut entries = [(0u16, 0u8); Self::LIMIT];
+        let mut count = 0;
+        for (i, block) in blocks.iter().enumerate() {
+            if block == witness {
+                continue;
+            }
+            for (j, &b) in block.iter().enumerate() {
+                if b != base {
+                    *entries.get_mut(count)? = ((i * Self::BLOCK + j) as u16, b);
+                    count += 1;
+                }
+            }
+        }
+        let charge = size_of::<Self>() + count * size_of::<(u16, u8)>();
+        if !matches!(
+            vram_representation::run(
+                false,
+                charge as u64,
+                size_of::<Packed>() as u64,
+                size_of::<Selector>() as u64,
+                size_of::<Corrected>() as u64
+            ),
+            vram_representation::Adt0::C1
+        ) {
+            return None;
+        }
+        let sparse = Self {
+            base,
+            entries: entries[..count].into(),
+        };
+        Value::Sparse(Box::new(sparse)).admit(bytes, charge)
+    }
+}
+
 impl Value {
     fn literal_base(&self) -> Option<&Arc<literals::Literal>> {
         match self {
@@ -134,27 +187,22 @@ impl Value {
         let choose = vram_representation::run;
         let absent = PAGE as u64;
         if matches!(
-            choose(
-                bytes.iter().all(|b| *b == bytes[0]),
-                absent,
-                absent,
-                absent,
-                absent
-            ),
+            choose(uniform(bytes), absent, absent, absent, absent),
             Plan::C0
         ) {
             return Some(Self::Fill(bytes[0]));
         }
-        if let Some(block) = Repeated::factor(bytes) {
+        let fixed_floor = size_of::<Selector>()
+            .min(size_of::<Packed>())
+            .min(size_of::<Corrected>());
+        let block = Repeated::factor(bytes).or_else(|| Repeated::shifted(bytes, fixed_floor, 1));
+        if let Some(block) = block {
             let cost = Repeated::cost(block.len());
             // A nonuniform block has at least one sparse exception per repeat.
             // Every selector, corrected selector and packed encoding has a fixed minimum size.
             let sparse_floor =
                 size_of::<Exceptions>() + (PAGE / block.len()) * size_of::<(u16, u8)>();
-            let floor = sparse_floor
-                .min(size_of::<Selector>())
-                .min(size_of::<Packed>())
-                .min(size_of::<Corrected>());
+            let floor = sparse_floor.min(fixed_floor);
             if search::improves(floor, cost, true) {
                 return Some(Self::Repeated(Repeated::new(block)));
             }
@@ -166,7 +214,7 @@ impl Value {
         }
         let other = Self::encode_nonuniform(prior, bytes);
         let ceiling = other.as_ref().map_or(PAGE, Self::charge);
-        match Repeated::shifted(bytes, ceiling) {
+        match Repeated::shifted(bytes, ceiling, Repeated::last_displacement(fixed_floor) + 1) {
             Some(block) => Some(Self::Repeated(Repeated::new(block))),
             None => other,
         }
@@ -176,6 +224,9 @@ impl Value {
         use vram_representation::Adt0 as Plan;
         let choose = vram_representation::run;
         let absent = PAGE as u64;
+        if let Some(sparse) = Exceptions::bounded(bytes) {
+            return Some(sparse);
+        }
         // Packed payloads and corrected selectors already cost more than a selector.
         // The exact row multiplicities suffice to compare the remaining sparse candidate.
         let selector = Selector::fit(bytes);
@@ -673,7 +724,7 @@ impl FitInputs {
         io_profile::measured(s.profile.as_ref().map(|p| &p.snapshot_ns), || {
             let slot = dir.get(page);
             let group = dir.group_at(page);
-            if data.iter().all(|&b| b == data[0])
+            if uniform(data)
                 || dir.literals.has_candidate(data, slot.literal_base())
                 || literal_fast(s, group.map_or(0, |g| g.literal_credits), slot, data)
             {
@@ -808,7 +859,7 @@ fn put_locked(
             return 0;
         }
     }
-    if data.iter().all(|&b| b == 0) {
+    if data[0] == 0 && uniform(data) {
         values.discard(page, page + 1);
         return 0;
     }
@@ -1136,6 +1187,28 @@ mod runtime_tests {
     }
 
     #[test]
+    fn sparse_witness_covers_the_cost_boundary_and_late_mismatch() {
+        for base in 0..=255u8 {
+            let mut page = [base; PAGE];
+            for i in 0..Exceptions::LIMIT {
+                // Force the witness into the final candidate block.
+                page[i * Exceptions::BLOCK] ^= 0xff;
+            }
+            let value = Exceptions::bounded(&page).unwrap();
+            assert!(matches!(value, Value::Sparse(_)));
+            recover(&value, &page);
+            page[PAGE - 1] ^= 1;
+            assert!(Exceptions::bounded(&page).is_none());
+            let value = Value::encode(None, &page).unwrap();
+            recover(&value, &page);
+        }
+        // A misleading constant run is rejected when the page exceeds the budget.
+        let mut page = std::array::from_fn(|i| i as u8);
+        page[..Exceptions::BLOCK].fill(0xa7);
+        assert!(Exceptions::bounded(&page).is_none());
+    }
+
+    #[test]
     fn broadcast_reconstructs_and_projects_the_same_page() {
         let mut page = std::array::from_fn(|i| (i % SIDE) as u8);
         let value = Value::encode(None, &page).unwrap();
@@ -1197,6 +1270,22 @@ mod runtime_tests {
     }
 
     #[test]
+    fn a_false_prefix_in_the_first_window_preserves_a_longer_period() {
+        let mut block: [u8; 193] = std::array::from_fn(|i| i as u8);
+        block.copy_within(..8, 17);
+        let mut page = std::array::from_fn(|i| block[i % block.len()]);
+        let floor = size_of::<Selector>();
+        let next = Repeated::last_displacement(floor) + 1;
+        assert!(Repeated::shifted(&page, floor, 1).is_none());
+        assert_eq!(Repeated::shifted(&page, PAGE, next), Some(&block[..]));
+        let value = Value::encode(None, &page).unwrap();
+        assert_eq!(value.charge(), Repeated::cost(block.len()));
+        recover(&value, &page);
+        page[PAGE - 1] ^= 1;
+        assert!(Repeated::shifted(&page, PAGE, next).is_none());
+    }
+
+    #[test]
     fn truncated_repeats_restore_and_project_at_arbitrary_phase() {
         let mut seed = 917761u32;
         for n in [3, 7, 39, 97, 193, 509] {
@@ -1213,6 +1302,7 @@ mod runtime_tests {
             recover(&value, &data);
             if n == 97 {
                 assert!(matches!(value, Value::Repeated(_)));
+                assert_eq!(value.charge(), Repeated::cost(n));
             }
             let weights = [std::array::from_fn(|i| 24 - i as i32)];
             let mut out = [[0; SIDE]];
@@ -1226,7 +1316,7 @@ mod runtime_tests {
                 );
             }
             data[PAGE - 1] ^= 1;
-            assert!(Repeated::shifted(&data, PAGE).is_none());
+            assert!(Repeated::shifted(&data, PAGE, 1).is_none());
         }
     }
 

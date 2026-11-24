@@ -24,8 +24,13 @@ parser.add_argument("--bios-dir", type=Path)
 parser.add_argument("--accel", choices=["kvm", "tcg"], required=True)
 parser.add_argument("--require-parity", action="store_true", help="exit unsuccessfully if any median exceeds zram")
 parser.add_argument("--trace-output", type=Path, help="write matched timestamps from the diagnostic control server as gzip JSON")
+parser.add_argument("--local-completion", action="store_true",
+                    help="compare rq_affinity=0 with the guest default on two copies of the candidate")
 args = parser.parse_args()
 servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
+if args.local_completion and (servers["control"] != servers["candidate"] or args.trace_output):
+    parser.error("completion placement requires identical uninstrumented servers")
+
 def python_files():
     # Collect the system interpreter, its imported standard library and resolved ELF dependencies.
     python = "/usr/bin/python3"
@@ -47,6 +52,8 @@ with tempfile.TemporaryDirectory() as tmp:
     files = dict(servers, init=(path / "init").read_bytes())
     files.update(python_files())
     files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
+    if args.local_completion:
+        files["local-completion"] = b""
     if args.trace_output:
         files["store-clock"] = bytes(5 * 8)
         files["swap_clock.py"] = (root / "host/tests/swap_clock.py").read_bytes()
@@ -106,6 +113,11 @@ result = dict(accelerator=args.accel, kernel=args.kernel.name, kernel_sha256=has
               held_out_parity=all(v["meets_zram"] for v in mixed.values()),
               workloads=summary, mixed_overwrites=mixed, mixed_pages_per_family_per_round=64,
               mixed_verified_bytes_per_backend=3*384*4096)
+if args.local_completion:
+    settings = re.findall(r"^COMPLETION_AFFINITY ([0-2]) ([0-2])\s*$", log, re.M)
+    if len(settings) != 1 or settings[0][1] != "0":
+        sys.exit("Missing completion affinity readback")
+    result["rq_affinity"] = dict(zip(("control", "vram"), map(int, settings[0])))
 result["meets_parity"] = result["operator_parity"] and result["held_out_parity"]
 if args.trace_output:
     batches = [json.loads(line) for line in re.findall(r"^PATH_SAMPLES (.+)$", log, re.M)]

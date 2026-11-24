@@ -69,6 +69,9 @@ The three honesty levels (R2):
 | `VR-47` | `open` | Queue-depth-one requests are matched to the timed Verdant store invocation and replayed against a same-guest zram reference |  |
 | `VR-48` | `build` | The block request controller drains rejected write payloads, acknowledges committed writes and distinguishes initial and partial read failures | `BlockPolicy.rejectedWriteDrains`, `BlockPolicy.drainBeforeReply`, `BlockPolicy.writeAfterCommit`, `BlockPolicy.failedWriteStops`, `BlockPolicy.firstReadError`, `BlockPolicy.partialReadStops`, `BlockPolicy.lastReadDone`, `BlockPolicy.failedReplyStops`, `BlockPolicy.ackCompletes` |
 | `VR-49` | `open` | The installed Linux swap adapter executes the generated block request controller for every NBD command and page effect |  |
+| `VR-50` | `build` | Disjoint nonuniform blocks each consume an exception and a uniform block longer than the edit budget rules out every other base | `SwapPolicy.sparseEditLimit`, `SwapPolicy.disjointExceptions`, `SwapPolicy.uniformWitness`, `SwapPolicy.factorDominance` |
+| `VR-51` | `open` | The store admits a byte-exact sparse representation by its charged cost and compares the full device path with the previous release and zram |  |
+| `VR-52` | `open` | An isolated guest compares local block completions with the default queue affinity using identical Verdant servers, the shipping request controller and byte-exact reads |  |
 
 ## Cited authorities
 

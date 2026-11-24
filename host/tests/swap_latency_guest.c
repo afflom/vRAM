@@ -34,6 +34,14 @@ static void setting(const char *name, const char *value) {
     if (fd < 0 || write(fd, value, strlen(value)) != (ssize_t)strlen(value)) fail(name);
     close(fd);
 }
+static unsigned affinity(const char *path) {
+    FILE *file = fopen(path, "r");
+    unsigned value;
+    if (!file || fscanf(file, "%u", &value) != 1 || value > 2) fail(path);
+    fclose(file);
+    return value;
+}
+
 int main(void) {
     if (getpid() != 1 || ioperm(0xf4, 4, 1)) return 2;
     if (mount("sysfs", "/sys", "sysfs", 0, NULL) || mount("proc", "/proc", "proc", 0, NULL))
@@ -68,6 +76,16 @@ int main(void) {
         }
         if (size != 67108864) fail("attach timeout");
         close(fd);
+    }
+    if (access("/local-completion", F_OK) == 0) {
+        const char *candidate = "/sys/block/nbd1/queue/rq_affinity";
+        const char *reference = "/sys/block/nbd0/queue/rq_affinity";
+        unsigned control = affinity(reference);
+        if (affinity(candidate) != control) fail("initial affinity mismatch");
+        setting(candidate, "0");
+        if (affinity(reference) != control || affinity(candidate) != 0) fail("completion setting mismatch");
+        printf("COMPLETION_AFFINITY %u %u\n", control, affinity(candidate));
+        fflush(stdout);
     }
     pid_t workload = fork();
     if (workload < 0) fail("fork workload");

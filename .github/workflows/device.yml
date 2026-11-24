@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 375ee0d6428e1880b6d12a05241a1906157d8adf
+          ref: d5a82d3d31e263354a1584f9f13f62b6ec7ffb69
           path: measurements/local/swap-control
       - name: Compare single-page swap latency with zram zstd
         run: |
@@ -105,10 +105,26 @@ jobs:
           guest=(--accel "$accel" --qemu "$(command -v qemu-system-x86_64)" --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules")
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control measurements/local/swap-control/host/build/vram-host --result measurements/local/swap-raw.json
           node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json
+          sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --local-completion --result measurements/local/completion-raw.json
+          node automation/swap-latency.mjs measurements/local/completion-raw.json measurements/local/completion-affinity.json --completion
           make -C host build/vram-host-clock LDFLAGS=-static
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host-clock \
             --trace-output measurements/local/store-clock.json.gz --result measurements/local/swap-path-raw.json
           node automation/swap-latency.mjs measurements/local/swap-path-raw.json measurements/local/swap-path.json --trace measurements/local/store-clock.json.gz
+          previous=measurements/local/swap-control/host
+          make -C "$previous" build/vram-host-clock LDFLAGS=-static
+          sudo python3 host/tests/swap_latency.py "${guest[@]}" --candidate "$previous/build/vram-host" --control "$previous/build/vram-host-clock" \
+            --trace-output measurements/local/previous-store-clock.json.gz --result measurements/local/previous-path-raw.json
+          node automation/swap-latency.mjs measurements/local/previous-path-raw.json measurements/local/previous-swap-path.json --trace measurements/local/previous-store-clock.json.gz
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          def servers(name):
+              return json.loads((Path('measurements/local') / name).read_bytes())['server_sha256']
+          paired = servers('swap-latency.json')
+          assert servers('swap-path.json')['candidate'] == servers('completion-affinity.json')['candidate'] == paired['candidate']
+          assert servers('previous-swap-path.json')['candidate'] == paired['control']
+          PYTHON
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
       - name: Check out the 0.5.9 guest benchmark control
@@ -146,7 +162,7 @@ jobs:
           sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --baseline-package "$RUNNER_TEMP/control.deb" --result dist/parallel-guest.json
           node automation/performance.mjs dist/parallel-guest.json dist/performance-frontier.json
-          cp measurements/local/managed-*.json measurements/local/swap-latency.json measurements/local/swap-path.json measurements/local/store-clock.json.gz dist/
+          cp measurements/local/managed-*.json measurements/local/swap-latency.json measurements/local/swap-path.json measurements/local/store-clock.json.gz measurements/local/completion-affinity.json measurements/local/previous-swap-path.json measurements/local/previous-store-clock.json.gz dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json *.gz README.md > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -156,7 +172,7 @@ jobs:
       - name: Assemble the product site from the verified model and tested package
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
-          cp dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz product-public/downloads/
+          cp dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)
           python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &

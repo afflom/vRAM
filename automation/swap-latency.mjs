@@ -6,9 +6,11 @@ import {verifiedModel} from './verified-model.mjs';
 const [input, output, ...options] = process.argv.slice(2);
 const gate = options[0] === '--require-parity';
 if (gate) options.shift();
+const completion = options[0] === '--completion';
+if (completion) options.shift();
 const [traceOption, traceFile] = options;
 if (!input || !output || (options.length && (options.length !== 2 || traceOption !== '--trace')))
-    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--trace samples.json.gz]');
+    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--trace samples.json.gz]');
 const receipt = JSON.parse(readFileSync(input));
 const {model, address} = await verifiedModel();
 const backends = ['control', 'vram', 'zram-zstd'];
@@ -58,6 +60,19 @@ if (receipt.operator_parity !== operatorParity || receipt.held_out_parity !== mi
     receipt.meets_parity !== (operatorParity && mixedParity)) throw Error('Aggregate verdict disagrees with model');
 receipt.prism_replay = {address, operator, mixed};
 if (Boolean(receipt.trace_sha256) !== Boolean(traceFile) || (receipt.store_path && !traceFile)) throw Error('Store clock receipt requires matching trace');
+if (completion && !receipt.rq_affinity) throw Error('Missing completion placement evidence');
+if (receipt.rq_affinity) {
+    const {control, vram} = receipt.rq_affinity;
+    if (!sameKeys(receipt.rq_affinity, ['control', 'vram']) || ![0, 1, 2].includes(control) ||
+        vram !== 0 || traceFile || !/^[a-f0-9]{64}$/.test(receipt.server_sha256?.control ?? '') ||
+        receipt.server_sha256.control !== receipt.server_sha256.candidate)
+        throw Error('Invalid completion placement control');
+    const cells = {};
+    for (const [key, {runs}] of Object.entries({...receipt.workloads, ...receipt.mixed_overwrites})) {
+        cells[key] = await parity(runs.vram.map(t => t.p50_ns), runs.control.map(t => t.p50_ns));
+    }
+    receipt.completion_comparison = {distinct_settings: control !== vram, at_most_default_p50: cells};
+}
 if (traceFile) receipt.store_path = await replayPath(receipt, readFileSync(traceFile), parity);
 writeFileSync(output, JSON.stringify(receipt, null, 2) + '\n');
 console.log(JSON.stringify(receipt.prism_replay));

@@ -377,3 +377,27 @@ Feature: capacity
     Given a single stream carrying reads, writes, trims, flushes and rejected commands
     When Linux requests successive effects on a real Verdant store
     Then every successful read returns the expected bytes and the next request retains its framing
+
+  @VR-50 @build
+  Scenario: Eliminate an impossible sparse base
+    Given disjoint blocks and an upper bound on the total byte exceptions
+    When more disjoint blocks contain an exception than that upper bound allows
+    Then the sparse base is excluded and a uniform block longer than the bound excludes every other base
+
+  @VR-51 @open
+  Scenario: Preserve bytes across the sparse cost boundary
+    Given pages with edits before, at and beyond the representation cost boundary
+    When pages change from sparse to independent bytes and back
+    Then each page restores exactly and the ordinary representation policy remains available beyond the boundary
+
+  @VR-52 @open
+  Scenario: Compare queue completion placement at equal work
+    Given two fresh NBD devices serving the same Verdant binary in a disposable guest
+    When one queue completes locally and the other retains the kernel default
+    Then both settings are read back and Prism evaluates each paired workload median
+
+  @VR-51 @open
+  Scenario: Prove dominance of an exact non-dyadic repeat
+    Given a nonuniform prefix repeated at an arbitrary displacement with a truncated final copy
+    When its full overlap matches and the prefix costs less than every competing storage floor
+    Then the store can admit the prefix before fitting those alternatives

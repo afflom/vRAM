@@ -23,15 +23,18 @@ impl Repeated {
         (block.len() < PAGE).then_some(block)
     }
 
-    /// Look for a profitable non-dyadic displacement. Bound the search by the
-    /// incumbent's charge and issue at most one full overlap comparison.
-    pub(super) fn shifted(page: &[u8; PAGE], incumbent: usize) -> Option<&[u8]> {
-        let max = incumbent.saturating_sub(Self::cost(0) + 1).min(PAGE / 2);
-        if max == 0 {
+    pub(super) fn last_displacement(incumbent: usize) -> usize {
+        incumbent.saturating_sub(Self::cost(0) + 1).min(PAGE / 2)
+    }
+
+    /// Validate at most one overlap in this range of profitable displacements.
+    pub(super) fn shifted(page: &[u8; PAGE], incumbent: usize, first: usize) -> Option<&[u8]> {
+        let max = Self::last_displacement(incumbent);
+        if first > max {
             return None;
         }
         let prefix = &page[..8];
-        let displacement = 1 + page[1..max + 8].windows(8).position(|w| w == prefix)?;
+        let displacement = first + page[first..max + 8].windows(8).position(|w| w == prefix)?;
         let verdict = decide_uorc_challenger_admission(
             &page[displacement..],
             &page[..PAGE - displacement],

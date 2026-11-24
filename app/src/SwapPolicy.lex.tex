@@ -69,5 +69,26 @@ theorem{
     ((prim subtract outside budget : Nat) <=? saved)) = false),
   proof: linear_arithmetic{definitions: [Performance::disagree]}, axioms: [Classical.choice, Quot.sound, propext]
 }
+definition{
+  name: sparseFits, parameters: [header : Nat, edits : Nat, floor : Nat], result: Bool,
+  body: ((header + (prim multiply edits 4 : Nat)) <? floor), executable: true
+}
+theorem{
+  name: sparseEditLimit, parameters: [header : Nat, edits : Nat, budget : Nat, remainder : Nat],
+  statement: (((remainder <? 4) && (Performance::disagree
+    (sparseFits header edits (((header + 1) + (prim multiply budget 4 : Nat)) + remainder))
+    (edits <=? budget))) = false),
+  proof: linear_arithmetic{definitions: [Performance::disagree, sparseFits]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: disjointExceptions, parameters: [blocksWithEdit : Nat, additionalEdits : Nat, budget : Nat],
+  statement: (((budget <? blocksWithEdit) && ((blocksWithEdit + additionalEdits) <=? budget)) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: uniformWitness, parameters: [width : Nat, otherEdits : Nat, base : Nat, candidate : Nat, budget : Nat],
+  statement: ((((budget <? width) && (((if (base =? candidate) then 0 else width) + otherEdits) <=? budget)) && (not (base =? candidate))) = false),
+  proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}
