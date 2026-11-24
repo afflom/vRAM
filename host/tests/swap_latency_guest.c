@@ -95,6 +95,16 @@ int main(void) {
     }
     int status;
     if (waitpid(workload, &status, 0) != workload || status) fail("benchmark");
+    if (access("/store-clock", F_OK) == 0) {
+        const unsigned port = 0x505;
+        int fd = open("/path-samples.json", O_RDONLY);
+        if (fd < 0 || ioperm(port, 1, 1)) fail("trace export");
+        char buf[4096];
+        ssize_t count;
+        while ((count = read(fd, buf, sizeof(buf))) > 0) outsb(port, buf, (size_t)count);
+        if (count < 0) fail("read trace");
+        close(fd);
+    }
     for (int i = 1; i < BACKENDS; ++i) {
         int fd = open(paths[i], O_RDWR);
         if (fd < 0 || ioctl(fd, NBD_DISCONNECT)) fail("disconnect");

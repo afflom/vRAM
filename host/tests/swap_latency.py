@@ -74,6 +74,10 @@ with tempfile.TemporaryDirectory() as tmp:
                "-initrd", path / "initrd", "-nodefaults", "-display", "none", "-serial", "stdio",
                "-device", "isa-debug-exit,iobase=0xf4,iosize=4", "-no-reboot",
                "-append", "console=ttyS0 quiet zswap.enabled=0 rdinit=/init panic=-1"]
+    if args.trace_output:
+        trace_file = path / "store-trace.json"
+        command.extend(["-chardev", f"file,id=clock,path={trace_file}",
+                        "-device", "isa-debugcon,iobase=0x505,chardev=clock"])
     if args.bios_dir:
         command.extend(["-L", args.bios_dir])
     if args.accel == "kvm":
@@ -82,6 +86,8 @@ with tempfile.TemporaryDirectory() as tmp:
     log = proc.stdout.decode(errors="replace")
     if proc.returncode != 1:
         sys.exit(log[-4000:])
+    if args.trace_output:
+        batches = json.loads(trace_file.read_bytes())
 
 def observations(prefix, profiles):
     rows = {}
@@ -120,7 +126,6 @@ if args.local_completion:
     result["rq_affinity"] = dict(zip(("control", "vram"), map(int, settings[0])))
 result["meets_parity"] = result["operator_parity"] and result["held_out_parity"]
 if args.trace_output:
-    batches = [json.loads(line) for line in re.findall(r"^PATH_SAMPLES (.+)$", log, re.M)]
     if not batches:
         sys.exit("Missing store timing samples")
     payload = gzip.compress(json.dumps(batches, separators=(",", ":")).encode(), mtime=0)

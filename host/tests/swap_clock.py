@@ -24,7 +24,6 @@ class StoreClock:
             [sequence, page, start, enter, leave, start + elapsed])
 
     def emit(self):
-        # Emit only after all measurements to keep serial I/O out of both paths.
-        for key, rows in self.rows.items():
-            for index in range(0, len(rows), 32):
-                print("PATH_SAMPLES", json.dumps([*key, rows[index:index + 32]], separators=(",", ":")))
+        # Stage the trace after measurement. PID 1 sends it over a dedicated channel.
+        with open("/path-samples.json", "x") as target:
+            json.dump([[*key, rows] for key, rows in self.rows.items()], target, separators=(",", ":"))
