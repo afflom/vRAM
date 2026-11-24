@@ -1,0 +1,57 @@
+\begin{lexlean}{BlockPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{ name: header, parameters: [], result: Nat, body: 0, executable: true }
+definition{ name: readHead, parameters: [], result: Nat, body: 1, executable: true }
+definition{ name: readTail, parameters: [], result: Nat, body: 2, executable: true }
+definition{ name: writePage, parameters: [], result: Nat, body: 3, executable: true }
+definition{ name: trimRange, parameters: [], result: Nat, body: 4, executable: true }
+definition{ name: drain, parameters: [], result: Nat, body: 5, executable: true }
+definition{ name: ack, parameters: [], result: Nat, body: 6, executable: true }
+definition{ name: invalid, parameters: [], result: Nat, body: 7, executable: true }
+definition{ name: unsupported, parameters: [], result: Nat, body: 8, executable: true }
+definition{ name: readError, parameters: [], result: Nat, body: 9, executable: true }
+definition{ name: done, parameters: [], result: Nat, body: 10, executable: true }
+definition{ name: disconnect, parameters: [], result: Nat, body: 11, executable: true }
+definition{ name: abortRequest, parameters: [], result: Nat, body: 12, executable: true }
+definition{ name: sendHead, parameters: [], result: Nat, body: 13, executable: true }
+definition{ name: sendTail, parameters: [], result: Nat, body: 14, executable: true }
+definition{
+  name: isReply, parameters: [phase : Nat], result: Bool,
+  body: (((phase =? (ack)) || (phase =? (invalid))) || ((phase =? (unsupported)) || (phase =? (readError)))), executable: true
+}
+definition{
+  name: beginRequest, parameters: [command : Nat, allowed : Bool, empty : Bool], result: Nat,
+  body: (if (command =? 2) then (disconnect) else
+    (if (command =? 3) then (if empty then (ack) else (invalid)) else
+     (if allowed then
+       (if (command =? 0) then (readHead) else (if (command =? 1) then (writePage) else
+         (if (command =? 4) then (trimRange) else (unsupported))))
+      else (if ((command =? 1) && (not empty)) then (drain) else (invalid))))), executable: true
+}
+definition{
+  name: step, parameters: [phase : Nat, command : Nat, allowed : Bool, empty : Bool, success : Bool, last : Bool], result: Nat,
+  body: (if (phase =? (header)) then (if success then (beginRequest command allowed empty) else (abortRequest)) else
+    (if (not success) then (if (phase =? (readHead)) then (readError) else (abortRequest)) else
+     (if (phase =? (readHead)) then (sendHead) else
+      (if (phase =? (readTail)) then (sendTail) else
+       (if ((phase =? (sendHead)) || (phase =? (sendTail))) then (if last then (done) else (readTail)) else
+        (if (phase =? (writePage)) then (if last then (ack) else (writePage)) else
+         (if (phase =? (trimRange)) then (ack) else
+          (if (phase =? (drain)) then (if last then (invalid) else (drain)) else
+           (if (isReply phase) then (done) else (abortRequest)))))))))),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+theorem{ name: rejectedWriteDrains, parameters: [last : Bool], statement: ((step (header) 1 false false true last) = (drain)), proof: reflexivity{} }
+theorem{ name: drainBeforeReply, parameters: [c : Nat, a : Bool, e : Bool], statement: ((step (drain) c a e true false) = (drain)), proof: reflexivity{} }
+theorem{ name: writeAfterCommit, parameters: [c : Nat, a : Bool, e : Bool], statement: ((step (writePage) c a e true true) = (ack)), proof: reflexivity{} }
+theorem{ name: failedWriteStops, parameters: [c : Nat, a : Bool, e : Bool, last : Bool], statement: ((step (writePage) c a e false last) = (abortRequest)), proof: reflexivity{} }
+theorem{ name: firstReadError, parameters: [c : Nat, a : Bool, e : Bool, last : Bool], statement: ((step (readHead) c a e false last) = (readError)), proof: reflexivity{} }
+theorem{ name: partialReadStops, parameters: [c : Nat, a : Bool, e : Bool, last : Bool], statement: ((step (readTail) c a e false last) = (abortRequest)), proof: reflexivity{} }
+theorem{ name: lastReadDone, parameters: [c : Nat, a : Bool, e : Bool], statement: ((step (sendTail) c a e true true) = (done)), proof: reflexivity{} }
+theorem{ name: failedReplyStops, parameters: [c : Nat, a : Bool, e : Bool, last : Bool], statement: ((step (sendHead) c a e false last) = (abortRequest)), proof: reflexivity{} }
+theorem{ name: ackCompletes, parameters: [c : Nat, a : Bool, e : Bool, last : Bool], statement: ((step (ack) c a e true last) = (done)), proof: reflexivity{} }
+\end{semanticmodule}
+\end{lexlean}

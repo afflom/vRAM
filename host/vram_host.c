@@ -77,65 +77,67 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
 {
     struct input in = { .pos = 0, .end = 0 };
     for (;;) {
-        struct nbd_request req;
-        if (header(fd, &in, &req) || ntohl(req.magic) != NBD_REQUEST_MAGIC)
-            return -1;
-        uint32_t type = ntohl(req.type) & 0xffff;
-        if (type == NBD_CMD_DISC) return 0;
+        struct nbd_request req = {0};
+        bool framed = !header(fd, &in, &req) && ntohl(req.magic) == NBD_REQUEST_MAGIC;
         uint64_t off = be64toh(req.from);
-        uint32_t len = ntohl(req.len);
-        struct nbd_reply reply = { .magic = htonl(NBD_REPLY_MAGIC) };
-        memcpy(reply.handle, req.handle, sizeof(reply.handle));
-        uint8_t data[PAGE];
-        if (type == NBD_CMD_FLUSH) {
-            /* Each write has already committed to the volatile Verdant store. */
-            if (len) reply.error = htonl(EINVAL);
-            if (transfer(fd, &reply, sizeof(reply), true)) return -1;
-            continue;
-        }
-        if (!vram_range(off, len, pages * PAGE)) {
-            /* Consume the rejected payload to preserve framing for later I/O. */
-            while (type == NBD_CMD_WRITE && len) {
-                uint32_t chunk = len < PAGE ? len : PAGE;
-                if (!payload(fd, &in, data, chunk)) return -1;
-                len -= chunk;
+        uint32_t remaining = ntohl(req.len);
+        uint16_t command = ntohl(req.type) & 0xffff;
+        uint32_t effect = vram_block_begin(framed, command, off, remaining, pages * PAGE);
+        struct { struct nbd_reply header; uint8_t page[PAGE]; } frame;
+        _Static_assert(sizeof(frame) == sizeof(frame.header) + PAGE, "NBD wire framing");
+        frame.header = (struct nbd_reply){ .magic = htonl(NBD_REPLY_MAGIC) };
+        memcpy(frame.header.handle, req.handle, sizeof(req.handle));
+        size_t page = off / PAGE;
+        while (effect != VRAM_BLOCK_DONE) {
+            size_t chunk = remaining < PAGE ? remaining : PAGE;
+            bool success = true;
+            switch (effect) {
+            case VRAM_BLOCK_READ_HEAD:
+            case VRAM_BLOCK_READ_TAIL:
+                success = !store_get(store, page, frame.page);
+                chunk = 0;
+                break;
+            case VRAM_BLOCK_SEND_HEAD:
+                success = !transfer(fd, &frame, sizeof(frame), true);
+                if (success) counts->reads++;
+                break;
+            case VRAM_BLOCK_SEND_TAIL:
+                success = !transfer(fd, frame.page, PAGE, true);
+                if (success) counts->reads++;
+                break;
+            case VRAM_BLOCK_WRITE: {
+                uint8_t *data = payload(fd, &in, frame.page, chunk);
+                success = data && !store_put(store, page, data);
+                if (success) counts->writes++;
+                break;
             }
-            reply.error = htonl(EINVAL);
-            if (transfer(fd, &reply, sizeof(reply), true)) return -1;
-            continue;
-        }
-        size_t begin = off / PAGE, end = begin + len / PAGE;
-        if (type == NBD_CMD_READ) {
-            /* A single stream write wakes the kernel with both the status and the first page. */
-            struct { struct nbd_reply header; uint8_t page[PAGE]; } frame;
-            frame.header = reply;
-            _Static_assert(sizeof(frame) == sizeof(reply) + PAGE, "NBD wire framing");
-            if (begin == end || store_get(store, begin, frame.page)) {
-                if (begin != end) frame.header.error = htonl(EIO);
-                if (transfer(fd, &frame.header, sizeof(reply), true)) return -1;
-                continue;
+            case VRAM_BLOCK_TRIM:
+                chunk = remaining;
+                success = !store_discard(store, page, chunk / PAGE);
+                if (success) counts->trims += chunk / PAGE;
+                break;
+            case VRAM_BLOCK_DRAIN:
+                success = payload(fd, &in, frame.page, chunk) != NULL;
+                break;
+            case VRAM_BLOCK_INVALID:
+            case VRAM_BLOCK_UNSUPPORTED:
+            case VRAM_BLOCK_READ_ERROR:
+            case VRAM_BLOCK_ACK:
+                if (effect == VRAM_BLOCK_INVALID) frame.header.error = htonl(EINVAL);
+                if (effect == VRAM_BLOCK_UNSUPPORTED) frame.header.error = htonl(EOPNOTSUPP);
+                if (effect == VRAM_BLOCK_READ_ERROR) frame.header.error = htonl(EIO);
+                success = !transfer(fd, &frame.header, sizeof(frame.header), true);
+                chunk = 0;
+                break;
+            case VRAM_BLOCK_DISCONNECT:
+                return 0;
+            default:
+                return -1;
             }
-            if (transfer(fd, &frame, sizeof(frame), true)) return -1;
-            counts->reads++;
-            for (size_t i = begin + 1; i < end; ++i) {
-                if (store_get(store, i, data) || transfer(fd, data, PAGE, true)) return -1;
-                counts->reads++;
-            }
-            continue;
+            remaining -= chunk;
+            page += chunk / PAGE;
+            effect = vram_block_after(effect, success, remaining == 0);
         }
-        if (type == NBD_CMD_TRIM) {
-            if (store_discard(store, begin, end - begin)) return -1;
-            counts->trims += end - begin;
-        } else if (type == NBD_CMD_WRITE) {
-            for (size_t i = begin; i < end; ++i) {
-                uint8_t *page = payload(fd, &in, data, PAGE);
-                if (!page || store_put(store, i, page)) return -1;
-                counts->writes++;
-            }
-        } else {
-            reply.error = htonl(EOPNOTSUPP);
-        }
-        if (transfer(fd, &reply, sizeof(reply), true)) return -1;
     }
 }
 

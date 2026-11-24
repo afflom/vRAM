@@ -311,3 +311,16 @@ id = "VR-47"
 level = "open"
 suite = "capacity"
 statement = "Queue-depth-one requests are matched to the timed Verdant store invocation and replayed against a same-guest zram reference"
+
+[[id]]
+id = "VR-48"
+level = "build"
+suite = "capacity"
+statement = "The block request controller drains rejected write payloads, acknowledges committed writes and distinguishes initial and partial read failures"
+theorems = ["BlockPolicy.rejectedWriteDrains", "BlockPolicy.drainBeforeReply", "BlockPolicy.writeAfterCommit", "BlockPolicy.failedWriteStops", "BlockPolicy.firstReadError", "BlockPolicy.partialReadStops", "BlockPolicy.lastReadDone", "BlockPolicy.failedReplyStops", "BlockPolicy.ackCompletes"]
+
+[[id]]
+id = "VR-49"
+level = "open"
+suite = "capacity"
+statement = "The installed Linux swap adapter executes the generated block request controller for every NBD command and page effect"

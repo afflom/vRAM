@@ -67,6 +67,8 @@ The three honesty levels (R2):
 | `VR-45` | `build` | Restoring a verified prefix consumes a strictly positive bounded part of the remaining copy budget, with exact byte accounting | `SwapPolicy.copyBudget` |
 | `VR-46` | `build` | Nested timestamps partition a request exactly and the outside-store time above a deadline is the minimum required outside saving with zero service cost | `SwapPolicy.nestedIntervals`, `SwapPolicy.minimumOutsideSaving` |
 | `VR-47` | `open` | Queue-depth-one requests are matched to the timed Verdant store invocation and replayed against a same-guest zram reference |  |
+| `VR-48` | `build` | The block request controller drains rejected write payloads, acknowledges committed writes and distinguishes initial and partial read failures | `BlockPolicy.rejectedWriteDrains`, `BlockPolicy.drainBeforeReply`, `BlockPolicy.writeAfterCommit`, `BlockPolicy.failedWriteStops`, `BlockPolicy.firstReadError`, `BlockPolicy.partialReadStops`, `BlockPolicy.lastReadDone`, `BlockPolicy.failedReplyStops`, `BlockPolicy.ackCompletes` |
+| `VR-49` | `open` | The installed Linux swap adapter executes the generated block request controller for every NBD command and page effect |  |
 
 ## Cited authorities
 

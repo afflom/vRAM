@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: 45e26a7c19efa3dbf070454a36664295d24b2924
+          ref: 375ee0d6428e1880b6d12a05241a1906157d8adf
           path: measurements/local/swap-control
       - name: Compare single-page swap latency with zram zstd
         run: |

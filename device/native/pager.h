@@ -48,6 +48,15 @@ uint32_t vram_discarded(bool success);
 bool vram_trim(uint64_t limit, uint64_t resident);
 bool vram_permitted(bool opted, bool quiescent, bool tcg, bool kvm, bool capture_all, bool migration_idle);
 uint64_t vram_membership(uint64_t word, uint64_t bit, bool present);
+/* BlockPolicy effect tags on the C ABI. */
+enum vram_block_effect {
+    VRAM_BLOCK_HEADER, VRAM_BLOCK_READ_HEAD, VRAM_BLOCK_READ_TAIL, VRAM_BLOCK_WRITE,
+    VRAM_BLOCK_TRIM, VRAM_BLOCK_DRAIN, VRAM_BLOCK_ACK, VRAM_BLOCK_INVALID,
+    VRAM_BLOCK_UNSUPPORTED, VRAM_BLOCK_READ_ERROR, VRAM_BLOCK_DONE,
+    VRAM_BLOCK_DISCONNECT, VRAM_BLOCK_ABORT, VRAM_BLOCK_SEND_HEAD, VRAM_BLOCK_SEND_TAIL
+};
+uint32_t vram_block_begin(bool framed, uint16_t command, uint64_t offset, uint32_t length, uint64_t extent);
+uint32_t vram_block_after(uint32_t effect, bool success, bool last);
 bool vram_range(uint64_t offset, uint64_t length, uint64_t extent);
 void store_literal_stats(struct store *, uint64_t *unique, uint64_t *hits, uint64_t *skipped, uint64_t *residuals);
 void store_edits(struct store *, uint64_t *pages, uint64_t *entries);

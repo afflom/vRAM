@@ -146,6 +146,7 @@ version = "0.1.0"
 dependencies = [
  "verdant-tensor",
  "vram_advance",
+ "vram_block_step",
  "vram_capacity_ceiling",
  "vram_empty_group",
  "vram_host_size",
@@ -727,6 +728,12 @@ name = "vram_advance"
 version = "0.1.0"
 source = "sparse+http://127.0.0.1:17943/"
 checksum = "23eaaf53e9013f2398e9ef6c67a0d14d0110d6d36d11f6d33ab61c6d27bb9a21"
+
+[[package]]
+name = "vram_block_step"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "42d835cac1ddc6b1840ecd14ec8d772b0ec2748a27145d8fb56c6917492ee43f"
 
 [[package]]
 name = "vram_capacity_ceiling"

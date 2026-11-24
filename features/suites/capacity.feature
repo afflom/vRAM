@@ -365,3 +365,15 @@ Feature: capacity
     Given a diagnostic build of the current server and an uninstrumented build in the same guest
     When every sampled page is written and read back under the operator and mixed workloads
     Then the receipt accounts for every request and compares the observed outside-store medians with zram
+
+  @VR-48 @build
+  Scenario: Complete the request after all required effects
+    Given a write with a rejected extent or a read that fails after its reply header
+    When the adapter reports the result of its current effect
+    Then the block policy drains the rejected payload before replying and stops a partial read without a second reply
+
+  @VR-49 @open
+  Scenario: Drive Linux wire requests through the linked model
+    Given a single stream carrying reads, writes, trims, flushes and rejected commands
+    When Linux requests successive effects on a real Verdant store
+    Then every successful read returns the expected bytes and the next request retains its framing

@@ -67,3 +67,20 @@ pub extern "C" fn vram_range(offset: u64, length: u64, extent: u64) -> bool {
 pub extern "C" fn vram_membership(word: u64, bit: u64, present: bool) -> u64 {
     vram_word::run(word, if present { u64::MAX } else { 0 }, bit)
 }
+
+#[no_mangle]
+pub extern "C" fn vram_block_begin(
+    framed: bool,
+    command: u16,
+    offset: u64,
+    length: u32,
+    extent: u64,
+) -> u32 {
+    let allowed = vram_range_model::run(offset, u64::from(length), extent);
+    vram_block_step::run(0, u64::from(command), allowed, length == 0, framed, false) as u32
+}
+
+#[no_mangle]
+pub extern "C" fn vram_block_after(effect: u32, success: bool, last: bool) -> u32 {
+    vram_block_step::run(u64::from(effect), 0, false, false, success, last) as u32
+}

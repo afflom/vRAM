@@ -20,3 +20,4 @@ vram_host_size = { version = "=0.1.0", registry = "verdant" }
 vram_empty_group = { version = "=0.1.0", registry = "verdant" }
 vram_index_step = { version = "=0.1.0", registry = "verdant" }
 vram_capacity_ceiling = { version = "=0.1.0", registry = "verdant" }
+vram_block_step = { version = "=0.1.0", registry = "verdant" }
