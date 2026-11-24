@@ -1,6 +1,7 @@
 //! Lossless backing values for 4 KiB guest pages. FFI buffers are borrowed
 //! for one call. The pager owns the store until its fault worker has joined.
 mod directory;
+mod io_profile;
 mod lifecycle;
 mod literal_file;
 mod literals;
@@ -327,6 +328,7 @@ impl Value {
 }
 
 pub struct Store {
+    profile: Option<Arc<io_profile::Profile>>,
     values: RwLock<directory::Directory>,
     restores: AtomicU64,
     literal_skips: AtomicU64,
@@ -363,6 +365,7 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
     }
     let values = directory::Directory::new(count);
     Box::into_raw(Box::new(Store {
+        profile: None,
         values: RwLock::new(values),
         restores: AtomicU64::new(0),
         literal_skips: AtomicU64::new(0),
@@ -390,6 +393,7 @@ pub unsafe extern "C" fn store_new_file(count: usize, fd: c_int) -> *mut Store {
     };
     let store = store_new(count);
     if !store.is_null() {
+        (*store).profile = arena.profile.clone();
         (*store).values.get_mut().unwrap().literals.arena = Some(arena);
     }
     store
@@ -407,9 +411,64 @@ pub unsafe extern "C" fn store_file_stats(s: &Store, reads: &mut u64, writes: &m
 pub unsafe extern "C" fn store_free(s: *mut Store) {
     drop(Box::from_raw(s));
 }
+impl Store {
+    fn write_directory(&self) -> std::sync::RwLockWriteGuard<'_, directory::Directory> {
+        io_profile::measured(self.profile.as_ref().map(|p| &p.write_lock_ns), || {
+            self.values.write().unwrap()
+        })
+    }
+    fn read_directory(&self) -> std::sync::RwLockReadGuard<'_, directory::Directory> {
+        io_profile::measured(self.profile.as_ref().map(|p| &p.read_lock_ns), || {
+            self.values.read().unwrap()
+        })
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_io_times(s: &Store, out: &mut [u64; 4]) {
+    *out = s.profile.as_ref().map_or([0; 4], |p| {
+        [&p.read_lock_ns, &p.write_lock_ns, &p.pread_ns, &p.pwrite_ns]
+            .map(|v| v.load(Ordering::Relaxed))
+    });
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) -> c_int {
-    let mut values = s.values.write().unwrap();
+    put_locked(s, &mut s.write_directory(), page, data)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_patch(
+    s: &Store,
+    page: usize,
+    offset: usize,
+    data: *const u8,
+    len: usize,
+) -> c_int {
+    if offset > PAGE || len > PAGE - offset || (len != 0 && data.is_null()) {
+        return -1;
+    }
+    let mut values = s.write_directory();
+    let Some(old) = values.get(page) else {
+        return -1;
+    };
+    if len == 0 {
+        return 0;
+    }
+    let mut bytes = [0; PAGE];
+    if old.decode(&mut bytes).is_err() {
+        return -1;
+    }
+    bytes[offset..offset + len].copy_from_slice(slice::from_raw_parts(data, len));
+    put_locked(s, &mut values, page, &bytes)
+}
+
+fn put_locked(
+    s: &Store,
+    values: &mut directory::Directory,
+    page: usize,
+    data: &[u8; PAGE],
+) -> c_int {
     let Some(dst) = values.get(page) else {
         return -1;
     };
@@ -495,7 +554,7 @@ pub extern "C" fn vram_host_auto_mib(available: u64) -> u64 {
 }
 #[no_mangle]
 pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]) -> c_int {
-    let values = s.values.read().unwrap();
+    let values = s.read_directory();
     let Some(v) = values.get(page) else {
         return -1;
     };
@@ -507,6 +566,52 @@ pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]
     }
     0
 }
+/// Read consecutive full pages. An absent group is one contiguous zero range.
+#[no_mangle]
+pub unsafe extern "C" fn store_read_pages(
+    s: &Store,
+    first: usize,
+    count: usize,
+    out: *mut u8,
+) -> c_int {
+    let values = s.read_directory();
+    if first > values.count || count > values.count - first || count > isize::MAX as usize / PAGE {
+        return -1;
+    }
+    if count == 0 {
+        return 0;
+    }
+    if out.is_null() {
+        return -1;
+    }
+    let mut done = 0;
+    let mut restores = 0;
+    while done < count {
+        let page = first + done;
+        let lane = page % directory::GROUP;
+        let n = (count - done).min(directory::GROUP - lane);
+        let dst = out.add(done * PAGE);
+        if let Some(group) = values.group_at(page) {
+            for (i, value) in group.values[lane..lane + n].iter().enumerate() {
+                if value
+                    .decode(&mut *dst.add(i * PAGE).cast::<[u8; PAGE]>())
+                    .is_err()
+                {
+                    return -1;
+                }
+                restores += u64::from(value.selector_base().is_some());
+            }
+        } else {
+            ptr::write_bytes(dst, 0, n * PAGE);
+        }
+        done += n;
+    }
+    if restores != 0 {
+        s.restores.fetch_add(restores, Ordering::Relaxed);
+    }
+    0
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn store_project(
     s: &Store,
@@ -677,6 +782,48 @@ mod runtime_tests {
 #[cfg(test)]
 mod host_tests {
     use super::*;
+
+    #[test]
+    fn simultaneous_disjoint_patches_survive_group_reads() {
+        const COUNT: usize = 257;
+        let s = unsafe { Box::from_raw(store_new(COUNT)) };
+        let start = std::sync::Barrier::new(4);
+        std::thread::scope(|scope| {
+            for lane in 0..4 {
+                let (s, start) = (&s, &start);
+                scope.spawn(move || {
+                    let data = [1 + lane as u8; 16];
+                    for page in 0..128 {
+                        start.wait();
+                        let rc =
+                            unsafe { store_patch(s, page, lane * 16, data.as_ptr(), data.len()) };
+                        assert_eq!(rc, 0);
+                    }
+                });
+            }
+        });
+        let mut out = vec![99; COUNT * PAGE];
+        unsafe {
+            assert_eq!(store_put(&s, COUNT - 1, &[77; PAGE]), 0);
+            assert_eq!(store_patch(&s, COUNT, 0, ptr::null(), 0), -1);
+            assert_eq!(store_patch(&s, 0, PAGE, out.as_ptr(), 1), -1);
+            assert_eq!(store_read_pages(&s, COUNT - 1, 2, out.as_mut_ptr()), -1);
+            assert_eq!(store_read_pages(&s, COUNT, 0, ptr::null_mut()), 0);
+            assert_eq!(store_read_pages(&s, 0, COUNT, out.as_mut_ptr()), 0);
+        }
+        for (index, page) in out.chunks_exact(PAGE).enumerate() {
+            for (i, byte) in page.iter().enumerate() {
+                let expected = if index < 128 && i < 64 {
+                    1 + (i / 16) as u8
+                } else if index == COUNT - 1 {
+                    77
+                } else {
+                    0
+                };
+                assert_eq!(*byte, expected, "page {index}, byte {i}");
+            }
+        }
+    }
 
     #[test]
     fn sparse_terabyte_directory_restores_implicit_zero_and_releases_empty_leaves() {

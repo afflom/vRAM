@@ -6,19 +6,29 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
 
-/* Each inode is an immutable extent of one VM-wide Verdant page dictionary.
- * The single FUSE dispatch thread serializes partial-page updates. */
+/* Both inodes address disjoint ranges of the same Verdant dictionary. */
 enum { PAGE = 4096 };
 struct extent { size_t first, bytes; struct timespec times[2]; };
 static struct extent boot, dimm;
 static struct store *memory;
-static uint64_t reads, writes;
+static pthread_mutex_t time_lock = PTHREAD_MUTEX_INITIALIZER;
+static _Atomic uint64_t reads, writes, read_service_ns, write_service_ns;
+static bool profile_io;
+
+static uint64_t monotonic_ns(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+}
 
 static struct extent *extent_for(const char *path)
 {
@@ -44,8 +54,10 @@ static int attributes(const char *path, struct stat *st, struct fuse_file_info *
     st->st_nlink = 1;
     st->st_size = extent->bytes;
     st->st_blksize = PAGE;
+    pthread_mutex_lock(&time_lock);
     st->st_atim = extent->times[0];
     st->st_mtim = st->st_ctim = extent->times[1];
+    pthread_mutex_unlock(&time_lock);
     return 0;
 }
 
@@ -79,33 +91,38 @@ static int page_io(const char *path, char *out, const char *in, size_t len, off_
         bool whole = n == PAGE;
         if (in) {
             const uint8_t *payload = (const uint8_t *)in + done;
-            if (!whole) {
-                if (store_get(memory, page, scratch)) return -EIO;
-                memcpy(scratch + start, payload, n);
-                payload = scratch;
-            }
-            if (store_put(memory, page, payload)) return -EIO;
-            writes++;
+            int rc = whole ? store_put(memory, page, payload) : store_patch(memory, page, start, payload, n);
+            if (rc) return -EIO;
+        } else if (whole) {
+            size_t pages = (len - done) / PAGE;
+            if (store_read_pages(memory, page, pages, (uint8_t *)out + done)) return -EIO;
+            n = pages * PAGE;
         } else {
-            uint8_t *dest = (uint8_t *)out + done;
-            if (store_get(memory, page, whole ? dest : scratch)) return -EIO;
-            if (!whole) memcpy(dest, scratch + start, n);
-            reads++;
+            if (store_get(memory, page, scratch)) return -EIO;
+            memcpy(out + done, scratch + start, n);
         }
         pos += n;
         done += n;
     }
+    size_t pages = len ? ((size_t)off % PAGE + len + PAGE - 1) / PAGE : 0;
+    atomic_fetch_add_explicit(in ? &writes : &reads, pages, memory_order_relaxed);
     return (int)done;
 }
 static int ram_read(const char *p, char *buf, size_t len, off_t off, struct fuse_file_info *fi)
 {
     (void)fi;
-    return page_io(p, buf, NULL, len, off);
+    uint64_t start = profile_io ? monotonic_ns() : 0;
+    int rc = page_io(p, buf, NULL, len, off);
+    if (profile_io) atomic_fetch_add_explicit(&read_service_ns, monotonic_ns() - start, memory_order_relaxed);
+    return rc;
 }
 static int ram_write(const char *p, const char *buf, size_t len, off_t off, struct fuse_file_info *fi)
 {
     (void)fi;
-    return page_io(p, NULL, buf, len, off);
+    uint64_t start = profile_io ? monotonic_ns() : 0;
+    int rc = page_io(p, NULL, buf, len, off);
+    if (profile_io) atomic_fetch_add_explicit(&write_service_ns, monotonic_ns() - start, memory_order_relaxed);
+    return rc;
 }
 /* Linux flushes inode timestamps before issuing FSYNC for dirty shared mappings. */
 static int ram_times(const char *path, const struct timespec times[2], struct fuse_file_info *fi)
@@ -115,9 +132,11 @@ static int ram_times(const char *path, const struct timespec times[2], struct fu
     if (!extent) return -ENOENT;
     struct timespec now;
     if (clock_gettime(CLOCK_REALTIME, &now)) return -errno;
+    pthread_mutex_lock(&time_lock);
     for (size_t i = 0; i < 2; ++i)
         if (times[i].tv_nsec != UTIME_OMIT)
             extent->times[i] = times[i].tv_nsec == UTIME_NOW ? now : times[i];
+    pthread_mutex_unlock(&time_lock);
     return 0;
 }
 
@@ -167,14 +186,24 @@ int main(int argc, char **argv)
     if (!memory) return 1;
     const struct fuse_operations ops = { .getattr = attributes, .readdir = list,
         .read = ram_read, .write = ram_write, .fsync = ram_sync, .utimens = ram_times, .init = initialize };
-    char *args[] = {argv[0], "-f", "-s", "-o", "default_permissions", argv[4]};
-    int rc = fuse_main(6, args, &ops, NULL);
+    const char *profile = getenv("VRAM_PROFILE_IO");
+    profile_io = profile && !strcmp(profile, "1");
+    char *args[] = {argv[0], "-f", "-o", "default_permissions", argv[4]};
+    int rc = fuse_main(5, args, &ops, NULL);
     uint64_t stats[5], disk_reads, disk_writes;
     store_file_stats(memory, &disk_reads, &disk_writes);
     store_stats(memory, stats);
     fprintf(stderr, "VRAM_FILE {\"read_pages\":%" PRIu64 ",\"write_pages\":%" PRIu64
             ",\"file_base_reads\":%" PRIu64 ",\"file_base_writes\":%" PRIu64
             ",\"store_bytes\":%" PRIu64 "}\n", reads, writes, disk_reads, disk_writes, stats[4]);
+    if (profile_io) {
+        uint64_t ns[4];
+        store_io_times(memory, ns);
+        fprintf(stderr, "VRAM_TIMES {\"read_callback_ns\":%" PRIu64 ",\"write_callback_ns\":%" PRIu64
+                ",\"read_lock_ns\":%" PRIu64 ",\"write_lock_ns\":%" PRIu64
+                ",\"pread_ns\":%" PRIu64 ",\"pwrite_ns\":%" PRIu64 "}\n",
+                (uint64_t)read_service_ns, (uint64_t)write_service_ns, ns[0], ns[1], ns[2], ns[3]);
+    }
     store_free(memory);
     return rc;
 }

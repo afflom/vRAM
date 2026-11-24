@@ -36,11 +36,12 @@ impl Directory {
             return None;
         }
         Some(
-            self.leaves
-                .get(&(page / LEAF))
-                .and_then(|leaf| leaf.groups[page / GROUP % FANOUT].as_ref())
+            self.group_at(page)
                 .map_or(&ZERO, |g| &g.values[page % GROUP]),
         )
+    }
+    pub(super) fn group_at(&self, page: usize) -> Option<&Group> {
+        self.leaves.get(&(page / LEAF))?.groups[page / GROUP % FANOUT].as_deref()
     }
     pub(super) fn write_group(&mut self, page: usize) -> (&mut Group, &mut super::literals::Pool) {
         let leaf = self.leaves.entry(page / LEAF).or_insert_with(|| {

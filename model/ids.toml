@@ -127,3 +127,9 @@ id = "VR-19"
 level = "open"
 suite = "capacity"
 statement = "An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes"
+
+[[id]]
+id = "VR-20"
+level = "open"
+suite = "capacity"
+statement = "Concurrent partial writes to disjoint bytes of one page survive full readback and a failed patch preserves the committed page"

@@ -80,6 +80,7 @@ impl Slots {
 }
 
 pub(super) struct Arena {
+    pub(super) profile: Option<Arc<super::io_profile::Profile>>,
     file: File,
     capacity: u64,
     slots: Mutex<Slots>,
@@ -104,6 +105,9 @@ impl Arena {
             file,
             capacity,
             slots: Mutex::default(),
+            profile: (std::env::var_os("VRAM_PROFILE_IO").as_deref()
+                == Some(std::ffi::OsStr::new("1")))
+            .then(Arc::default),
             reads: AtomicU64::new(0),
             writes: AtomicU64::new(0),
         }))
@@ -114,7 +118,10 @@ impl Arena {
         let index = slots.vacant(self.capacity)?;
         // A partial write or ledger allocation failure affects only an unowned
         // slot. Its bytes are overwritten in full before a reader can see it.
-        self.file.write_all_at(bytes, index * PAGE as u64).ok()?;
+        super::io_profile::measured(self.profile.as_ref().map(|p| &p.pwrite_ns), || {
+            self.file.write_all_at(bytes, index * PAGE as u64)
+        })
+        .ok()?;
         slots.claim(index, self.capacity)?;
         self.writes.fetch_add(1, Ordering::Relaxed);
         Some(Slot {
@@ -131,9 +138,11 @@ impl Arena {
 
 impl Slot {
     pub(super) fn read(&self, bytes: &mut [u8; PAGE]) -> io::Result<()> {
-        self.arena
-            .file
-            .read_exact_at(bytes, self.index * PAGE as u64)?;
+        super::io_profile::measured(self.arena.profile.as_ref().map(|p| &p.pread_ns), || {
+            self.arena
+                .file
+                .read_exact_at(bytes, self.index * PAGE as u64)
+        })?;
         self.arena.reads.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }

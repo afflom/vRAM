@@ -39,6 +39,7 @@ The three honesty levels (R2):
 | `VR-17` | `open` | Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents |  |
 | `VR-18` | `open` | A converging overwrite applies the existing index policy when it retires the last owner of a dense base |  |
 | `VR-19` | `open` | An overwrite can nominate its still-shared immutable base for exact residual admission across fingerprint changes |  |
+| `VR-20` | `open` | Concurrent partial writes to disjoint bytes of one page survive full readback and a failed patch preserves the committed page |  |
 
 ## Cited authorities
 

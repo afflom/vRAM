@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 
 here = Path(__file__).resolve().parent
 validation = here.parents[1] / "device/validation"
@@ -44,9 +45,29 @@ cat "/sys/fs/cgroup$group/memory.peak"
     return row, proc.stdout
 
 
+def sample_fuse(mount, stop, samples):
+    # The fusectl count includes work in userspace and work awaiting transfer.
+    waiting = None
+    while not stop.wait(0.005):
+        if waiting is None:
+            for line in Path("/proc/self/mountinfo").read_text().splitlines():
+                before, after = line.split(" - ", 1)
+                fields = before.split()
+                if fields[4] == str(mount) and after.startswith("fuse"):
+                    minor = fields[2].split(":")[1]
+                    waiting = Path("/sys/fs/fuse/connections") / minor / "waiting"
+                    break
+        if waiting is not None:
+            try:
+                samples.append(int(waiting.read_text()))
+            except FileNotFoundError:
+                return
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 for name in ("qemu", "kernel", "package", "result"):
     parser.add_argument("--" + name, type=Path, required=True)
+parser.add_argument("--baseline-package", type=Path, help="previous package built for the same runner")
 args = parser.parse_args()
 accel = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
 rows = []
@@ -55,6 +76,10 @@ with tempfile.TemporaryDirectory() as temp:
     subprocess.run(["dpkg-deb", "-x", args.package, tmp], check=True)
     subprocess.run(["cc", "-O2", "-static", "-pthread", "-Wall", "-Wextra", "-Werror",
                     "-I", validation, here / "parallel_guest.c", "-o", tmp / "init"], check=True)
+    launchers = {"vram": tmp / "usr/bin/vram-machine"}
+    if args.baseline_package:
+        subprocess.run(["dpkg-deb", "-x", args.baseline_package, tmp / "previous"], check=True)
+        launchers["previous"] = tmp / "previous/usr/bin/vram-machine"
     guest = base_entries()
     add(guest, "init", tmp / "init", 0o755)
     save(guest, tmp / "guest.gz")
@@ -62,19 +87,38 @@ with tempfile.TemporaryDirectory() as temp:
         options = ["-accel", accel, "-smp", str(cpus), "-kernel", args.kernel.resolve(), "-initrd",
                    tmp / "guest.gz", "-append", "console=ttyS0 quiet rdinit=/init nokaslr panic=-1",
                    "-nodefaults", "-display", "none", "-serial", "stdio", "-no-reboot"]
+        backends = ["ordinary", *launchers]
         for repeat in range(2):
-            for backend in (("ordinary", "vram") if repeat == 0 else ("vram", "ordinary")):
+            for backend in (backends if repeat == 0 else reversed(backends)):
                 command = ([args.qemu.resolve(), "-m", "384"] if backend == "ordinary" else
-                           [tmp / "usr/bin/vram-machine", "run", "--state", tmp / "vm",
+                           [launchers[backend], "run", "--state", tmp / "vm",
                             "--backing-dir", tmp, "--ram-mib", "384", "--qemu", args.qemu.resolve(), "--"])
                 row, log = trial([*command, *options])
                 if row["vcpus"] != cpus:
                     raise ValueError(f"wrong guest CPU topology: {row}")
-                if backend == "vram":
+                if backend in launchers:
                     row["store"] = receipt(log, "VRAM_FILE")
                 rows.append(dict(backend=backend, repeat=repeat, **row))
                 print(rows[-1], flush=True)
+    stop = threading.Event()
+    samples = []
+    observer = threading.Thread(target=sample_fuse, args=(tmp / "vm/ram", stop, samples))
+    observer.start()
+    try:
+        row, log = trial(["/usr/bin/env", "VRAM_PROFILE_IO=1", launchers["vram"], "run",
+                          "--state", tmp / "vm", "--backing-dir", tmp, "--ram-mib", "384",
+                          "--qemu", args.qemu.resolve(), "--", *options])
+    finally:
+        stop.set()
+        observer.join()
+    profile = dict(**row, times=receipt(log, "VRAM_TIMES"), store=receipt(log, "VRAM_FILE"),
+                   fuse_waiting_samples=len(samples), fuse_waiting_peak=max(samples, default=None),
+                   fuse_waiting_mean=sum(samples)/len(samples) if samples else None)
+    if profile["vcpus"] != 8 or min(profile["times"].values()) <= 0 or not samples:
+        raise ValueError(f"incomplete eight-vCPU diagnostic: {profile}")
+    print("VM profile", profile, flush=True)
 args.result.write_text(json.dumps(dict(accelerator=accel, host_cpus=len(os.sched_getaffinity(0)),
     kernel=args.kernel.name, qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
     package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(), guest_mib=384,
-    workload_mib=64, trials=rows), indent=2) + "\n")
+    workload_mib=64, profile=profile, trials=rows,
+    baseline_package_sha256=hashlib.sha256(args.baseline_package.read_bytes()).hexdigest() if args.baseline_package else None), indent=2) + "\n")

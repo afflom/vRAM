@@ -119,3 +119,9 @@ Feature: capacity
     Given two pages sharing an immutable literal
     When the first byte of one page is modified
     Then the unchanged base and edited page restore exactly with one backing write
+
+  @VR-20 @open
+  Scenario: Serve concurrent updates to one guest page
+    Given two writers updating disjoint byte ranges of the same page
+    When the shared memory file accepts their writes
+    Then both ranges remain exact and a failed replacement preserves the previous page

@@ -89,6 +89,16 @@ jobs:
           done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
+      - name: Check out the 0.5.2 guest benchmark control
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: 2691eb8a7a13030e4051c47c8a422d2865708bdd
+          path: measurements/local/control
+      - name: Build the control on the same distribution
+        run: |
+          make -C measurements/local/control/host LDFLAGS=-static
+          python3 measurements/local/control/host/package.py "$RUNNER_TEMP/control.deb"
       - name: Package Linux host software and receipt
         run: |
           mkdir -p dist
@@ -99,7 +109,7 @@ jobs:
           python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/linux-dimm.json
           sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
-            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/parallel-guest.json
+            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --baseline-package "$RUNNER_TEMP/control.deb" --result dist/parallel-guest.json
           cp measurements/local/managed-*.json dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)

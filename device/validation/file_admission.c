@@ -159,6 +159,7 @@ static int failed_writes(struct store *s, int fd)
     store_stats(s, before);
     if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE)) return 0;
     if (!store_put(s, 0, other) || !verify(s, 0, old)) return 0;
+    if (!store_patch(s, 0, 1, other + 1, PAGE - 2) || !verify(s, 0, old)) return 0;
     // Previously empty lanes, groups, and leaves, including a partial final leaf.
     size_t addresses[] = {1, 64, 16384, PAGES - 1};
     for (int repeat = 0; repeat < 2; ++repeat)
