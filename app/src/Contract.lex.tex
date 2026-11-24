@@ -60,14 +60,47 @@ definition{
 }
 theorem{ name: emptyRefused, parameters: [resultBytes : Bytes], statement: ((checkLength 0 resultBytes) = 0x696e76616c69642072657175657374), proof: reflexivity{} }
 definition{
+  name: extent, parameters: [now : Nat, ceiling : Nat], result: Nat,
+  body: (let proposed : Nat := (if (now =? 0) then 4 else (now + now)); (if (proposed <=? ceiling) then proposed else ceiling))
+}
+theorem{ name: startSmall, parameters: [], statement: ((extent 0 64) = 4), proof: reflexivity{} }
+theorem{ name: growTwice, parameters: [], statement: ((extent 8 32) = 16), proof: reflexivity{} }
+theorem{ name: capAtCeiling, parameters: [], statement: ((extent 8 12) = 12), proof: reflexivity{} }
+definition{
+  name: pilotBudget, parameters: [pilotIndex : Nat], result: Bytes,
+  body: (if (pilotIndex =? 48) then 0x30 else (if (pilotIndex =? 49) then 0x37 else (if (pilotIndex =? 50) then 0x3439 else (if (pilotIndex =? 51) then 0x646f6e65 else 0x696e76616c69642072657175657374))))
+}
+theorem{ name: pilotSequenceEnds, parameters: [], statement: ((pilotBudget 51) = 0x646f6e65), proof: reflexivity{} }
+definition{
+  name: observe, parameters: [stored : Nat, readPages : Nat, requested : Nat, rss : Nat, budget : Nat, ceiling : Nat], result: Nat,
+  body: (decision (readPages =? stored) ((stored =? (prim multiply requested 256 : Nat)) && (rss <=? budget)) (ceiling <=? requested))
+}
+theorem{ name: partialStops, parameters: [], statement: ((observe 7 7 4 1 10 64) = 1), proof: reflexivity{} }
+theorem{ name: corruptionStops, parameters: [], statement: ((observe 1024 7 4 1 10 64) = 0), proof: reflexivity{} }
+definition{
+  name: digit, parameters: [n : Nat, place : Nat], result: Bytes,
+  body: (match (Foundation.Bytes::sliceBytes 0x30313233343536373839 (prim remainder (prim quotient n place 0 : Nat) 10 0 : Nat) 1) | Option.none => 0x | Option.some b => b),
+  axioms: [Quot.sound, propext]
+}
+definition{
+  name: decimal, parameters: [n : Nat], result: Bytes,
+  body: (prim append (digit n 10000) (prim append (digit n 1000) (prim append (digit n 100) (prim append (digit n 10) (digit n 1) : Bytes) : Bytes) : Bytes) : Bytes),
+  axioms: [Quot.sound, propext]
+}
+definition{
+  name: scheduleRequest, parameters: [v : Bytes], result: Bytes,
+  body: (if (((Foundation.Bytes::byteLength v) =? 2) && ((flag v 0) =? 113)) then (pilotBudget (flag v 1)) else (if (((Foundation.Bytes::byteLength v) =? 9) && (((flag v 0) =? 103) && ((measurement v 5) <=? 65536))) then (decimal (extent (measurement v 1) (measurement v 5))) else (if (((Foundation.Bytes::byteLength v) =? 25) && ((flag v 0) =? 118)) then (answer (observe (measurement v 1) (measurement v 5) (measurement v 9) (measurement v 13) (measurement v 17) (measurement v 21))) else (checkLength (Foundation.Bytes::byteLength v) (checkpoint v))))),
+  axioms: [Quot.sound, propext]
+}
+definition{
   name: dispatch, parameters: [v : Bytes], result: Bytes,
-  body: (if ((Foundation.Bytes::byteLength v) =? 18) then (pilotRequest v) else (checkLength (Foundation.Bytes::byteLength v) (checkpoint v))), axioms: [Quot.sound, propext]
+  body: (if ((Foundation.Bytes::byteLength v) =? 18) then (pilotRequest v) else (scheduleRequest v)), axioms: [Quot.sound, propext]
 }
 definition{
   name: application,
   parameters: [],
   result: Foundation.View.Text.V1.Model::TextApplication,
-  body: (record Foundation.View.Text.V1.Model::TextApplication {profile := "prismpm/text-application/1", name := "vRAM capacity controller", cargoName := "vram-capacity", cargoVersion := "0.1.0", cargoDescription := "Derives the next capacity trial from measured evidence.", cargoRepository := "https://github.com/afflom/vRAM", cargoHomepage := "https://github.com/afflom/vRAM", libraryRoots := (cons "PrismTemplateContract.Contract.dispatch" (nil String)), acceptanceVectors := (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703100000003000000020000000100000002, response := 0x6b656570}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703100000002000000030000000900000001, response := 0x7265706c616365}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703000000002000000030000000100000001, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x303030, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x303131, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313031, response := 0x627564676574}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313130, response := 0x616476616e6365}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313131, response := 0x636f6d706c657465}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x616263, response := 0x696e76616c69642072657175657374}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x, response := 0x696e76616c69642072657175657374}) (nil Foundation.View.Text.V1.Model::AcceptanceVector))))))))))), entryRoot := "PrismTemplateContract.Contract.dispatch", coreContract := "hologram:guest/core-wasm@1", requestMaximum := (192 : UInt32), responseMaximum := (256 : UInt32), guestAllocationMaximum := (512 : UInt32), capabilitiesEmpty := true, fatArchive := true, primaryLayer := (0 : UInt8), viewLayer := (1 : UInt8), view := (record Foundation.View.Text.V1.Model::TextView {title := "vRAM capacity controller", heading := "vRAM capacity controller", inputLabel := "Verified, within budget, at ceiling (three binary digits)", submitLabel := "Check", outputLabel := "Verdict", inputError := "Invalid request", responseError := "Invalid response"})})
+  body: (record Foundation.View.Text.V1.Model::TextApplication {profile := "prismpm/text-application/1", name := "vRAM capacity controller", cargoName := "vram-capacity", cargoVersion := "0.1.0", cargoDescription := "Derives the next capacity trial from measured evidence.", cargoRepository := "https://github.com/afflom/vRAM", cargoHomepage := "https://github.com/afflom/vRAM", libraryRoots := (cons "PrismTemplateContract.Contract.dispatch" (nil String)), acceptanceVectors := (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x7130, response := 0x30}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x7131, response := 0x37}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x7132, response := 0x3439}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x7133, response := 0x646f6e65}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x67000000080000000c, response := 0x3030303132}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x670000800000010000, response := 0x3635353336}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x76000004000000040000000004000002000000020000000004, response := 0x636f6d706c657465}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x7600000400000003ff00000004000002000000020000000004, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x76000004000000040000000004000002010000020000000004, response := 0x627564676574}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703100000003000000020000000100000002, response := 0x6b656570}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703100000002000000030000000900000001, response := 0x7265706c616365}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x703000000002000000030000000100000001, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x303030, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x303131, response := 0x6661696c656420726561646261636b}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313031, response := 0x627564676574}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313130, response := 0x616476616e6365}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x313131, response := 0x636f6d706c657465}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x616263, response := 0x696e76616c69642072657175657374}) (cons (record Foundation.View.Text.V1.Model::AcceptanceVector {request := 0x, response := 0x696e76616c69642072657175657374}) (nil Foundation.View.Text.V1.Model::AcceptanceVector)))))))))))))))))))), entryRoot := "PrismTemplateContract.Contract.dispatch", coreContract := "hologram:guest/core-wasm@1", requestMaximum := (192 : UInt32), responseMaximum := (256 : UInt32), guestAllocationMaximum := (512 : UInt32), capabilitiesEmpty := true, fatArchive := true, primaryLayer := (0 : UInt8), viewLayer := (1 : UInt8), view := (record Foundation.View.Text.V1.Model::TextView {title := "vRAM capacity controller", heading := "vRAM capacity controller", inputLabel := "Verified, within budget, at ceiling (three binary digits)", submitLabel := "Check", outputLabel := "Verdict", inputError := "Invalid request", responseError := "Invalid response"})})
 }
 \end{semanticmodule}
 \end{lexlean}

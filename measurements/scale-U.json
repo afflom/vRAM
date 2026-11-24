@@ -6,9 +6,9 @@
   "cpu": "AMD EPYC 9V74 80-Core Processor",
   "kernel": "6.18.57",
   "arch": "x64",
-  "model": "blake3:53673bcc9f951dc3c1632394e8ca2976b1f5fa1ababe70acc97fd9bb97e61a2e",
+  "model": "blake3:b8ba1e69c04599c91f1a99faaeb7f6ea94d2b2951fab9fe1d7ae588eb122b84d",
   "runner_sha256": "fd24ec4fb172341e6570e671202174163a6a7977ddee4ac05aa3df90bd8526b4",
-  "operator_sha256": "2dfd87b8afe61a97114138f27d8b0ac126bb8511947de629fe4a3ce8e6ea6a0b",
+  "operator_sha256": "97c381f45b5cd1380b635b1e9b79b952b2bcd5a5bd1c408d6981ff305a2dfd74",
   "pilots": [
     {
       "requested_mib": 4,
@@ -16,13 +16,13 @@
       "search_nodes": 0,
       "stored_pages": 1024,
       "verified_pages": 1024,
-      "peak_rss_kib": 16432,
+      "peak_rss_kib": 16276,
       "store_bytes": 4210808,
       "raw_pages": 1024,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.006806,
-      "read_seconds": 0.000759,
+      "write_seconds": 0.006472,
+      "read_seconds": 0.00069,
       "decision": "replace"
     },
     {
@@ -31,13 +31,13 @@
       "search_nodes": 7,
       "stored_pages": 1024,
       "verified_pages": 1024,
-      "peak_rss_kib": 16560,
+      "peak_rss_kib": 16416,
       "store_bytes": 4211192,
       "raw_pages": 1024,
       "refits": 0,
       "skips": 960,
-      "write_seconds": 0.023739,
-      "read_seconds": 0.000796,
+      "write_seconds": 0.006595,
+      "read_seconds": 0.000664,
       "decision": "keep"
     },
     {
@@ -51,8 +51,8 @@
       "raw_pages": 1024,
       "refits": 0,
       "skips": 960,
-      "write_seconds": 0.008789,
-      "read_seconds": 0.000747,
+      "write_seconds": 0.008781,
+      "read_seconds": 0.000668,
       "decision": "keep"
     }
   ],
@@ -63,13 +63,13 @@
       "search_nodes": 0,
       "stored_pages": 1024,
       "verified_pages": 1024,
-      "peak_rss_kib": 16432,
+      "peak_rss_kib": 17576,
       "store_bytes": 4210808,
       "raw_pages": 1024,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.00941,
-      "read_seconds": 0.000701,
+      "write_seconds": 0.006459,
+      "read_seconds": 0.000808,
       "decision": "advance"
     },
     {
@@ -78,13 +78,13 @@
       "search_nodes": 0,
       "stored_pages": 2048,
       "verified_pages": 2048,
-      "peak_rss_kib": 16432,
+      "peak_rss_kib": 18572,
       "store_bytes": 8421496,
       "raw_pages": 2048,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.012107,
-      "read_seconds": 0.001349,
+      "write_seconds": 0.012999,
+      "read_seconds": 0.001432,
       "decision": "advance"
     },
     {
@@ -93,13 +93,13 @@
       "search_nodes": 0,
       "stored_pages": 4096,
       "verified_pages": 4096,
-      "peak_rss_kib": 18360,
+      "peak_rss_kib": 18572,
       "store_bytes": 16842872,
       "raw_pages": 4096,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.026098,
-      "read_seconds": 0.003108,
+      "write_seconds": 0.102896,
+      "read_seconds": 0.013216,
       "decision": "advance"
     },
     {
@@ -113,8 +113,8 @@
       "raw_pages": 8192,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.052391,
-      "read_seconds": 0.00616,
+      "write_seconds": 0.117107,
+      "read_seconds": 0.017594,
       "decision": "advance"
     },
     {
@@ -128,10 +128,11 @@
       "raw_pages": 11712,
       "refits": 0,
       "skips": 0,
-      "write_seconds": 0.091328,
-      "read_seconds": 0.00836,
+      "write_seconds": 0.201988,
+      "read_seconds": 0.018661,
       "decision": "budget"
     }
   ],
-  "search_nodes": 0
+  "search_nodes": 0,
+  "outcome": "budget"
 }

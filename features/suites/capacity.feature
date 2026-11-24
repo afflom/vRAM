@@ -29,3 +29,9 @@ Feature: capacity
     Given an empty request
     When the controller dispatches it
     Then the response is "invalid request"
+
+  @VR-06 @build
+  Scenario: Schedule a bounded extent and assess its observations
+    Given an eight MiB checkpoint and a twelve MiB ceiling
+    When the model schedules the next trial
+    Then the extent is twelve MiB and a partial observation stops at budget

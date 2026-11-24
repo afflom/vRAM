@@ -37,3 +37,10 @@ statement = "Malformed requests are refused"
 failure = "invalid request"
 negative = "VR-05"
 theorems = ["Contract.emptyRefused"]
+
+[[id]]
+id = "VR-06"
+level = "build"
+suite = "capacity"
+statement = "The model schedules calibration candidates and growing extents, and assesses raw observations"
+theorems = ["Contract.startSmall", "Contract.growTwice", "Contract.capAtCeiling", "Contract.pilotSequenceEnds", "Contract.partialStops", "Contract.corruptionStops"]

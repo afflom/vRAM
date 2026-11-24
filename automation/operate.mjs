@@ -34,6 +34,25 @@ if (!model.identities.verified) throw Error('Model identity failed');
 async function dispatch(bytes) {
   return new TextDecoder().decode(await model.dispatch(bytes));
 }
+function packet(tag, numbers) {
+  const bytes = Buffer.alloc(tag.length + 4 * numbers.length);
+  bytes.write(tag);
+  numbers.forEach((value, index) => {
+    if (!Number.isSafeInteger(value) || value < 0) throw Error('Invalid measurement');
+    bytes.writeUInt32BE(value, tag.length + index * 4);
+  });
+  return bytes;
+}
+function assess(row, limit) {
+  return dispatch(packet('v', [row.stored_pages, row.verified_pages, row.requested_mib,
+    row.peak_rss_kib, budget * 1024, limit]));
+}
+async function nextExtent(previous) {
+  const response = await dispatch(packet('g', [previous, ceiling]));
+  const next = Number(response);
+  if (!/^\d{5}$/.test(response) || next <= previous || next > ceiling) throw Error('Invalid extent from model');
+  return next;
+}
 function trial(mib, nodes) {
   return JSON.parse(execute(binary, [String(mib), String(budget), profile, String(nodes)]));
 }
@@ -50,32 +69,45 @@ try {
   // Calibrate on the same page distribution. Ordering is decided inside the
   // holo from capacity and time observations for candidate and incumbent.
   let best;
-  for (const nodes of [0, 7, 49]) {
-    const sample = trial(4, nodes);
-    const good = sample.stored_pages === 1024 && sample.verified_pages === 1024;
-    const request = Buffer.alloc(18);
-    request.write(good ? 'p1' : 'p0');
-    const metrics = [sample.store_bytes, best?.store_bytes ?? 0xffffffff,
-      Math.round(sample.write_seconds * 1e6), best ? Math.round(best.write_seconds * 1e6) : 0xffffffff];
-    metrics.forEach((v,i) => request.writeUInt32BE(v, 2 + i * 4));
-    const decision = await dispatch(request);
+  const first = await nextExtent(0);
+  for (let index = 0;; index++) {
+    const setting = await dispatch(Buffer.from('q' + index));
+    if (setting === 'done') break;
+    if (!/^\d+$/.test(setting) || Number(setting) > 49) throw Error('Invalid pilot from model');
+    const sample = trial(first, Number(setting));
+    const admission = await assess(sample, 0xffffffff);
+    if (admission !== 'advance') {
+      receipt.pilots.push({...sample, decision: admission});
+      save();
+      if (admission === 'budget') continue;
+      throw Error('Pilot stopped: ' + admission);
+    }
+    const decision = await dispatch(packet('p1', [sample.store_bytes, best?.store_bytes ?? 0xffffffff,
+      Math.round(sample.write_seconds * 1e6), best ? Math.round(best.write_seconds * 1e6) : 0xffffffff]));
     receipt.pilots.push({...sample, decision});
     save();
     if (decision === 'replace') best = sample;
     else if (decision !== 'keep') throw Error('Pilot stopped: ' + decision);
   }
-  receipt.search_nodes = best.search_nodes;
-  for (let mib = 4;; mib = Math.min(ceiling, mib * 2)) {
-    const row = trial(mib, best.search_nodes);
-    const good = row.verified_pages === row.stored_pages;
-    const fits = row.stored_pages === mib * 256 && row.peak_rss_kib <= budget * 1024;
-    const request = [good, fits, mib === ceiling].map(Number).join('');
-    const decision = await dispatch(Buffer.from(request));
-    receipt.checkpoints.push({...row, decision});
+  if (!best) {
+    receipt.outcome = 'budget';
     save();
-    console.log(profile, mib, decision, row.verified_pages, row.peak_rss_kib);
-    if (decision === 'budget' || decision === 'complete') break;
-    if (decision !== 'advance') throw Error('Capacity sweep stopped: ' + decision);
+    console.log(profile, 'all pilots exceeded the RSS budget');
+  } else {
+    receipt.search_nodes = best.search_nodes;
+    for (let mib = first;; mib = await nextExtent(mib)) {
+      const row = trial(mib, best.search_nodes);
+      const decision = await assess(row, ceiling);
+      receipt.checkpoints.push({...row, decision});
+      save();
+      console.log(profile, mib, decision, row.verified_pages, row.peak_rss_kib);
+      if (decision === 'budget' || decision === 'complete') {
+        receipt.outcome = decision;
+        save();
+        break;
+      }
+      if (decision !== 'advance') throw Error('Capacity sweep stopped: ' + decision);
+    }
   }
 } finally {
   rmSync(working, {recursive: true, force: true});

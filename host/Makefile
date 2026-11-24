@@ -16,7 +16,7 @@ build/vram-scale: $(DEVICE)/validation/scale.c $(DEVICE)/validation/capacity_pat
 	mkdir -p build
 	$(CC) $(CFLAGS) -Wall -Wextra -O2 -I$(DEVICE)/native $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
-install: build/vram-host
-	install -Dm755 $< $(DESTDIR)$(PREFIX)/sbin/vram-host
+install:
+	install -Dm755 build/vram-host $(DESTDIR)$(PREFIX)/sbin/vram-host
 
 .PHONY: all runtime install

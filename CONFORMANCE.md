@@ -25,6 +25,7 @@ The three honesty levels (R2):
 | `VR-03` | `open` | Lossless capacity and cost are measured for each workload and host backend |  |
 | `VR-04` | `build` | Pilot optimization replaces the incumbent only for a verified improvement | `Contract.preferSmaller`, `Contract.preferFasterTie`, `Contract.replaceImprovement`, `Contract.keepIncumbent`, `Contract.rejectPilot` |
 | `VR-05` | `build` | Malformed requests are refused | `Contract.emptyRefused`, refuses with `invalid request` |
+| `VR-06` | `build` | The model schedules calibration candidates and growing extents, and assesses raw observations | `Contract.startSmall`, `Contract.growTwice`, `Contract.capAtCeiling`, `Contract.pilotSequenceEnds`, `Contract.partialStops`, `Contract.corruptionStops` |
 
 ## Cited authorities
 

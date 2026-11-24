@@ -14,6 +14,8 @@ sudo make -C host install
 sudo modprobe nbd
 ```
 
+You can also download the `vram-linux-x86_64` artifact from a successful [device workflow run](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract it, run `sha256sum -c SHA256SUMS` in the extracted directory, then install the server with `sudo install -m755 vram-host /usr/local/sbin/vram-host`. The host still needs the NBD module.
+
 Choose an unused whole NBD device. Start the server in a dedicated terminal or under a supervisor that keeps it alive for the entire swap session. This example advertises 128 MiB of logical swap. The server initializes a fresh swap header inside Verdant and locks its own memory to avoid recursive swapping. Linux zswap must be disabled while using this path.
 
 ```sh
@@ -42,11 +44,11 @@ Build the QEMU backend using [the QEMU instructions](device/README.md). Select i
   -object memory-backend-verdant-tensor,id=ram,size=132M,x-quiescent-reclaim=on,x-resident-target=4M,x-search-nodes=49,x-adaptive-search=on
 ```
 
-The verified configuration uses private 4 KiB memory, Linux userfaultfd and CPU-only guests with quiescent reclaim. Earlier receipts include TCG and KVM on an emulated AMD SVM host, with ordinary QEMU RAM as a control. [QEMU experiments](device/OPTIMIZER.md) · [Receipts](device/results)
+The verified configuration uses private 4 KiB memory, Linux userfaultfd and CPU-only guests with quiescent reclaim. The rebuilt frontend passed nested TCG and KVM runs against the digits corpus and a Linux image. KVM ran on a TCG-emulated AMD SVM host. Earlier capacity trials include ordinary QEMU RAM as a control. [TCG replay](measurements/qemu-tcg.json) · [KVM replay](measurements/qemu-kvm.json) [QEMU experiments](device/OPTIMIZER.md) · [Receipts](device/results)
 
 ## Automate optimization and scaling
 
-The operator follows Verdant Studio's model-directed next-operation pattern. Three measured pilot trials use search-node budgets of 0, 7 and 49. They run through the same Verdant store as the two devices. The Prism model ranks byte-verified pilots by store charge, breaking ties by write time. It then decides whether each geometric capacity trial advances, stops at its measured RSS budget, finishes at its ceiling, or fails readback. The regional optimizer in the store also learns when to refit, skip and revisit searches. [Controller model](app/src/Contract.lex.tex) · [Studio operations](https://github.com/afflom/verdant-studio/tree/e6261b24e4c66631f3011c15be57b324f5f138fb/studio/src/Studio) · [Regional optimizer](device/src/search.rs)
+The operator follows Verdant Studio's model-directed next-operation pattern. The model supplies the pilot budgets (0, 7 and 49), returns each next extent, clamps it to the ceiling, and assesses raw page counts and RSS observations. They run through the same Verdant store as the two devices. The Prism model ranks byte-verified pilots by store charge, breaking ties by write time. It decides whether each geometric capacity trial advances, stops at its measured RSS budget, finishes at its ceiling, or fails readback. The regional optimizer in the store also learns when to refit, skip and revisit searches. [Controller model](app/src/Contract.lex.tex) · [Studio operations](https://github.com/afflom/verdant-studio/tree/e6261b24e4c66631f3011c15be57b324f5f138fb/studio/src/Studio) · [Regional optimizer](device/src/search.rs)
 
 Use Node 22+ and create a fresh receipt for each run:
 
