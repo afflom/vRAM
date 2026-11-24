@@ -401,3 +401,21 @@ Feature: capacity
     Given a nonuniform prefix repeated at an arbitrary displacement with a truncated final copy
     When its full overlap matches and the prefix costs less than every competing storage floor
     Then the store can admit the prefix before fitting those alternatives
+
+  @VR-53 @build
+  Scenario: Select a bounded block read window
+    Given the remaining page count and the frame capacity
+    When the model selects the next read window
+    Then the result is the largest span that fits both counts and advances a nonempty read with available space
+
+  @VR-53 @build
+  Scenario: Recover the valid prefix after a failed range
+    Given a nonempty request with frame capacity
+    When a range read fails and the server resumes in single-page mode
+    Then the model selects exactly one page
+
+  @VR-54 @open
+  Scenario: Read through window boundaries and a failing page
+    Given a running block adapter and requests spanning multiple frames
+    When the guest reads an intact range or a range containing a failing page
+    Then intact bytes arrive in order and the first failing page follows the block error policy

@@ -26,7 +26,10 @@ parser.add_argument("--require-parity", action="store_true", help="exit unsucces
 parser.add_argument("--trace-output", type=Path, help="write matched timestamps from the diagnostic control server as gzip JSON")
 parser.add_argument("--local-completion", action="store_true",
                     help="compare rq_affinity=0 with the guest default on two copies of the candidate")
+parser.add_argument("--read-windows", action="store_true", help="compare byte-verified direct reads at six request sizes")
 args = parser.parse_args()
+if args.read_windows and (args.local_completion or args.trace_output):
+    parser.error("read window measurements use the uninstrumented release comparison")
 servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
 if args.local_completion and (servers["control"] != servers["candidate"] or args.trace_output):
     parser.error("completion placement requires identical uninstrumented servers")
@@ -52,6 +55,8 @@ with tempfile.TemporaryDirectory() as tmp:
     files = dict(servers, init=(path / "init").read_bytes())
     files.update(python_files())
     files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
+    if args.read_windows:
+        files["swap_read_windows.py"] = (root / "host/tests/swap_read_windows.py").read_bytes()
     if args.local_completion:
         files["local-completion"] = b""
     if args.trace_output:
@@ -89,7 +94,7 @@ with tempfile.TemporaryDirectory() as tmp:
     if args.trace_output:
         batches = json.loads(trace_file.read_bytes())
 
-def observations(prefix, profiles):
+def observations(prefix, profiles, operations=("write", "read")):
     rows = {}
     for line in re.findall(r"^" + prefix + r" (.+)$", log, re.M):
         run, backend, profile, op, p50, p99 = json.loads(line)
@@ -97,11 +102,11 @@ def observations(prefix, profiles):
         if key in rows or not 0 < p50 <= p99:
             sys.exit("Invalid timing observation: " + repr(key))
         rows[key] = dict(p50_ns=p50, p99_ns=p99)
-    if len(rows) != len(profiles)*18:
+    if len(rows) != len(profiles) * len(operations) * 9:
         sys.exit("Incomplete timing matrix\n" + log[-4000:])
     summary = {}
     for profile in profiles:
-        for op in ("write", "read"):
+        for op in operations:
             times = {b: [rows[i,b,profile,op] for i in range(3)] for b in ("zram-zstd", "control", "vram")}
             medians = {b: statistics.median(r["p50_ns"] for r in samples) for b, samples in times.items()}
             summary[f"{profile}_{op}"] = dict(runs=times, median_ns=medians,
@@ -119,6 +124,11 @@ result = dict(accelerator=args.accel, kernel=args.kernel.name, kernel_sha256=has
               held_out_parity=all(v["meets_zram"] for v in mixed.values()),
               workloads=summary, mixed_overwrites=mixed, mixed_pages_per_family_per_round=64,
               mixed_verified_bytes_per_backend=3*384*4096)
+if args.read_windows:
+    sizes = [1, 2, 16, 64, 65, 128]
+    result["read_windows"] = observations("WINDOW_LATENCY", [f"pages{n}" for n in sizes], ("read",))
+    result["read_window_samples_per_run"] = 128
+    result["read_window_verified_bytes_per_backend"] = 3 * 128 * 4096 * sum(sizes)
 if args.local_completion:
     settings = re.findall(r"^COMPLETION_AFFINITY ([0-2]) ([0-2])\s*$", log, re.M)
     if len(settings) != 1 or settings[0][1] != "0":

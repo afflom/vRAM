@@ -153,6 +153,7 @@ dependencies = [
  "vram_index_step",
  "vram_lifecycle",
  "vram_range",
+ "vram_read_window",
  "vram_representation",
  "vram_schedule",
  "vram_search",
@@ -770,6 +771,12 @@ name = "vram_range"
 version = "0.1.0"
 source = "sparse+http://127.0.0.1:17943/"
 checksum = "40347739ef97f9f924334c44bfdcddce2cb0d7166ce246a7c1fa8cd2391a2400"
+
+[[package]]
+name = "vram_read_window"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "f3230ad1b2c9410dcff5bd0830e2435c9e89317f415609496b6ce34d2f766f81"
 
 [[package]]
 name = "vram_representation"

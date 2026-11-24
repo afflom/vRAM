@@ -1,7 +1,18 @@
 // Exercise stream segmentation independently of how a particular Linux kernel sends I/O.
+#include "pager.h"
+static size_t range_calls, range_pages;
+static int observed_range(struct store *s, size_t first, size_t n, uint8_t *out)
+{
+    range_calls++;
+    range_pages += n;
+    return store_read_pages(s, first, n, out);
+}
+
+#define store_read_pages observed_range
 #define main vram_host_main
 #include "../vram_host.c"
 #undef main
+#undef store_read_pages
 #include <assert.h>
 
 static void split_headers(void)
@@ -31,6 +42,7 @@ static void split_headers(void)
 
 struct session {
     int fd, result;
+    size_t extent;
     struct store *store;
     struct io_counts counts;
 };
@@ -39,7 +51,7 @@ static void *run_session(void *arg)
 {
     struct session *s = arg;
     /* The last advertised page injects a store read failure. */
-    s->result = serve(s->fd, s->store, 4, &s->counts);
+    s->result = serve(s->fd, s->store, s->extent, &s->counts);
     close(s->fd);
     return NULL;
 }
@@ -66,7 +78,7 @@ static void wire_requests(bool partial)
     assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, fd));
     struct timeval timeout = {.tv_sec = 5};
     assert(!setsockopt(fd[0], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)));
-    struct session s = {.fd = fd[1], .store = store_new(3)};
+    struct session s = {.fd = fd[1], .extent = 4, .store = store_new(3)};
     assert(s.store);
     pthread_t thread;
     assert(!pthread_create(&thread, NULL, run_session, &s));
@@ -117,8 +129,43 @@ static void wire_requests(bool partial)
     store_free(s.store);
 }
 
+static void read_windows(bool partial)
+{
+    const size_t n = 2 * READ_FRAME_PAGES + 1;
+    int fd[2];
+    assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, fd));
+    struct timeval timeout = {.tv_sec = 5};
+    assert(!setsockopt(fd[0], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)));
+    struct session s = {.fd = fd[1], .extent = n + 1, .store = store_new(n)};
+    assert(s.store);
+    uint8_t page[PAGE];
+    for (size_t i = 0; i < n; i++) {
+        memset(page, i + 1, PAGE);
+        assert(!store_put(s.store, i, page));
+    }
+    range_calls = range_pages = 0;
+    pthread_t thread;
+    assert(!pthread_create(&thread, NULL, run_session, &s));
+    request(fd[0], NBD_CMD_READ, 0, (n + partial) * PAGE);
+    reply(fd[0], 0);
+    for (size_t i = 0; i < n; i++) {
+        assert(!transfer(fd[0], page, PAGE, false));
+        for (size_t j = 0; j < PAGE; j++) assert(page[j] == (uint8_t)(i + 1));
+    }
+    if (partial) assert(read(fd[0], page, PAGE) == 0);
+    else request(fd[0], NBD_CMD_DISC, 0, 0);
+    assert(!pthread_join(thread, NULL));
+    assert(s.result == (partial ? -1 : 0) && s.counts.reads == n);
+    assert(range_calls == 2u + partial);
+    assert(range_pages == 2u * READ_FRAME_PAGES + 2u * partial);
+    close(fd[0]);
+    store_free(s.store);
+}
+
 int main(void)
 {
+    read_windows(false);
+    read_windows(true);
     split_headers();
     wire_requests(false);
     wire_requests(true);

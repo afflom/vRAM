@@ -18,7 +18,7 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
-enum { PAGE = 4096 };
+enum { PAGE = 4096, READ_FRAME_PAGES = 64 };
 struct io_counts { uint64_t writes, reads, trims; };
 static void die(const char *name) { perror(name); exit(1); }
 
@@ -76,6 +76,8 @@ static uint8_t *payload(int fd, struct input *in, uint8_t *scratch, size_t size)
 static int serve(int fd, struct store *store, size_t pages, struct io_counts *counts)
 {
     struct input in = { .pos = 0, .end = 0 };
+    struct { struct nbd_reply header; uint8_t page[READ_FRAME_PAGES * PAGE]; } frame;
+    _Static_assert(sizeof(frame) == sizeof(frame.header) + sizeof(frame.page), "NBD wire framing");
     for (;;) {
         struct nbd_request req = {0};
         bool framed = !header(fd, &in, &req) && ntohl(req.magic) == NBD_REQUEST_MAGIC;
@@ -83,8 +85,8 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
         uint32_t remaining = ntohl(req.len);
         uint16_t command = ntohl(req.type) & 0xffff;
         uint32_t effect = vram_block_begin(framed, command, off, remaining, pages * PAGE);
-        struct { struct nbd_reply header; uint8_t page[PAGE]; } frame;
-        _Static_assert(sizeof(frame) == sizeof(frame.header) + PAGE, "NBD wire framing");
+        bool single = false;
+        size_t ready = 0;
         frame.header = (struct nbd_reply){ .magic = htonl(NBD_REPLY_MAGIC) };
         memcpy(frame.header.handle, req.handle, sizeof(req.handle));
         size_t page = off / PAGE;
@@ -93,18 +95,31 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
             bool success = true;
             switch (effect) {
             case VRAM_BLOCK_READ_HEAD:
-            case VRAM_BLOCK_READ_TAIL:
-                success = !store_get(store, page, frame.page);
+            case VRAM_BLOCK_READ_TAIL: {
+                uint32_t pages_read = vram_read_window(remaining / PAGE, READ_FRAME_PAGES, single);
+                if (pages_read == 1) {
+                    success = !store_get(store, page, frame.page);
+                } else {
+                    success = !store_read_pages(store, page, pages_read, frame.page);
+                    if (!success) {
+                        // Recover the valid prefix before applying the first/partial error policy.
+                        single = true;
+                        continue;
+                    }
+                }
+                ready = pages_read * PAGE;
                 chunk = 0;
                 break;
+            }
             case VRAM_BLOCK_SEND_HEAD:
-                success = !transfer(fd, &frame, sizeof(frame), true);
-                if (success) counts->reads++;
+            case VRAM_BLOCK_SEND_TAIL: {
+                bool first = effect == VRAM_BLOCK_SEND_HEAD;
+                void *data = first ? (void *)&frame : frame.page;
+                success = !transfer(fd, data, ready + (first ? sizeof(frame.header) : 0), true);
+                chunk = ready;
+                if (success) counts->reads += chunk / PAGE;
                 break;
-            case VRAM_BLOCK_SEND_TAIL:
-                success = !transfer(fd, frame.page, PAGE, true);
-                if (success) counts->reads++;
-                break;
+            }
             case VRAM_BLOCK_WRITE: {
                 uint8_t *data = payload(fd, &in, frame.page, chunk);
                 success = data && !store_put(store, page, data);

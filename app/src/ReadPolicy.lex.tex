@@ -1,0 +1,28 @@
+\begin{lexlean}{ReadPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: window, parameters: [left : Nat, capacity : Nat, single : Bool], result: Nat,
+  body: (if single then (if ((0 <? left) && (0 <? capacity)) then 1 else 0)
+    else (if (left <=? capacity) then left else capacity)), executable: true,
+  production: {effects: [], targets: [rust-core]}
+}
+theorem{
+  name: bounded, parameters: [left : Nat, capacity : Nat, single : Bool],
+  statement: ((let n : Nat := (window left capacity single); ((n <=? left) && (n <=? capacity))) = true),
+  proof: linear_arithmetic{definitions: [window]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: progress, parameters: [left : Nat, capacity : Nat, single : Bool],
+  statement: ((((0 <? left) && (0 <? capacity)) && ((window left capacity single) =? 0)) = false),
+  proof: linear_arithmetic{definitions: [window]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: singleRecovery, parameters: [left : Nat, capacity : Nat],
+  statement: ((window left capacity true) = (if ((0 <? left) && (0 <? capacity)) then 1 else 0)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

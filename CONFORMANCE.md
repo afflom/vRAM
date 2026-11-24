@@ -72,6 +72,8 @@ The three honesty levels (R2):
 | `VR-50` | `build` | Disjoint nonuniform blocks each consume an exception and a uniform block longer than the edit budget rules out every other base | `SwapPolicy.sparseEditLimit`, `SwapPolicy.disjointExceptions`, `SwapPolicy.uniformWitness`, `SwapPolicy.factorDominance` |
 | `VR-51` | `open` | The store admits a byte-exact sparse representation by its charged cost and compares the full device path with the previous release and zram |  |
 | `VR-52` | `open` | An isolated guest compares local block completions with the default queue affinity using identical Verdant servers, the shipping request controller and byte-exact reads |  |
+| `VR-53` | `build` | The read window selects the largest feasible ordinary span, fits both counts, makes progress with space and selects exactly one page for failure recovery | `SwapPolicy.greatestReadWindow`, `ReadPolicy.bounded`, `ReadPolicy.progress`, `ReadPolicy.singleRecovery` |
+| `VR-54` | `open` | The shipping block adapter uses the native Prism read window, preserves read failure framing and measures verified direct reads across request sizes |  |
 
 ## Cited authorities
 

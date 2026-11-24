@@ -2,6 +2,7 @@
 \useglossary{lexlean.std.bool@1.2.0}
 \useglossary{lexlean.std.nat@1.2.0}
 \importmodule{Performance}
+\importmodule{ReadPolicy}
 \title{Natural number}
 \begin{semanticmodule}
 definition{
@@ -89,6 +90,11 @@ theorem{
   name: uniformWitness, parameters: [width : Nat, otherEdits : Nat, base : Nat, candidate : Nat, budget : Nat],
   statement: ((((budget <? width) && (((if (base =? candidate) then 0 else width) + otherEdits) <=? budget)) && (not (base =? candidate))) = false),
   proof: linear_arithmetic{}, axioms: [Classical.choice, Quot.sound, propext]
+}
+theorem{
+  name: greatestReadWindow, parameters: [left : Nat, capacity : Nat],
+  statement: ((ReadPolicy::window left capacity false) = (if (left <=? capacity) then left else capacity)),
+  proof: reflexivity{}
 }
 \end{semanticmodule}
 \end{lexlean}

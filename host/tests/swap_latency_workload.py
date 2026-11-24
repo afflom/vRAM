@@ -99,6 +99,10 @@ for trial in range(3):
             for name, samples in times.items():
                 print("MIXED_LATENCY", json.dumps([trial, label, name, op, statistics.median(samples),
                       sorted(samples)[(len(samples)*99+99)//100-1]]), flush=True)
+if os.path.exists("/swap_read_windows.py"):
+    sys.path.insert(0, "/")
+    from swap_read_windows import measure
+    measure(devices)
 for _, fd in devices:
     os.close(fd)
 

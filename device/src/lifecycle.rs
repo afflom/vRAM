@@ -84,3 +84,8 @@ pub extern "C" fn vram_block_begin(
 pub extern "C" fn vram_block_after(effect: u32, success: bool, last: bool) -> u32 {
     vram_block_step::run(u64::from(effect), 0, false, false, success, last) as u32
 }
+
+#[no_mangle]
+pub extern "C" fn vram_read_window(remaining_pages: u32, frame_pages: u32, single: bool) -> u32 {
+    vram_read_window::run(u64::from(remaining_pages), u64::from(frame_pages), single) as u32
+}

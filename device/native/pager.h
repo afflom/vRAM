@@ -55,6 +55,7 @@ enum vram_block_effect {
     VRAM_BLOCK_UNSUPPORTED, VRAM_BLOCK_READ_ERROR, VRAM_BLOCK_DONE,
     VRAM_BLOCK_DISCONNECT, VRAM_BLOCK_ABORT, VRAM_BLOCK_SEND_HEAD, VRAM_BLOCK_SEND_TAIL
 };
+uint32_t vram_read_window(uint32_t remaining_pages, uint32_t frame_pages, bool single);
 uint32_t vram_block_begin(bool framed, uint16_t command, uint64_t offset, uint32_t length, uint64_t extent);
 uint32_t vram_block_after(uint32_t effect, bool success, bool last);
 bool vram_range(uint64_t offset, uint64_t length, uint64_t extent);

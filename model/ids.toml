@@ -343,3 +343,16 @@ id = "VR-52"
 level = "open"
 suite = "capacity"
 statement = "An isolated guest compares local block completions with the default queue affinity using identical Verdant servers, the shipping request controller and byte-exact reads"
+
+[[id]]
+id = "VR-53"
+level = "build"
+suite = "capacity"
+statement = "The read window selects the largest feasible ordinary span, fits both counts, makes progress with space and selects exactly one page for failure recovery"
+theorems = ["SwapPolicy.greatestReadWindow", "ReadPolicy.bounded", "ReadPolicy.progress", "ReadPolicy.singleRecovery"]
+
+[[id]]
+id = "VR-54"
+level = "open"
+suite = "capacity"
+statement = "The shipping block adapter uses the native Prism read window, preserves read failure framing and measures verified direct reads across request sizes"

@@ -8,9 +8,11 @@ const gate = options[0] === '--require-parity';
 if (gate) options.shift();
 const completion = options[0] === '--completion';
 if (completion) options.shift();
+const windows = options[0] === '--read-windows';
+if (windows) options.shift();
 const [traceOption, traceFile] = options;
 if (!input || !output || (options.length && (options.length !== 2 || traceOption !== '--trace')))
-    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--trace samples.json.gz]');
+    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--read-windows] [--trace samples.json.gz]');
 const receipt = JSON.parse(readFileSync(input));
 const {model, address} = await verifiedModel();
 const backends = ['control', 'vram', 'zram-zstd'];
@@ -29,8 +31,8 @@ async function parity(candidate, reference) {
     return verdict === 'yes';
 }
 
-async function certify(suite, profiles) {
-    const cells = profiles.flatMap(profile => ['write', 'read'].map(op => profile + '_' + op));
+async function certify(suite, profiles, operations = ['write', 'read']) {
+    const cells = profiles.flatMap(profile => operations.map(op => profile + '_' + op));
     if (!sameKeys(suite, cells)) throw Error('Missing or unexpected workload cell');
     let passes = 0;
     for (const key of cells) {
@@ -59,6 +61,19 @@ const mixedParity = mixed.passes === mixed.total;
 if (receipt.operator_parity !== operatorParity || receipt.held_out_parity !== mixedParity ||
     receipt.meets_parity !== (operatorParity && mixedParity)) throw Error('Aggregate verdict disagrees with model');
 receipt.prism_replay = {address, operator, mixed};
+if (windows && !receipt.read_windows) throw Error('Missing direct read window evidence');
+if (receipt.read_windows) {
+    const sizes = [1, 2, 16, 64, 65, 128];
+    if (receipt.read_window_samples_per_run !== 128 ||
+        receipt.read_window_verified_bytes_per_backend !== sizes.reduce((a,b) => a+b) * 4096 * 128 * 3 ||
+        receipt.rq_affinity || traceFile) throw Error('Invalid direct read window dimensions');
+    await certify(receipt.read_windows, sizes.map(n => 'pages' + n), ['read']);
+    const comparison = {};
+    for (const [key, {runs}] of Object.entries(receipt.read_windows)) {
+        comparison[key] = await parity(runs.vram.map(t => t.p50_ns), runs.control.map(t => t.p50_ns));
+    }
+    receipt.read_window_at_most_control_p50 = comparison;
+}
 if (Boolean(receipt.trace_sha256) !== Boolean(traceFile) || (receipt.store_path && !traceFile)) throw Error('Store clock receipt requires matching trace');
 if (completion && !receipt.rq_affinity) throw Error('Missing completion placement evidence');
 if (receipt.rq_affinity) {

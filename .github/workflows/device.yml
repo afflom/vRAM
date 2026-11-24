@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-          ref: d5a82d3d31e263354a1584f9f13f62b6ec7ffb69
+          ref: 4414e8a4b92d2e89fac51f2c73f5237037d35e75
           path: measurements/local/swap-control
       - name: Compare single-page swap latency with zram zstd
         run: |
@@ -103,8 +103,8 @@ jobs:
           accel=tcg
           if [ -c /dev/kvm ]; then accel=kvm; fi
           guest=(--accel "$accel" --qemu "$(command -v qemu-system-x86_64)" --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules")
-          sudo python3 host/tests/swap_latency.py "${guest[@]}" --control measurements/local/swap-control/host/build/vram-host --result measurements/local/swap-raw.json
-          node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json
+          sudo python3 host/tests/swap_latency.py "${guest[@]}" --control measurements/local/swap-control/host/build/vram-host --read-windows --result measurements/local/swap-raw.json
+          node automation/swap-latency.mjs measurements/local/swap-raw.json measurements/local/swap-latency.json --read-windows
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --local-completion --result measurements/local/completion-raw.json
           node automation/swap-latency.mjs measurements/local/completion-raw.json measurements/local/completion-affinity.json --completion
           make -C host build/vram-host-clock LDFLAGS=-static
