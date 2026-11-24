@@ -22,7 +22,6 @@ use verdant_tensor::{
         contract_packed_animation_tracks, decide_uorc_challenger_admission, UorcChallengerVerdict,
     },
     linear::extract_packed_field,
-    memory::copy_storage_block,
     prism_kernel::{codedTier1PackedAnimation, codedTierValid},
 };
 
@@ -67,7 +66,6 @@ enum Value {
     Fill(u8),
     Sparse(Box<Exceptions>),
     Packed(Box<Packed>),
-    Raw(Box<[u8; PAGE]>),
     Shared(Arc<literals::Literal>),
     Residual(Box<literals::Residual>),
     Selector(Box<Selector>),
@@ -116,7 +114,6 @@ impl Value {
     fn charge(&self) -> usize {
         match self {
             Self::Fill(_) => 0,
-            Self::Raw(_) => PAGE,
             Self::Residual(p) => p.charge(),
             Self::Shared(_) => 0, // The pool charges each live payload once.
             Self::Selector(_) => size_of::<Selector>(),
@@ -127,7 +124,8 @@ impl Value {
         }
     }
 
-    fn encode(prior: Option<&Selector>, bytes: &[u8; PAGE]) -> Self {
+    /// None selects the submitted literal bytes, borrowed until the commit finishes.
+    fn encode(prior: Option<&Selector>, bytes: &[u8; PAGE]) -> Option<Self> {
         use vram_representation::Adt0 as Plan;
         let choose = vram_representation::run;
         let absent = PAGE as u64;
@@ -141,7 +139,7 @@ impl Value {
             ),
             Plan::C0
         ) {
-            return Self::Fill(bytes[0]);
+            return Some(Self::Fill(bytes[0]));
         }
         let mut histogram = [0usize; 256];
         for &b in bytes {
@@ -163,7 +161,7 @@ impl Value {
                     .filter(|(a, b)| a != b)
                     .count();
                 if count == 0 {
-                    return Value::Selector(Box::new(model.clone()));
+                    return Some(Self::Selector(Box::new(model.clone())));
                 }
                 corrected_cost = size_of::<Corrected>() + count * size_of::<(u16, u8)>();
             }
@@ -179,7 +177,7 @@ impl Value {
         };
         if matches!(select(size_of::<Selector>() as u64), Plan::C4) {
             if let Some(model) = Selector::fit(bytes) {
-                return Self::Selector(model);
+                return Some(Self::Selector(model));
             }
         }
         match select(absent) {
@@ -207,7 +205,7 @@ impl Value {
                     .admit(bytes, sparse_cost);
             }
             Plan::C2 => {}
-            Plan::C3 => return Self::Raw(Box::new(*bytes)),
+            Plan::C3 => return None,
             _ => unreachable!("nonuniform page with no fresh selector candidate"),
         }
         let mut index = [u8::MAX; 256];
@@ -232,15 +230,15 @@ impl Value {
         Self::Packed(packed).admit(bytes, cost)
     }
 
-    fn admit(self, bytes: &[u8; PAGE], cost: usize) -> Self {
+    fn admit(self, bytes: &[u8; PAGE], cost: usize) -> Option<Self> {
         let candidate = self;
         let mut check = [0; PAGE];
         if candidate.decode(&mut check).is_err() {
-            return Self::Raw(Box::new(*bytes));
+            return None;
         }
         match decide_uorc_challenger_admission(bytes, &check, true, PAGE, cost) {
-            UorcChallengerVerdict::AdmitChallenger => candidate,
-            _ => Self::Raw(Box::new(*bytes)),
+            UorcChallengerVerdict::AdmitChallenger => Some(candidate),
+            _ => None,
         }
     }
 
@@ -256,7 +254,6 @@ impl Value {
                 }
             }
             Self::Shared(page) => return page.read(out),
-            Self::Raw(data) => copy_storage_block(&data[..], out).expect("equal page extents"),
             Self::Selector(model) => return model.decode(out),
             Self::Corrected(p) => {
                 p.base.decode(out)?;
@@ -309,17 +306,11 @@ impl Value {
             Self::Program(_)
             | Self::Selector(_)
             | Self::Corrected(_)
-            | Self::Raw(_)
             | Self::Residual(_)
             | Self::Shared(_) => {
                 let mut expanded = [0u8; PAGE];
-                let b = if let Self::Raw(raw) = self {
-                    &**raw
-                } else {
-                    self.decode(&mut expanded)?;
-                    &expanded
-                };
-                for (row, &w) in b.chunks_exact(SIDE).zip(weights) {
+                self.decode(&mut expanded)?;
+                for (row, &w) in expanded.chunks_exact(SIDE).zip(weights) {
                     for (sum, &v) in out.iter_mut().zip(row) {
                         *sum += i64::from(w) * i64::from(v);
                     }
@@ -575,7 +566,7 @@ struct FitInputs {
 struct PreparedFit {
     inputs: FitInputs,
     next_region: search::Region,
-    encoding: Value,
+    encoding: Option<Value>,
     outcome: search::Outcome,
 }
 
@@ -614,7 +605,12 @@ impl FitInputs {
         let mut next_region = self.region.clone();
         let mut prepare = || {
             let encoding = Value::encode(self.selector.as_ref(), data);
-            let outcome = search_page(s, data, encoding.charge(), &mut next_region);
+            let outcome = search_page(
+                s,
+                data,
+                encoding.as_ref().map_or(PAGE, Value::charge),
+                &mut next_region,
+            );
             (encoding, outcome)
         };
         let (encoding, outcome) = if let Some(p) = &s.profile {
@@ -658,7 +654,7 @@ fn resolve_fit(
     data: &[u8; PAGE],
     region: &mut search::Region,
     prepared: Option<PreparedFit>,
-) -> Value {
+) -> Option<Value> {
     let encoding = if let Some(p) = prepared {
         let (same_selector, same_region, advance) =
             io_profile::measured(s.profile.as_ref().map(|p| &p.validation_ns), || {
@@ -684,7 +680,8 @@ fn resolve_fit(
             return p
                 .outcome
                 .program
-                .map_or(p.encoding, |program| Value::Program(Box::new(program)));
+                .map(|program| Value::Program(Box::new(program)))
+                .or(p.encoding);
         }
         if same_selector {
             if let Some(profile) = &s.profile {
@@ -697,9 +694,15 @@ fn resolve_fit(
     } else {
         Value::encode(prior, data)
     };
-    search_page(s, data, encoding.charge(), region)
-        .program
-        .map_or(encoding, |program| Value::Program(Box::new(program)))
+    search_page(
+        s,
+        data,
+        encoding.as_ref().map_or(PAGE, Value::charge),
+        region,
+    )
+    .program
+    .map(|program| Value::Program(Box::new(program)))
+    .or(encoding)
 }
 
 fn put_locked(
@@ -732,20 +735,16 @@ fn put_locked(
     }
     let credits = group.literal_credits;
     let fast = literal_fast(s, credits, slot, data);
-    let capture = if fast {
-        literals::Capture::Borrowed(data)
-    } else {
-        let candidate = resolve_fit(s, slot.selector_base(), data, &mut group.region, prepared);
-        match candidate {
-            Value::Raw(bytes) => literals::Capture::Owned(bytes),
-            modeled => {
-                group.literal_credits = 0;
-                slot.replace(modeled, literals);
-                return 0;
-            }
+    if !fast {
+        if let Some(modeled) =
+            resolve_fit(s, slot.selector_base(), data, &mut group.region, prepared)
+        {
+            group.literal_credits = 0;
+            slot.replace(modeled, literals);
+            return 0;
         }
-    };
-    let Some(base) = literals.insert(hash, capture) else {
+    }
+    let Some(base) = literals.insert(hash, data) else {
         // write_group marks a previously untouched lane before the file I/O.
         if matches!(slot, Value::Fill(0)) {
             values.discard(page, page + 1);
@@ -863,7 +862,7 @@ pub unsafe extern "C" fn store_stats(s: &Store, out: *mut u64) {
         match value {
             Value::Fill(_) => out[0] += 1,
             Value::Packed(_) => out[1] += 1,
-            Value::Raw(_) | Value::Shared(_) => out[2] += 1,
+            Value::Shared(_) => out[2] += 1,
             Value::Sparse(_) => out[3] += 1,
             Value::Selector(_) | Value::Corrected(_) | Value::Residual(_) | Value::Program(_) => {}
         }
@@ -965,7 +964,7 @@ mod runtime_tests {
             }
         });
         let mut page = original;
-        let mut value = Value::encode(None, &page);
+        let mut value = Value::encode(None, &page).unwrap();
         assert!(matches!(value, Value::Selector(_)));
         for (index, mask, edits) in [
             (0, 18, 1),
@@ -975,7 +974,7 @@ mod runtime_tests {
             (4095, 42, 0),
         ] {
             page[index] ^= mask;
-            value = Value::encode(value.selector_base(), &page);
+            value = Value::encode(value.selector_base(), &page).unwrap();
             recover(&value, &page);
             if edits == 0 {
                 assert!(matches!(value, Value::Selector(_)));
@@ -985,11 +984,9 @@ mod runtime_tests {
         }
         assert_eq!(page, original);
         let entropy = std::array::from_fn(|i| (i % 256) as u8);
-        value = Value::encode(value.selector_base(), &entropy);
-        assert!(matches!(value, Value::Raw(_)));
-        recover(&value, &entropy);
+        assert!(Value::encode(value.selector_base(), &entropy).is_none());
         let rows = std::array::from_fn(|i| (i / SIDE) as u8);
-        let value = Value::encode(value.selector_base(), &rows);
+        let value = Value::encode(None, &rows).unwrap();
         assert!(matches!(value, Value::Selector(_)));
         recover(&value, &rows);
     }
@@ -1098,6 +1095,22 @@ mod host_tests {
         }
     }
 
+    fn compare_candidates(reused: Option<Value>, fresh: Option<Value>, data: &[u8; PAGE]) {
+        assert_eq!(
+            reused.as_ref().map(std::mem::discriminant),
+            fresh.as_ref().map(std::mem::discriminant)
+        );
+        assert_eq!(
+            reused.as_ref().map(Value::charge),
+            fresh.as_ref().map(Value::charge)
+        );
+        if let Some(value) = reused {
+            let mut restored = [0; PAGE];
+            value.decode(&mut restored).unwrap();
+            assert_eq!(&restored, data);
+        }
+    }
+
     #[test]
     fn prepared_schedule_matches_fresh_fit_at_every_credit_boundary() {
         let store = profiled_store(true);
@@ -1137,10 +1150,7 @@ mod host_tests {
         let fresh = resolve_fit(&store, None, &tiled, &mut expected, None);
         assert_eq!(profile.encoding_reuses.load(Ordering::Relaxed), 1);
         assert!(live == expected);
-        assert_eq!(fresh.charge(), reused.charge());
-        let mut restored = [0; PAGE];
-        reused.decode(&mut restored).unwrap();
-        assert_eq!(restored, tiled);
+        compare_candidates(reused, fresh, &tiled);
 
         for data in [&tiled, &dense] {
             let mut initial = search::Region::default();
@@ -1165,14 +1175,7 @@ mod host_tests {
                     profile.credit_replays.load(Ordering::Relaxed) - before,
                     u64::from((1..15).contains(&consumed))
                 );
-                assert_eq!(
-                    std::mem::discriminant(&reused),
-                    std::mem::discriminant(&expected)
-                );
-                assert_eq!(reused.charge(), expected.charge());
-                let mut out = [0; PAGE];
-                reused.decode(&mut out).unwrap();
-                assert_eq!(&out, data);
+                compare_candidates(reused, expected, data);
                 live = fresh;
             }
         }

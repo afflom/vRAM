@@ -197,7 +197,7 @@ Changing the ideal speedup test to include ties and letting the selector take an
 
 ## Revalidating prepared work in 0.5.5
 
-Page encoding depends on the submitted bytes and the incumbent selector. The tiled search also depends on the 64-page region's schedule and template. The full-page writer now retains the encoding and search outcome separately until commit. A selector change triggers a fresh fit. An incompatible regional change triggers a fresh search using the retained encoding. Retention can keep an additional encoding alive per worker until commit when the search produced a program.
+Page encoding depends on the submitted bytes and the incumbent selector. The tiled search also depends on the 64-page region's schedule and template. The full-page writer now retains the encoding and search outcome separately until commit. A selector change triggers a fresh fit. An incompatible regional change triggers a fresh search using the retained encoding. Retention can keep an additional modeled encoding alive per worker until commit when the search produced a program. A literal candidate borrows the submitted bytes for the duration of the call. File-backed admission writes from that buffer, and in-memory admission copies the bytes once into the immutable dictionary base.
 
 For a skip or successful template refit, a change in available credits alone can preserve the search decision. Commit calls the existing Prism schedule on the live state. A skip must still be a skip. A successful refit must still be a refit of the same template. Both advance the live credits with the generated credit transition. A due probe takes priority. Exact literal admission and validation of the target page still precede reuse.
 

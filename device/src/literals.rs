@@ -9,24 +9,6 @@ use std::sync::{
 };
 use verdant_tensor::coded::{decide_uorc_challenger_admission, UorcChallengerVerdict};
 
-pub(super) enum Capture<'a> {
-    Borrowed(&'a [u8; PAGE]),
-    Owned(Box<[u8; PAGE]>),
-}
-impl Capture<'_> {
-    fn bytes(&self) -> &[u8; PAGE] {
-        match self {
-            Self::Borrowed(bytes) => bytes,
-            Self::Owned(bytes) => bytes,
-        }
-    }
-    fn into_box(self) -> Box<[u8; PAGE]> {
-        match self {
-            Self::Borrowed(bytes) => Box::new(*bytes),
-            Self::Owned(bytes) => bytes,
-        }
-    }
-}
 enum Payload {
     Memory(Box<[u8; PAGE]>),
     File(literal_file::Slot),
@@ -153,15 +135,11 @@ impl Pool {
         self.residuals += 1;
         Some(super::Value::Residual(Box::new(residual)))
     }
-    pub(super) fn insert(
-        &mut self,
-        hash: Option<u64>,
-        capture: Capture<'_>,
-    ) -> Option<Arc<Literal>> {
-        let hash = hash.unwrap_or_else(|| self.fingerprint(capture.bytes()));
+    pub(super) fn insert(&mut self, hash: Option<u64>, data: &[u8; PAGE]) -> Option<Arc<Literal>> {
+        let hash = hash.unwrap_or_else(|| self.fingerprint(data));
         let payload = match &self.arena {
-            Some(arena) => Payload::File(arena.store(capture.bytes())?),
-            None => Payload::Memory(capture.into_box()),
+            Some(arena) => Payload::File(arena.store(data)?),
+            None => Payload::Memory(Box::new(*data)),
         };
         let page = Arc::new(Literal {
             payload,
@@ -350,8 +328,8 @@ mod tests {
         let mut near = a;
         near[100..150].fill(7);
         let tag = pool.fingerprint(&a);
-        let _first = pool.insert(Some(tag), Capture::Borrowed(&a)).unwrap();
-        let second = pool.insert(Some(tag), Capture::Borrowed(&b)).unwrap();
+        let _first = pool.insert(Some(tag), &a).unwrap();
+        let second = pool.insert(Some(tag), &b).unwrap();
         let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near, None) else {
             panic!("expected a sparse residual");
         };
@@ -367,9 +345,9 @@ mod tests {
         let mut pool = Pool::new();
         let mut owners = Vec::new();
         for tag in 0..32768u64 {
-            let mut bytes = Box::new([0; PAGE]);
+            let mut bytes = [0; PAGE];
             bytes[..8].copy_from_slice(&tag.to_le_bytes());
-            owners.push(pool.insert(Some(tag), Capture::Owned(bytes)).unwrap());
+            owners.push(pool.insert(Some(tag), &bytes).unwrap());
         }
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
