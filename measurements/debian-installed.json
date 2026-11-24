@@ -1,0 +1,14 @@
+{
+  "workload": {
+    "rows": 20480,
+    "bytes_checked": 83886080,
+    "sqlite": "3.46.1",
+    "writes": 100613,
+    "reads": 94629
+  },
+  "package_sha256": "16f5fd35c410d41a237b207a1db8e0fb8be6b79f32dc00b2019f0275ae6a1b24",
+  "image_sha256": "7b8981e785a013986df45133c1c74b722b1a6e4d6c80a975bdcdcece5c553131",
+  "enabled_after_reboot": true,
+  "guest_ram_mib": 1536,
+  "workload_memory_max_mib": 40
+}

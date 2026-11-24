@@ -24,7 +24,9 @@ Applications can now page to Verdant through the normal Linux memory manager. Th
 
 Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pages consume host RAM. Capacity gains depend on the data and the resident working set. A process crash or loss of power can lose paged-out data. The service needs memory and locked-memory privileges for the store and headroom for Linux to drain it.
 
-To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.0_amd64.deb`. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
+On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. Linux counted 100,613 swap-outs and 94,629 swap-ins during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
+
+To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
 
 ## How dense pages interact
 

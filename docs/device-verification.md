@@ -20,6 +20,8 @@ A planted rule that released every group failed the Prism theorem `HostPolicy.re
 
 The Debian package installs disabled. The managed Linux fixtures require a readiness datagram after real swapon, positive kernel swap traffic, all bytes restored, live engine counters and termination through successful swapoff. A live 1 MiB anonymous range is checked again after service exit. The R, D and U fixtures exercise exact sharing, dense residuals and independent literal writes respectively. Reproduce with `host/tests/boot.py --managed --profile D` and the kernel, NBD module, QEMU and output arguments in the README.
 
+The distribution fixture installs the package in a disposable Debian 13 amd64 generic cloud image, loads the distribution NBD driver, exercises SQLite under kernel reclaim and checks that swap reactivates at the next boot. With QEMU and genisoimage installed, run `python3 host/tests/distribution.py --image debian-13-generic-amd64.qcow2 --deb vram-host_0.2.0_amd64.deb --result debian-installed.json`. QEMU uses a temporary writable overlay. The receipt identifies the image and package by SHA-256. [Debian receipt](../measurements/debian-installed.json)
+
 To repeat the native comparison, build the previous library from commit `0d24329` and the current one, then run `python3 device/validation/literal_reuse.py --previous-library /path/to/libverdant_memory.a --previous-commit 0d24329 --result comparison.json`. Times include input generation on the same machine and should be compared within a run.
 
 ## Owner policy
