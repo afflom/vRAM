@@ -37,11 +37,48 @@ static int transfer(int fd, void *buffer, size_t bytes, bool send)
     return 0;
 }
 
+/* The Unix stream may deliver a header and its write payload together, or split
+   either across receives. Keep trailing bytes for the next page or request. */
+struct input {
+    uint8_t block[sizeof(struct nbd_request) + PAGE];
+    size_t pos, end;
+};
+
+static int header(int fd, struct input *in, struct nbd_request *req)
+{
+    if (in->pos == in->end) {
+        ssize_t n;
+        do { n = read(fd, in->block, sizeof(in->block)); } while (n < 0 && errno == EINTR);
+        if (n <= 0) return -1;
+        in->pos = 0;
+        in->end = (size_t)n;
+    }
+    size_t n = in->end - in->pos;
+    if (n > sizeof(*req)) n = sizeof(*req);
+    memcpy(req, in->block + in->pos, n);
+    in->pos += n;
+    return transfer(fd, (uint8_t *)req + n, sizeof(*req) - n, false);
+}
+
+static uint8_t *payload(int fd, struct input *in, uint8_t *scratch, size_t size)
+{
+    size_t n = in->end - in->pos;
+    uint8_t *buffered = in->block + in->pos;
+    if (n >= size) {
+        in->pos += size;
+        return buffered;
+    }
+    memcpy(scratch, buffered, n);
+    in->pos += n;
+    return transfer(fd, scratch + n, size - n, false) ? NULL : scratch;
+}
+
 static int serve(int fd, struct store *store, size_t pages, struct io_counts *counts)
 {
+    struct input in = { .pos = 0, .end = 0 };
     for (;;) {
         struct nbd_request req;
-        if (transfer(fd, &req, sizeof(req), false) || ntohl(req.magic) != NBD_REQUEST_MAGIC)
+        if (header(fd, &in, &req) || ntohl(req.magic) != NBD_REQUEST_MAGIC)
             return -1;
         uint32_t type = ntohl(req.type) & 0xffff;
         if (type == NBD_CMD_DISC) return 0;
@@ -60,7 +97,7 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
             /* Consume the rejected payload to preserve framing for later I/O. */
             while (type == NBD_CMD_WRITE && len) {
                 uint32_t chunk = len < PAGE ? len : PAGE;
-                if (transfer(fd, data, chunk, false)) return -1;
+                if (!payload(fd, &in, data, chunk)) return -1;
                 len -= chunk;
             }
             reply.error = htonl(EINVAL);
@@ -69,8 +106,18 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
         }
         size_t begin = off / PAGE, end = begin + len / PAGE;
         if (type == NBD_CMD_READ) {
-            if (transfer(fd, &reply, sizeof(reply), true)) return -1;
-            for (size_t i = begin; i < end; ++i) {
+            /* A single stream write wakes the kernel with both the status and the first page. */
+            struct { struct nbd_reply header; uint8_t page[PAGE]; } frame;
+            frame.header = reply;
+            _Static_assert(sizeof(frame) == sizeof(reply) + PAGE, "NBD wire framing");
+            if (begin == end || store_get(store, begin, frame.page)) {
+                if (begin != end) frame.header.error = htonl(EIO);
+                if (transfer(fd, &frame.header, sizeof(reply), true)) return -1;
+                continue;
+            }
+            if (transfer(fd, &frame, sizeof(frame), true)) return -1;
+            counts->reads++;
+            for (size_t i = begin + 1; i < end; ++i) {
                 if (store_get(store, i, data) || transfer(fd, data, PAGE, true)) return -1;
                 counts->reads++;
             }
@@ -81,8 +128,8 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
             counts->trims += end - begin;
         } else if (type == NBD_CMD_WRITE) {
             for (size_t i = begin; i < end; ++i) {
-                if (transfer(fd, data, PAGE, false)) return -1;
-                if (store_put(store, i, data)) return -1;
+                uint8_t *page = payload(fd, &in, data, PAGE);
+                if (!page || store_put(store, i, page)) return -1;
                 counts->writes++;
             }
         } else {

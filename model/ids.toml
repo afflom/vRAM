@@ -264,3 +264,9 @@ level = "build"
 suite = "capacity"
 statement = "A successful facet lookup returns its record bytes unchanged"
 theorems = ["FacetPolicy.exactReply"]
+
+[[id]]
+id = "VR-41"
+level = "open"
+suite = "capacity"
+statement = "Single-page swap latency is measured per operation against zram with zstd in the same Linux guest, with exact readback"

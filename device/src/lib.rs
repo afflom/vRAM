@@ -141,6 +141,25 @@ impl Value {
         ) {
             return Some(Self::Fill(bytes[0]));
         }
+        // Packed payloads and corrected selectors already cost more than a selector.
+        // The exact row multiplicities suffice to compare the remaining sparse candidate.
+        let selector = Selector::fit(bytes);
+        if let Some(model) = &selector {
+            let sparse =
+                size_of::<Exceptions>() + (PAGE - model.peak_frequency()) * size_of::<(u16, u8)>();
+            if matches!(
+                choose(
+                    false,
+                    sparse as u64,
+                    size_of::<Packed>() as u64,
+                    size_of::<Selector>() as u64,
+                    size_of::<Corrected>() as u64
+                ),
+                Plan::C4
+            ) {
+                return selector.map(Self::Selector);
+            }
+        }
         let mut histogram = [0usize; 256];
         for &b in bytes {
             histogram[usize::from(b)] += 1;
@@ -176,7 +195,7 @@ impl Value {
             )
         };
         if matches!(select(size_of::<Selector>() as u64), Plan::C4) {
-            if let Some(model) = Selector::fit(bytes) {
+            if let Some(model) = selector {
                 return Some(Self::Selector(model));
             }
         }

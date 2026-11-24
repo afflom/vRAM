@@ -317,3 +317,9 @@ Feature: capacity
     Given the same four GiB target
     When backing is one byte short of the full target and its spare page
     Then the response is "capacity mismatch"
+
+  @VR-41 @open
+  Scenario: Compare single-page swap device latency
+    Given zram with zstd and the Verdant swap device in one disposable Linux guest
+    When each backend receives identical synchronous 4 KiB writes and shuffled reads in three runs
+    Then restored bytes match and each workload reports its median and its measured ratio to zram

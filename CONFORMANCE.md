@@ -60,6 +60,7 @@ The three honesty levels (R2):
 | `VR-38` | `open` | The published product catalog resolves its Prism facet records to the workstation model, source evidence and product assets |  |
 | `VR-39` | `open` | The released Holo serves each catalog facet directly through its pure byte dispatcher, with records matching the checked source export |  |
 | `VR-40` | `build` | A successful facet lookup returns its record bytes unchanged | `FacetPolicy.exactReply` |
+| `VR-41` | `open` | Single-page swap latency is measured per operation against zram with zstd in the same Linux guest, with exact readback |  |
 
 ## Cited authorities
 

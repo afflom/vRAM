@@ -1,9 +1,9 @@
 // A 64x64 byte page whose rows each select two row-specific values with
 // a shared column mask. The two factors are sufficient for reconstruction.
 use super::{PAGE, SIDE};
-use verdant_tensor::coded::{
-    contract_packed_animation_tracks, decide_uorc_challenger_admission, UorcChallengerVerdict,
-};
+#[cfg(test)]
+use verdant_tensor::coded::contract_packed_animation_tracks;
+use verdant_tensor::coded::{decide_uorc_challenger_admission, UorcChallengerVerdict};
 use vram_selector_admission::run as matches_cell;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -24,30 +24,21 @@ impl Selector {
             pivot = row.iter().position(|&b| b != row[0])?;
             let second = row[pivot];
             for (j, &b) in row.iter().enumerate() {
-                if b == second {
-                    columns |= 1u64 << j;
-                } else if b != row[0] {
+                let lane = b == second;
+                if !matches_cell(lane, row[0].into(), second.into(), b.into()) {
                     return None;
                 }
+                columns |= u64::from(lane) << j;
             }
         }
         let mut values = [[0u8; 2]; SIDE];
         for (v, row) in values.iter_mut().zip(bytes.chunks_exact(SIDE)) {
             *v = [row[0], row[pivot]];
-            if row.iter().enumerate().any(|(j, &b)| {
-                !matches_cell((columns >> j) & 1 != 0, v[0].into(), v[1].into(), b.into())
-            }) {
-                return None;
-            }
         }
         let model = Self { values, columns };
+        // The page returned by the production contraction is the admission witness.
         let mut reconstructed = [0u8; PAGE];
-        model.reference_decode(&mut reconstructed).ok()?;
-        let mut specialized = [0; PAGE];
-        model.decode(&mut specialized).ok()?;
-        if reconstructed != specialized {
-            return None;
-        }
+        model.decode(&mut reconstructed).ok()?;
         let verdict = decide_uorc_challenger_admission(
             bytes,
             &reconstructed,
@@ -71,6 +62,18 @@ impl Selector {
         Ok(())
     }
 
+    /// A row contributes its two symbols with the multiplicities of the shared mask.
+    pub(super) fn peak_frequency(&self) -> usize {
+        let right = self.columns.count_ones() as usize;
+        let mut counts = [0usize; 256];
+        for [a, b] in self.values {
+            counts[usize::from(a)] += SIDE - right;
+            counts[usize::from(b)] += right;
+        }
+        counts.into_iter().max().unwrap()
+    }
+
+    #[cfg(test)]
     fn reference_decode(&self, page: &mut [u8; PAGE]) -> Result<(), ()> {
         let left: [i32; SIDE * 2] = std::array::from_fn(|i| self.values[i / 2][i % 2].into());
         let mut right = [0u8; SIDE]; // two packed 1x64 rows
@@ -132,6 +135,14 @@ mod tests {
         let mut out = [0; PAGE];
         model.decode(&mut out).unwrap();
         assert_eq!(out, bytes);
+        let mut reference = [0; PAGE];
+        model.reference_decode(&mut reference).unwrap();
+        assert_eq!(out, reference);
+        let mut histogram = [0usize; 256];
+        for byte in bytes {
+            histogram[usize::from(byte)] += 1;
+        }
+        assert_eq!(model.peak_frequency(), *histogram.iter().max().unwrap());
         let mut changed = bytes;
         changed[PAGE - 1] ^= 128;
         assert!(Selector::fit(&changed).is_none());

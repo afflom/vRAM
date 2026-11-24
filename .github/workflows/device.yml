@@ -65,6 +65,9 @@ jobs:
             device/target/release/libverdant_memory.a -lpthread -ldl -lm -o "$RUNNER_TEMP/vram-sparse-extent"
           "$RUNNER_TEMP/vram-sparse-extent" 1024
           "$RUNNER_TEMP/vram-sparse-extent" 1024 file
+          cc -Wall -Wextra -Werror -O2 -Idevice/native host/tests/nbd_framing.c \
+            device/target/release/libverdant_memory.a -lpthread -ldl -lm -o "$RUNNER_TEMP/nbd-framing"
+          "$RUNNER_TEMP/nbd-framing"
           python3 host/tests/capacity.py
       - name: Boot Linux and verify Verdant swap
         run: |
@@ -88,6 +91,20 @@ jobs:
               --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
               --managed --mib "$size" --profile "$profile" --result "measurements/local/managed-$profile.json"
           done
+      - name: Check out the single-page swap control
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: 45e26a7c19efa3dbf070454a36664295d24b2924
+          path: measurements/local/swap-control
+      - name: Compare single-page swap latency with zram zstd
+        run: |
+          make -C measurements/local/swap-control/host build/vram-host LDFLAGS=-static
+          accel=tcg
+          if [ -c /dev/kvm ]; then accel=kvm; fi
+          sudo python3 host/tests/swap_latency.py --accel "$accel" --qemu "$(command -v qemu-system-x86_64)" \
+            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --modules "$RUNNER_TEMP/linux/usr/lib/modules" \
+            --control measurements/local/swap-control/host/build/vram-host --result measurements/local/swap-latency.json
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
       - name: Check out the 0.5.9 guest benchmark control
@@ -125,7 +142,7 @@ jobs:
           sudo python3 host/tests/parallel.py --qemu "$(command -v qemu-system-x86_64)" \
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --baseline-package "$RUNNER_TEMP/control.deb" --result dist/parallel-guest.json
           node automation/performance.mjs dist/parallel-guest.json dist/performance-frontier.json
-          cp measurements/local/managed-*.json dist/
+          cp measurements/local/managed-*.json measurements/local/swap-latency.json dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
