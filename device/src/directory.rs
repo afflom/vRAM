@@ -19,26 +19,19 @@ struct Leaf {
     live: usize,
 }
 pub(super) struct Directory {
-    pub(super) count: usize,
     pub(super) literals: super::literals::Pool,
     leaves: BTreeMap<usize, Box<Leaf>>,
 }
 impl Directory {
-    pub(super) fn new(count: usize) -> Self {
+    pub(super) fn new() -> Self {
         Self {
-            count,
             leaves: BTreeMap::new(),
             literals: super::literals::Pool::new(),
         }
     }
-    pub(super) fn get(&self, page: usize) -> Option<&Value> {
-        if page >= self.count {
-            return None;
-        }
-        Some(
-            self.group_at(page)
-                .map_or(&ZERO, |g| &g.values[page % GROUP]),
-        )
+    pub(super) fn get(&self, page: usize) -> &Value {
+        self.group_at(page)
+            .map_or(&ZERO, |g| &g.values[page % GROUP])
     }
     pub(super) fn group_at(&self, page: usize) -> Option<&Group> {
         self.leaves.get(&(page / LEAF))?.groups[page / GROUP % FANOUT].as_deref()

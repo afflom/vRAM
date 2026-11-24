@@ -1,0 +1,458 @@
+{
+  "control_commit": "3281686deb7ef14b54cacc7dd463f75d4bf62082",
+  "current_package": "0.5.4",
+  "workers": 8,
+  "cgroup_cpu_max": "400000 100000",
+  "mib": 16,
+  "batch_pages": 4,
+  "trials": [
+    {
+      "version": "control",
+      "repeat": 0,
+      "profile": "U",
+      "write_ns": 24805200,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 0,
+      "profile": "D",
+      "write_ns": 14228303,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 0,
+      "profile": "P",
+      "write_ns": 66913880,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 0,
+      "profile": "F",
+      "write_ns": 307562744,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 0,
+      "profile": "U",
+      "write_ns": 20631195,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 0,
+      "profile": "D",
+      "write_ns": 11635762,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 0,
+      "profile": "P",
+      "write_ns": 34127437,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 0,
+      "profile": "F",
+      "write_ns": 158506066,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 1,
+      "profile": "U",
+      "write_ns": 19858433,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 1,
+      "profile": "D",
+      "write_ns": 11710283,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 1,
+      "profile": "P",
+      "write_ns": 30938663,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 1,
+      "profile": "F",
+      "write_ns": 146277152,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 1,
+      "profile": "U",
+      "write_ns": 18265998,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 1,
+      "profile": "D",
+      "write_ns": 11103044,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 1,
+      "profile": "P",
+      "write_ns": 60923201,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 1,
+      "profile": "F",
+      "write_ns": 479632538,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 2,
+      "profile": "U",
+      "write_ns": 27223250,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 2,
+      "profile": "D",
+      "write_ns": 14723134,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 2,
+      "profile": "P",
+      "write_ns": 65905255,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 2,
+      "profile": "F",
+      "write_ns": 314577031,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 2,
+      "profile": "U",
+      "write_ns": 22275562,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 2,
+      "profile": "D",
+      "write_ns": 15713932,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 2,
+      "profile": "P",
+      "write_ns": 34237922,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 2,
+      "profile": "F",
+      "write_ns": 134867698,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 3,
+      "profile": "U",
+      "write_ns": 22195993,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 3,
+      "profile": "D",
+      "write_ns": 19899815,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 3,
+      "profile": "P",
+      "write_ns": 31751664,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 3,
+      "profile": "F",
+      "write_ns": 139097282,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 3,
+      "profile": "U",
+      "write_ns": 23590576,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 3,
+      "profile": "D",
+      "write_ns": 15168740,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 3,
+      "profile": "P",
+      "write_ns": 73915909,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 3,
+      "profile": "F",
+      "write_ns": 332085590,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 4,
+      "profile": "U",
+      "write_ns": 19601528,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 4,
+      "profile": "D",
+      "write_ns": 12160929,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 4,
+      "profile": "P",
+      "write_ns": 61534151,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 4,
+      "profile": "F",
+      "write_ns": 505099167,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 4,
+      "profile": "U",
+      "write_ns": 29270099,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 4,
+      "profile": "D",
+      "write_ns": 13158291,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 4,
+      "profile": "P",
+      "write_ns": 36895186,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 4,
+      "profile": "F",
+      "write_ns": 142611273,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 5,
+      "profile": "U",
+      "write_ns": 18703061,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 5,
+      "profile": "D",
+      "write_ns": 12857004,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 5,
+      "profile": "P",
+      "write_ns": 27538500,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 5,
+      "profile": "F",
+      "write_ns": 171272810,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 5,
+      "profile": "U",
+      "write_ns": 25017816,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 5,
+      "profile": "D",
+      "write_ns": 14987208,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 5,
+      "profile": "P",
+      "write_ns": 71484866,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 5,
+      "profile": "F",
+      "write_ns": 336399753,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 6,
+      "profile": "U",
+      "write_ns": 23935021,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 6,
+      "profile": "D",
+      "write_ns": 13795354,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 6,
+      "profile": "P",
+      "write_ns": 64703252,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 6,
+      "profile": "F",
+      "write_ns": 327178182,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 6,
+      "profile": "U",
+      "write_ns": 20290523,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 6,
+      "profile": "D",
+      "write_ns": 11869520,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 6,
+      "profile": "P",
+      "write_ns": 38646200,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 6,
+      "profile": "F",
+      "write_ns": 276943371,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 7,
+      "profile": "U",
+      "write_ns": 24481809,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 7,
+      "profile": "D",
+      "write_ns": 15884352,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 7,
+      "profile": "P",
+      "write_ns": 25109468,
+      "verified_pages": 4096
+    },
+    {
+      "version": "current",
+      "repeat": 7,
+      "profile": "F",
+      "write_ns": 133888343,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 7,
+      "profile": "U",
+      "write_ns": 25729356,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 7,
+      "profile": "D",
+      "write_ns": 14817925,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 7,
+      "profile": "P",
+      "write_ns": 78329483,
+      "verified_pages": 4096
+    },
+    {
+      "version": "control",
+      "repeat": 7,
+      "profile": "F",
+      "write_ns": 315220283,
+      "verified_pages": 4096
+    }
+  ]
+}

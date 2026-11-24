@@ -74,6 +74,16 @@ enum Value {
     Corrected(Box<Corrected>),
 }
 
+/// The packed policy only consumes the first sixteen symbols of the total ranking.
+fn palette(histogram: &[usize; 256]) -> [u8; 16] {
+    let rank = |&c: &u8| (std::cmp::Reverse(histogram[usize::from(c)]), c);
+    let mut symbols: [u8; 256] = std::array::from_fn(|i| i as u8);
+    symbols.select_nth_unstable_by_key(15, rank);
+    let mut table: [u8; 16] = symbols[..16].try_into().unwrap();
+    table.sort_unstable_by_key(rank);
+    table
+}
+
 impl Value {
     fn literal_base(&self) -> Option<&Arc<literals::Literal>> {
         match self {
@@ -137,14 +147,10 @@ impl Value {
         for &b in bytes {
             histogram[usize::from(b)] += 1;
         }
-        let mut symbols: [u8; 256] = std::array::from_fn(|i| i as u8);
-        symbols.sort_unstable_by_key(|&c| (std::cmp::Reverse(histogram[usize::from(c)]), c));
-        let matches: usize = symbols[..16]
-            .iter()
-            .map(|&b| histogram[usize::from(b)])
-            .sum();
+        let table = palette(&histogram);
+        let matches: usize = table.iter().map(|&b| histogram[usize::from(b)]).sum();
         let cost = size_of::<Packed>() + (PAGE - matches) * size_of::<(u16, u8)>();
-        let base = symbols[0];
+        let base = table[0];
         let sparse_cost = size_of::<Exceptions>()
             + (PAGE - histogram[usize::from(base)]) * size_of::<(u16, u8)>();
         let mut base_bytes = [0; PAGE];
@@ -204,7 +210,6 @@ impl Value {
             Plan::C3 => return Self::Raw(Box::new(*bytes)),
             _ => unreachable!("nonuniform page with no fresh selector candidate"),
         }
-        let table: [u8; 16] = symbols[..16].try_into().unwrap();
         let mut index = [u8::MAX; 256];
         for (i, &b) in table.iter().enumerate() {
             index[usize::from(b)] = i as u8;
@@ -327,6 +332,8 @@ impl Value {
 }
 
 pub struct Store {
+    count: usize,
+    waiting_writers: AtomicU64,
     profile: Option<Arc<io_profile::Profile>>,
     values: RwLock<directory::Directory>,
     restores: AtomicU64,
@@ -362,8 +369,10 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
     if count == 0 || nibble_table().is_none() || selector::mask_table().is_none() {
         return ptr::null_mut();
     }
-    let values = directory::Directory::new(count);
+    let values = directory::Directory::new();
     Box::into_raw(Box::new(Store {
+        count,
+        waiting_writers: AtomicU64::new(0),
         profile: None,
         values: RwLock::new(values),
         restores: AtomicU64::new(0),
@@ -416,6 +425,12 @@ impl Store {
             self.values.write().unwrap()
         })
     }
+    fn wait_for_writer(&self) -> std::sync::RwLockWriteGuard<'_, directory::Directory> {
+        self.waiting_writers.fetch_add(1, Ordering::Relaxed);
+        let values = self.write_directory();
+        self.waiting_writers.fetch_sub(1, Ordering::Relaxed);
+        values
+    }
     fn read_directory(&self) -> std::sync::RwLockReadGuard<'_, directory::Directory> {
         io_profile::measured(self.profile.as_ref().map(|p| &p.read_lock_ns), || {
             self.values.read().unwrap()
@@ -455,53 +470,53 @@ pub unsafe extern "C" fn store_write_pages(
     count: usize,
     data: *const u8,
 ) -> c_int {
-    if count > isize::MAX as usize / PAGE || (count != 0 && data.is_null()) {
+    if first > s.count || count > s.count - first || count > isize::MAX as usize / PAGE {
         return -1;
     }
-    let Some(end) = first.checked_add(count) else {
+    if count == 0 {
+        return 0;
+    }
+    if data.is_null() {
         return -1;
-    };
-    let mut page = first;
-    loop {
-        // A free writer keeps the existing batch fast path. On contention borrow
-        // only model inputs, so a long fit can proceed alongside another writer.
-        let (mut values, mut prepared) = match s.values.try_write() {
+    }
+    let mut pages = slice::from_raw_parts(data.cast::<[u8; PAGE]>(), count);
+    let mut first = first;
+    while !pages.is_empty() {
+        let n = pages.len().min(directory::GROUP - first % directory::GROUP);
+        let (group, rest) = pages.split_at(n);
+        let (mut values, mut leading) = match s.values.try_write() {
             Ok(dir) => (dir, None),
             Err(std::sync::TryLockError::WouldBlock) => {
-                let dir = s.read_directory();
-                if end > dir.count {
-                    return -1;
-                }
-                let snapshot = if page < end {
-                    let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
-                    FitInputs::snapshot(s, &dir, page, src)
-                } else {
-                    None
-                };
-                drop(dir);
-                let prepared = snapshot.map(|inputs| {
-                    let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
-                    inputs.prepare(s, src)
-                });
-                (s.write_directory(), prepared)
+                // Existing readers permit an immediate snapshot. Behind a writer,
+                // queue once so it can release the lock during its next expensive fit.
+                let inputs = s
+                    .values
+                    .try_read()
+                    .ok()
+                    .and_then(|dir| FitInputs::snapshot(s, &dir, first, &group[0]));
+                let leading = inputs.map(|inputs| inputs.prepare(s, &group[0]));
+                (s.wait_for_writer(), leading)
             }
             Err(std::sync::TryLockError::Poisoned(e)) => panic!("{e}"),
         };
-        if end > values.count {
-            return -1;
-        }
-        let n = (end - page).min(directory::GROUP - page % directory::GROUP);
-        for _ in 0..n {
-            let src = &*data.add((page - first) * PAGE).cast::<[u8; PAGE]>();
-            if put_locked(s, &mut values, page, src, prepared.take()) != 0 {
+        for (i, src) in group.iter().enumerate() {
+            let page = first + i;
+            let mut prepared = leading.take();
+            if prepared.is_none() && s.waiting_writers.load(Ordering::Relaxed) != 0 {
+                if let Some(inputs) = FitInputs::snapshot(s, &values, page, src) {
+                    drop(values);
+                    prepared = Some(inputs.prepare(s, src));
+                    values = s.wait_for_writer();
+                }
+            }
+            if put_locked(s, &mut values, page, src, prepared) != 0 {
                 return -1;
             }
-            page += 1;
         }
-        if page == end {
-            return 0;
-        }
+        first += n;
+        pages = rest;
     }
+    0
 }
 
 #[no_mangle]
@@ -512,13 +527,11 @@ pub unsafe extern "C" fn store_patch(
     data: *const u8,
     len: usize,
 ) -> c_int {
-    if offset > PAGE || len > PAGE - offset || (len != 0 && data.is_null()) {
+    if page >= s.count || offset > PAGE || len > PAGE - offset || (len != 0 && data.is_null()) {
         return -1;
     }
     let mut values = s.write_directory();
-    let Some(old) = values.get(page) else {
-        return -1;
-    };
+    let old = values.get(page);
     if len == 0 {
         return 0;
     }
@@ -556,7 +569,7 @@ impl FitInputs {
         page: usize,
         data: &[u8; PAGE],
     ) -> Option<Self> {
-        let slot = dir.get(page)?;
+        let slot = dir.get(page);
         let group = dir.group_at(page);
         if data.iter().all(|&b| b == data[0])
             || dir.literals.has_candidate(data, slot.literal_base())
@@ -615,9 +628,7 @@ fn put_locked(
     data: &[u8; PAGE],
     prepared: Option<PreparedFit>,
 ) -> c_int {
-    let Some(dst) = values.get(page) else {
-        return -1;
-    };
+    let dst = values.get(page);
     // Capture-all KVM may return an unchanged modeled frame. A matching expansion
     // authorizes retaining the exact backing, including its existing corrections.
     if dst.selector_base().is_some() || matches!(dst, Value::Program(_)) {
@@ -681,7 +692,7 @@ fn put_locked(
 #[no_mangle]
 pub unsafe extern "C" fn store_discard(s: &Store, start: usize, count: usize) -> c_int {
     let mut values = s.values.write().unwrap();
-    if start > values.count || count > values.count - start {
+    if start > s.count || count > s.count - start {
         return -1;
     }
     values.discard(start, start + count);
@@ -694,9 +705,10 @@ pub extern "C" fn vram_host_auto_mib(available: u64) -> u64 {
 #[no_mangle]
 pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]) -> c_int {
     let values = s.read_directory();
-    let Some(v) = values.get(page) else {
+    if page >= s.count {
         return -1;
-    };
+    }
+    let v = values.get(page);
     if v.decode(data).is_err() {
         return -1;
     }
@@ -714,7 +726,7 @@ pub unsafe extern "C" fn store_read_pages(
     out: *mut u8,
 ) -> c_int {
     let values = s.read_directory();
-    if first > values.count || count > values.count - first || count > isize::MAX as usize / PAGE {
+    if first > s.count || count > s.count - first || count > isize::MAX as usize / PAGE {
         return -1;
     }
     if count == 0 {
@@ -759,9 +771,12 @@ pub unsafe extern "C" fn store_project(
     out: &mut [i64; SIDE],
 ) -> c_int {
     let values = s.values.read().unwrap();
+    if page >= s.count {
+        return -1;
+    }
     values
         .get(page)
-        .and_then(|v| v.project(weights, out).ok())
+        .project(weights, out)
         .map(i32::from)
         .unwrap_or(-1)
 }
@@ -771,7 +786,7 @@ pub unsafe extern "C" fn store_stats(s: &Store, out: *mut u64) {
     out.fill(0);
     let values = s.values.read().unwrap();
     out[4] = (size_of::<Store>() + values.metadata() + values.literals.charge()) as u64;
-    out[0] = values.count as u64;
+    out[0] = s.count as u64;
     for value in values.iter() {
         out[0] -= 1;
         out[4] += value.charge() as u64;
@@ -857,6 +872,16 @@ mod runtime_tests {
         let mut restored = [0; PAGE];
         value.decode(&mut restored).unwrap();
         assert_eq!(&restored, bytes);
+    }
+
+    #[test]
+    fn palette_preserves_the_full_ranking_at_ties() {
+        for seed in 0..64 {
+            let histogram = std::array::from_fn(|i| (i * 113 + seed * i * i) % (1 + seed));
+            let mut ranked: [u8; 256] = std::array::from_fn(|i| i as u8);
+            ranked.sort_unstable_by_key(|&i| (std::cmp::Reverse(histogram[usize::from(i)]), i));
+            assert_eq!(palette(&histogram), ranked[..16]);
+        }
     }
 
     #[test]
@@ -984,13 +1009,13 @@ mod host_tests {
                 "used stale fit after competing write to page {competing_page}"
             );
             if competing_page == 0 {
-                assert!(matches!(dir.get(0), Some(Value::Corrected(_))));
+                assert!(matches!(dir.get(0), Value::Corrected(_)));
             }
             if competing_page == 64 {
                 assert_eq!((dir.literals.live(), dir.literals.hits), (1, 1));
             }
             let mut restored = [0; PAGE];
-            dir.get(0).unwrap().decode(&mut restored).unwrap();
+            dir.get(0).decode(&mut restored).unwrap();
             assert_eq!(&restored, submitted);
         }
     }

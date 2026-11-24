@@ -104,6 +104,7 @@ jobs:
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
           python3 host/package.py dist/
+          python3 host/tests/parallel_store.py --control measurements/local/control --result dist/parallel-store.json
           python3 host/tests/file_scale.py --result dist/file-backed-independent.json
           sudo modprobe fuse
           python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
