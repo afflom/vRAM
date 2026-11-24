@@ -1,11 +1,13 @@
 /* Linux swap activation must run on a different thread from NBD I/O: swapon
  * reads the swap header, and swapoff can fault every occupied page back in. */
 #include <stddef.h>
+#include <linux/fs.h>
 #include <sys/swap.h>
 #include <sys/un.h>
 
 struct managed {
     int device, socket, error;
+    uint64_t capacity;
     const char *path;
     struct store *store;
     sigset_t signals;
@@ -61,12 +63,15 @@ static void report_store(struct store *s)
 static void *manage_swap(void *arg)
 {
     struct managed *m = arg;
-    struct stat st;
-    if (fstat(m->device, &st)) goto failed;
-    char pidfile[96];
-    snprintf(pidfile, sizeof(pidfile), "/sys/dev/block/%u:%u/pid", major(st.st_rdev), minor(st.st_rdev));
-    int attempts = 0;
-    while (access(pidfile, F_OK) && attempts++ < 200) usleep(50000);
+    /* NBD publishes its worker PID before setting the block device capacity.
+       An early swapon can see EOF instead of our already initialized header. */
+    for (unsigned attempt = 0; ; ++attempt) {
+        uint64_t bytes = 0;
+        if (ioctl(m->device, BLKGETSIZE64, &bytes)) goto failed;
+        if (bytes == m->capacity) break;
+        if (attempt == 200) { errno = ETIMEDOUT; goto failed; }
+        usleep(50000);
+    }
     /* Linux swap UAPI bit 18 requests freed-cluster discard, without the
        whole-device discard at activation. Some libc headers omit this flag. */
     if (swapon(m->path, SWAP_FLAG_PREFER | 100 | SWAP_FLAG_DISCARD | 0x40000)) goto failed;

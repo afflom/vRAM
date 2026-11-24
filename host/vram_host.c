@@ -171,7 +171,8 @@ int main(int argc, char **argv)
     /* Sharing the locked address space prevents a forked ioctl worker from
        retaining copy-on-write snapshots of the store during reclaim. */
     struct kernel_loop loop = { .device = fd, .socket = pair[0] };
-    struct managed control = { .device = fd, .socket = pair[0], .path = argv[2], .store = store };
+    struct managed control = { .device = fd, .socket = pair[0], .path = argv[2], .store = store,
+                               .capacity = pages * PAGE };
     pthread_t worker, manager;
     if (managed) {
         sigemptyset(&control.signals);
