@@ -76,6 +76,8 @@ The three honesty levels (R2):
 | `VR-54` | `open` | The shipping block adapter uses the native Prism read window, preserves read failure framing and measures verified direct reads across request sizes |  |
 | `VR-55` | `build` | Local pages need no file source; file sources in a read span stay in one extent and repeat or advance by one slot | `MixedReadPolicy.localPage`, `MixedReadPolicy.extentBoundary`, `MixedReadPolicy.slotAdmission`, `Performance.compactReverseSafe`, `Performance.compactStep` |
 | `VR-56` | `open` | The Verdant VM store gathers consecutive file slots across intervening modeled pages, restores ordered bytes and measures mixed range latency and throughput against the predecessor |  |
+| `VR-57` | `build` | The guest literal device admits page reads and writes only for aligned full pages inside the extent | `LiteralBioPolicy.read`, `LiteralBioPolicy.write`, `LiteralBioPolicy.unsupported`, `LiteralBioPolicy.unaligned`, `LiteralBioPolicy.shortPage`, `LiteralBioPolicy.outside` |
+| `VR-58` | `open` | A disposable guest measures byte-verified literal page completion against zram and the shipping NBD server with the same direct IO workload |  |
 
 ## Cited authorities
 

@@ -42,6 +42,14 @@ static unsigned affinity(const char *path) {
     return value;
 }
 
+static void block_node(const char *sysfs, const char *node) {
+    unsigned major_num, minor_num;
+    FILE *dev = fopen(sysfs, "r");
+    if (!dev || fscanf(dev, "%u:%u", &major_num, &minor_num) != 2) fail(sysfs);
+    fclose(dev);
+    if (mknod(node, S_IFBLK | 0600, makedev(major_num, minor_num))) fail(node);
+}
+
 int main(void) {
     if (getpid() != 1 || ioperm(0xf4, 4, 1)) return 2;
     if (mount("sysfs", "/sys", "sysfs", 0, NULL) || mount("proc", "/proc", "proc", 0, NULL))
@@ -50,19 +58,21 @@ int main(void) {
     load("/lz4hc_compress.ko", "");
     load("/zram.ko", "num_devices=1");
     load("/nbd.ko", "nbds_max=2 max_part=0");
-    unsigned major_num, minor_num;
-    FILE *dev = fopen("/sys/block/zram0/dev", "r");
-    if (!dev || fscanf(dev, "%u:%u", &major_num, &minor_num) != 2) fail("zram dev");
-    fclose(dev);
-    if (mknod(paths[0], S_IFBLK | 0600, makedev(major_num, minor_num))) fail("zram node");
-    for (int i = 1; i < BACKENDS; ++i)
+    int literal = access("/kernel-literal.ko", F_OK) == 0;
+    int nbd_end = literal ? 2 : BACKENDS;
+    block_node("/sys/block/zram0/dev", paths[0]);
+    if (literal) {
+        load("/kernel-literal.ko", "");
+        block_node("/sys/block/vramlit0/dev", "/dev/vramlit0");
+    }
+    for (int i = 1; i < nbd_end; ++i)
         if (mknod(paths[i], S_IFBLK | 0600, makedev(43, i-1))) fail("nbd node");
     struct rlimit lock = {RLIM_INFINITY, RLIM_INFINITY};
     if (setrlimit(RLIMIT_MEMLOCK, &lock)) fail("memlock");
     setting("/sys/block/zram0/comp_algorithm", "zstd");
     setting("/sys/block/zram0/disksize", "67108864");
     pid_t pid[BACKENDS] = {0};
-    for (int i = 1; i < BACKENDS; ++i) {
+    for (int i = 1; i < nbd_end; ++i) {
         pid[i] = fork();
         if (pid[i] < 0) fail("fork");
         const char *server = i == 1 ? "/control" : "/candidate";
@@ -105,7 +115,7 @@ int main(void) {
         if (count < 0) fail("read trace");
         close(fd);
     }
-    for (int i = 1; i < BACKENDS; ++i) {
+    for (int i = 1; i < nbd_end; ++i) {
         int fd = open(paths[i], O_RDWR);
         if (fd < 0 || ioctl(fd, NBD_DISCONNECT)) fail("disconnect");
         close(fd);

@@ -27,10 +27,15 @@ parser.add_argument("--trace-output", type=Path, help="write matched timestamps 
 parser.add_argument("--local-completion", action="store_true",
                     help="compare rq_affinity=0 with the guest default on two copies of the candidate")
 parser.add_argument("--read-windows", action="store_true", help="compare byte-verified direct reads at six request sizes")
+parser.add_argument("--kernel-literal", type=Path, help="measure the resident literal module alongside the shipping server and zram")
 args = parser.parse_args()
+if args.kernel_literal and (args.local_completion or args.read_windows or args.trace_output):
+    parser.error("the literal comparison requires the ordinary single-page workload")
 if args.read_windows and (args.local_completion or args.trace_output):
     parser.error("read window measurements use the uninstrumented release comparison")
 servers = {key: getattr(args, key).read_bytes() for key in ("control", "candidate")}
+if args.kernel_literal and servers["control"] != servers["candidate"]:
+    parser.error("the literal comparison requires the shipping candidate as control")
 if args.local_completion and (servers["control"] != servers["candidate"] or args.trace_output):
     parser.error("completion placement requires identical uninstrumented servers")
 
@@ -53,6 +58,9 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run(["cc", "-static", "-O2", "-Wall", "-Wextra", "-Werror",
                     root / "host/tests/swap_latency_guest.c", "-o", path / "init"], check=True)
     files = dict(servers, init=(path / "init").read_bytes())
+    if args.kernel_literal:
+        del files["candidate"]
+        files["kernel-literal.ko"] = args.kernel_literal.read_bytes()
     files.update(python_files())
     files["workload.py"] = (root / "host/tests/swap_latency_workload.py").read_bytes()
     if args.read_windows:
@@ -94,6 +102,10 @@ with tempfile.TemporaryDirectory() as tmp:
     if args.trace_output:
         batches = json.loads(trace_file.read_bytes())
 
+candidate = "kernel-literal" if args.kernel_literal else "vram"
+control = "vram-nbd" if args.kernel_literal else "control"
+ratio = "literal_to_zram" if args.kernel_literal else "vram_to_zram"
+
 def observations(prefix, profiles, operations=("write", "read")):
     rows = {}
     for line in re.findall(r"^" + prefix + r" (.+)$", log, re.M):
@@ -107,10 +119,10 @@ def observations(prefix, profiles, operations=("write", "read")):
     summary = {}
     for profile in profiles:
         for op in operations:
-            times = {b: [rows[i,b,profile,op] for i in range(3)] for b in ("zram-zstd", "control", "vram")}
+            times = {b: [rows[i,b,profile,op] for i in range(3)] for b in ("zram-zstd", control, candidate)}
             medians = {b: statistics.median(r["p50_ns"] for r in samples) for b, samples in times.items()}
-            summary[f"{profile}_{op}"] = dict(runs=times, median_ns=medians,
-                vram_to_zram=medians["vram"]/medians["zram-zstd"], meets_zram=medians["vram"] <= medians["zram-zstd"])
+            summary[f"{profile}_{op}"] = {"runs": times, "median_ns": medians,
+                ratio: medians[candidate]/medians["zram-zstd"], "meets_zram": medians[candidate] <= medians["zram-zstd"]}
     return summary
 
 
@@ -124,6 +136,14 @@ result = dict(accelerator=args.accel, kernel=args.kernel.name, kernel_sha256=has
               held_out_parity=all(v["meets_zram"] for v in mixed.values()),
               workloads=summary, mixed_overwrites=mixed, mixed_pages_per_family_per_round=64,
               mixed_verified_bytes_per_backend=3*384*4096)
+if args.kernel_literal:
+    addresses = re.findall(r"^LITERAL_POLICY (blake3:[0-9a-f]{64})\s*$", log, re.M)
+    if len(addresses) != 1:
+        sys.exit("Missing kernel literal policy identity")
+    result["literal_policy"] = addresses[0]
+    result["literal_payload_bytes"] = 64 << 20
+    result["server_sha256"] = {control: hashlib.sha256(servers["control"]).hexdigest(),
+                               candidate: hashlib.sha256(files["kernel-literal.ko"]).hexdigest()}
 if args.read_windows:
     sizes = [1, 2, 16, 64, 65, 128]
     result["read_windows"] = observations("WINDOW_LATENCY", [f"pages{n}" for n in sizes], ("read",))

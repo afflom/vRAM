@@ -369,3 +369,16 @@ id = "VR-56"
 level = "open"
 suite = "capacity"
 statement = "The Verdant VM store gathers consecutive file slots across intervening modeled pages, restores ordered bytes and measures mixed range latency and throughput against the predecessor"
+
+[[id]]
+id = "VR-57"
+level = "build"
+suite = "capacity"
+statement = "The guest literal device admits page reads and writes only for aligned full pages inside the extent"
+theorems = ["LiteralBioPolicy.read", "LiteralBioPolicy.write", "LiteralBioPolicy.unsupported", "LiteralBioPolicy.unaligned", "LiteralBioPolicy.shortPage", "LiteralBioPolicy.outside"]
+
+[[id]]
+id = "VR-58"
+level = "open"
+suite = "capacity"
+statement = "A disposable guest measures byte-verified literal page completion against zram and the shipping NBD server with the same direct IO workload"

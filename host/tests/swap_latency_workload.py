@@ -1,4 +1,5 @@
 """Single-page latency workload supplied by the operator. Runs only in the disposable guest."""
+import errno
 import json
 import mmap
 import os
@@ -11,8 +12,33 @@ size, pages = 4096, 2048
 order = list(range(pages))
 random.Random(14).shuffle(order)
 buf = mmap.mmap(-1, size)
-devices = [(label, os.open(path, os.O_RDWR | os.O_DIRECT | os.O_EXCL))
-           for label, path in (("zram-zstd", "/dev/zram0"), ("vram", "/dev/nbd1"), ("control", "/dev/nbd0"))]
+literal = os.path.exists("/kernel-literal.ko")
+if literal:
+    paths = (("zram-zstd", "/dev/zram0"), ("kernel-literal", "/dev/vramlit0"), ("vram-nbd", "/dev/nbd0"))
+else:
+    paths = (("zram-zstd", "/dev/zram0"), ("vram", "/dev/nbd1"), ("control", "/dev/nbd0"))
+devices = [(label, os.open(path, os.O_RDWR | os.O_DIRECT | os.O_EXCL)) for label, path in paths]
+if literal:
+    fd = dict(devices)["kernel-literal"]
+    end = os.lseek(fd, 0, os.SEEK_END)
+    assert end == 64 << 20
+    for offset, last_value in ((0, 19), (end - size, 83)):
+        assert os.preadv(fd, [buf], offset) == size and buf[:] == bytes(size)
+        for value in (247, last_value):
+            buf[:] = bytes([value]) * size
+            assert os.pwrite(fd, buf, offset) == size
+            buf[:] = bytes(size)
+            assert os.preadv(fd, [buf], offset) == size and buf[:] == bytes([value]) * size
+    try:
+        os.pwrite(fd, buf, end)
+    except OSError as error:
+        assert error.errno == errno.ENOSPC
+    else:
+        raise AssertionError("write past end succeeded")
+    assert os.preadv(fd, [buf], end) == 0
+    assert os.preadv(fd, [buf], 0) == size and buf[:] == bytes([19]) * size
+    with open("/sys/module/vram_literal/parameters/policy") as policy:
+        print("LITERAL_POLICY", policy.read().strip(), flush=True)
 print("INTERPRETER", sys.version.split()[0], flush=True)
 clock = None
 if os.path.exists("/store-clock"):

@@ -431,3 +431,15 @@ Feature: capacity
     Given consecutive file slots, selectors, holes and edited shared literals
     When a range crosses the intervening local values
     Then the store verifies every byte, counts restored selectors and stops coalescing at a gap or file boundary
+
+  @VR-57 @build
+  Scenario: Resolve a literal page operation
+    Given a read or write on an aligned full page inside the declared extent
+    When the literal controller resolves the operation
+    Then it selects the requested transfer and refuses invalid shapes and unsupported operations
+
+  @VR-58 @open
+  Scenario: Measure resident literal page completion
+    Given fresh equal-capacity literal, zram and shipping NBD devices in a disposable guest
+    When the operator and mixed-overwrite workloads rotate across the devices
+    Then all three return the submitted bytes and record independent read and write latencies

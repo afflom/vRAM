@@ -10,13 +10,23 @@ const completion = options[0] === '--completion';
 if (completion) options.shift();
 const windows = options[0] === '--read-windows';
 if (windows) options.shift();
+const literal = options[0] === '--kernel-literal';
+if (literal) options.shift();
 const [traceOption, traceFile] = options;
 if (!input || !output || (options.length && (options.length !== 2 || traceOption !== '--trace')))
-    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--read-windows] [--trace samples.json.gz]');
+    throw Error('Usage: node automation/swap-latency.mjs input.json output.json [--require-parity] [--completion] [--read-windows] [--kernel-literal] [--trace samples.json.gz]');
 const receipt = JSON.parse(readFileSync(input));
 const {model, address} = await verifiedModel();
-const backends = ['control', 'vram', 'zram-zstd'];
+const candidate = literal ? 'kernel-literal' : 'vram';
+const control = literal ? 'vram-nbd' : 'control';
+const backends = [control, candidate, 'zram-zstd'];
 const sameKeys = (obj, keys) => JSON.stringify(Object.keys(obj).sort()) === JSON.stringify([...keys].sort());
+if (literal !== Object.hasOwn(receipt, 'literal_policy') || (literal && (
+    receipt.literal_policy !== address || receipt.literal_payload_bytes !== 64 * 1024 * 1024 ||
+    !sameKeys(receipt.server_sha256, [control, candidate]) ||
+    !Object.values(receipt.server_sha256).every(hash => /^[a-f0-9]{64}$/.test(hash)) ||
+    completion || windows || traceFile || receipt.rq_affinity || receipt.read_windows)))
+    throw Error('Invalid kernel literal comparison or policy identity');
 if (receipt.page_bytes !== 4096 || receipt.queue_depth !== 1 || receipt.runs !== 3 ||
     receipt.samples_per_run !== 2048 || receipt.verified_bytes_per_backend !== 3 * 2 * 2048 * 4096 ||
     receipt.mixed_pages_per_family_per_round !== 64 || receipt.mixed_verified_bytes_per_backend !== 3 * 6 * 64 * 4096)
@@ -36,7 +46,7 @@ async function certify(suite, profiles, operations = ['write', 'read']) {
     if (!sameKeys(suite, cells)) throw Error('Missing or unexpected workload cell');
     let passes = 0;
     for (const key of cells) {
-        const {runs, median_ns, vram_to_zram, meets_zram} = suite[key];
+        const {runs, median_ns, meets_zram} = suite[key];
         if (!sameKeys(runs, backends) || !sameKeys(median_ns, backends)) throw Error('Invalid backend set in ' + key);
         for (const backend of backends) {
             const rows = runs[backend];
@@ -46,9 +56,9 @@ async function certify(suite, profiles, operations = ['write', 'read']) {
             const middle = rows.map(r => r.p50_ns).sort((a, b) => a - b)[1];
             if (middle !== median_ns[backend]) throw Error('Median disagrees with trial evidence in ' + key);
         }
-        const meets = await parity(runs.vram.map(r => r.p50_ns), runs['zram-zstd'].map(r => r.p50_ns));
+        const meets = await parity(runs[candidate].map(r => r.p50_ns), runs['zram-zstd'].map(r => r.p50_ns));
         if (meets !== meets_zram ||
-            vram_to_zram !== median_ns.vram / median_ns['zram-zstd'])
+            suite[key][literal ? 'literal_to_zram' : 'vram_to_zram'] !== median_ns[candidate] / median_ns['zram-zstd'])
             throw Error('Model verdict or ratio disagrees with timing evidence in ' + key);
         if (meets) passes++;
     }
@@ -61,6 +71,12 @@ const mixedParity = mixed.passes === mixed.total;
 if (receipt.operator_parity !== operatorParity || receipt.held_out_parity !== mixedParity ||
     receipt.meets_parity !== (operatorParity && mixedParity)) throw Error('Aggregate verdict disagrees with model');
 receipt.prism_replay = {address, operator, mixed};
+if (literal) {
+    receipt.literal_at_most_nbd_p50 = {};
+    for (const [key, {runs}] of Object.entries({...receipt.workloads, ...receipt.mixed_overwrites})) {
+        receipt.literal_at_most_nbd_p50[key] = await parity(runs[candidate].map(t => t.p50_ns), runs[control].map(t => t.p50_ns));
+    }
+}
 if (windows && !receipt.read_windows) throw Error('Missing direct read window evidence');
 if (receipt.read_windows) {
     const sizes = [1, 2, 16, 64, 65, 128];

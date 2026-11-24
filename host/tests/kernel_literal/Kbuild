@@ -1,0 +1,1 @@
+obj-m := vram_literal.o
