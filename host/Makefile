@@ -24,6 +24,8 @@ build/vram-ram-file: ram_file.c qualification.h projection.c projection_ioctl.h 
 	$(CC) $(CFLAGS) -Wall -Wextra -O2 $(FUSE_CFLAGS) -I$(DEVICE)/native $< projection.c $(LIB) $(RAM_FILE_LDFLAGS) $(FUSE_LIBS) $(LDLIBS) -o $@
 
 install:
+	install -Dm644 ../site/assets/mark.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/io.github.afflom.vRAM.svg
+	install -Dm644 packaging/io.github.afflom.vRAM.metainfo.xml $(DESTDIR)$(PREFIX)/share/metainfo/io.github.afflom.vRAM.metainfo.xml
 	install -Dm644 projection.h $(DESTDIR)$(PREFIX)/include/vram/projection.h
 	install -Dm755 build/vram-ram-file $(DESTDIR)$(PREFIX)/lib/vram/vram-ram-file
 	install -Dm755 vram-machine $(DESTDIR)$(PREFIX)/bin/vram-machine

@@ -1,0 +1,63 @@
+\begin{lexlean}{Product.Features}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Arch}
+\importmodule{Product.Architecture}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: featurePlan, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Read the platform and guest limits and the backing shortfall.", calls := (cons "CapacityPolicy::plan" (nil String)), acceptance := (cons "CapacityPolicy::greatest" (cons "CapacityPolicy::fullTarget" (nil String)))})
+}
+
+definition{
+  name: featureQualify, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Reserve the full target and check byte-exact restoration and throughput floors.", calls := (cons "Performance::rateFloor" (cons "Contract::observe" (nil String))), acceptance := (cons "Contract::corruptionStops" (cons "Performance::composeRateFloor" (nil String)))})
+}
+
+definition{
+  name: featureBoot, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Admit the full target across the backing files before guest boot.", calls := (cons "CapacityPolicy::plan" (cons "Performance::reserveRemainder" (nil String))), acceptance := (cons "Performance::reserveConservation" (cons "Performance::reserveFits" (nil String)))})
+}
+
+definition{
+  name: featureRestore, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Restore exact page contents from live representations.", calls := (cons "IndexPolicy::bucketStep" (cons "Performance::nextSource" (nil String))), acceptance := (cons "IndexPolicy::releaseEmpty" (cons "Performance::compactStep" (nil String)))})
+}
+
+definition{
+  name: featureProject, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Select an eligible route for signed projections from a stable guest DIMM page.", calls := (cons "Performance::projectionRoute" (cons "Performance::batchWireBytes" (nil String))), acceptance := (cons "Performance::projectionMinimum" (cons "Performance::batchRestoreCrossing" (nil String)))})
+}
+
+definition{
+  name: featureSwap, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Expose a Verdant swap device to a directly booted Linux system.", calls := (cons "HostPolicy::autoSize" (nil String)), acceptance := (cons "HostPolicy::sizeFromAvailable" (nil String))})
+}
+
+definition{
+  name: featureReplay, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Replay the qualification verdict and acceptance vectors for the released controller.", calls := (cons "Contract::dispatch" (nil String)), acceptance := (cons "Contract::finishVerified" (cons "Contract::emptyRefused" (nil String)))})
+}
+
+definition{
+  name: journeyOperator, parameters: [], result: Foundation.Arch::Journey,
+  body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderOperator", steps := (cons "Product.Features::featurePlan" (cons "Product.Features::featureQualify" (cons "Product.Features::featureBoot" (nil String))))})
+}
+
+definition{
+  name: journeyDeveloper, parameters: [], result: Foundation.Arch::Journey,
+  body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderDeveloper", steps := (cons "Product.Features::featureRestore" (cons "Product.Features::featureProject" (nil String)))})
+}
+
+definition{
+  name: journeyReviewer, parameters: [], result: Foundation.Arch::Journey,
+  body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderReviewer", steps := (cons "Product.Features::featureReplay" (nil String))})
+}
+definition{
+  name: journeyNativeOperator, parameters: [], result: Foundation.Arch::Journey,
+  body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderOperator", steps := (cons "Product.Features::featureSwap" (nil String))})
+}
+\end{semanticmodule}
+\end{lexlean}

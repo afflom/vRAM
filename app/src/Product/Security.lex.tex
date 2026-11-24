@@ -1,0 +1,136 @@
+\begin{lexlean}{Product.Security}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Sec}
+\importmodule{Production.ThreatModel}
+\importmodule{Product.Architecture}
+\importmodule{Foundation.Product.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: assetPages, parameters: [], result: Foundation.Sec::Asset,
+  body: (record Foundation.Sec::Asset {index := 0, componentIndex := 4})
+}
+
+definition{
+  name: assetDescriptionPages, parameters: [], result: Production.ThreatModel::ModeledAsset,
+  body: (record Production.ThreatModel::ModeledAsset {asset := "Product.Security::assetPages", name := "Pages", text := "Guest bytes and immutable literal slots."})
+}
+
+definition{
+  name: assetCapacity, parameters: [], result: Foundation.Sec::Asset,
+  body: (record Foundation.Sec::Asset {index := 1, componentIndex := 0})
+}
+
+definition{
+  name: assetDescriptionCapacity, parameters: [], result: Production.ThreatModel::ModeledAsset,
+  body: (record Production.ThreatModel::ModeledAsset {asset := "Product.Security::assetCapacity", name := "Capacity", text := "The full requested allocation and its replacement page."})
+}
+
+definition{
+  name: assetPort, parameters: [], result: Foundation.Sec::Asset,
+  body: (record Foundation.Sec::Asset {index := 2, componentIndex := 3})
+}
+
+definition{
+  name: assetDescriptionPort, parameters: [], result: Production.ThreatModel::ModeledAsset,
+  body: (record Production.ThreatModel::ModeledAsset {asset := "Product.Security::assetPort", name := "Port", text := "The projection request stream scoped to the guest DIMM."})
+}
+
+definition{
+  name: threatCorruption, parameters: [], result: Foundation.Sec::Threat,
+  body: (record Foundation.Sec::Threat {index := 0})
+}
+
+definition{
+  name: descriptionCorruption, parameters: [], result: Production.ThreatModel::ModeledThreat,
+  body: (record Production.ThreatModel::ModeledThreat {threat := "Product.Security::threatCorruption", name := "Exact replacement", text := "A failed replacement could expose partially written page bytes.", category := (ctor Production.ThreatModel::Stride.tampering)})
+}
+
+definition{
+  name: riskCorruption, parameters: [], result: Foundation.Sec::Risk,
+  body: (record Foundation.Sec::Risk {index := 0, assetIndex := 0, threatIndex := 0, likelihood := (ctor Foundation.Sec::Likelihood.medium), impact := (ctor Foundation.Sec::Impact.major)})
+}
+
+definition{
+  name: controlCorruption, parameters: [], result: Foundation.Sec::ApplicationSecurityControl,
+  body: (record Foundation.Sec::ApplicationSecurityControl {index := 0, riskIndex := 0})
+}
+
+definition{
+  name: evidenceCorruption, parameters: [], result: Production.ThreatModel::ModeledControl,
+  body: (record Production.ThreatModel::ModeledControl {control := "Product.Security::controlCorruption", name := "Exact replacement", text := "Keep the prior slot live until the replacement commits.", evidence := (cons (record Production.ThreatModel::Evidence {kind := (ctor Production.ThreatModel::EvidenceKind.gate), reference := "device/validation/file_admission.c"}) (nil Production.ThreatModel::Evidence))})
+}
+
+definition{
+  name: mappingCorruption, parameters: [], result: Production.ThreatModel::ThreatMapping,
+  body: (record Production.ThreatModel::ThreatMapping {threat := "Product.Security::threatCorruption", controls := (cons "Product.Security::controlCorruption" (nil String))})
+}
+
+definition{
+  name: threatExhaustion, parameters: [], result: Foundation.Sec::Threat,
+  body: (record Foundation.Sec::Threat {index := 1})
+}
+
+definition{
+  name: descriptionExhaustion, parameters: [], result: Production.ThreatModel::ModeledThreat,
+  body: (record Production.ThreatModel::ModeledThreat {threat := "Product.Security::threatExhaustion", name := "Reserve before boot", text := "A backing shortfall could leave the guest with an unusable target.", category := (ctor Production.ThreatModel::Stride.denialOfService)})
+}
+
+definition{
+  name: riskExhaustion, parameters: [], result: Foundation.Sec::Risk,
+  body: (record Foundation.Sec::Risk {index := 1, assetIndex := 1, threatIndex := 1, likelihood := (ctor Foundation.Sec::Likelihood.medium), impact := (ctor Foundation.Sec::Impact.major)})
+}
+
+definition{
+  name: controlExhaustion, parameters: [], result: Foundation.Sec::ApplicationSecurityControl,
+  body: (record Foundation.Sec::ApplicationSecurityControl {index := 1, riskIndex := 1})
+}
+
+definition{
+  name: evidenceExhaustion, parameters: [], result: Production.ThreatModel::ModeledControl,
+  body: (record Production.ThreatModel::ModeledControl {control := "Product.Security::controlExhaustion", name := "Reserve before boot", text := "Require one replacement page and the full reserve before starting QEMU.", evidence := (cons (record Production.ThreatModel::Evidence {kind := (ctor Production.ThreatModel::EvidenceKind.gate), reference := "host/tests/capacity.py"}) (nil Production.ThreatModel::Evidence))})
+}
+
+definition{
+  name: mappingExhaustion, parameters: [], result: Production.ThreatModel::ThreatMapping,
+  body: (record Production.ThreatModel::ThreatMapping {threat := "Product.Security::threatExhaustion", controls := (cons "Product.Security::controlExhaustion" (nil String))})
+}
+
+definition{
+  name: threatInvalidRequest, parameters: [], result: Foundation.Sec::Threat,
+  body: (record Foundation.Sec::Threat {index := 2})
+}
+
+definition{
+  name: descriptionInvalidRequest, parameters: [], result: Production.ThreatModel::ModeledThreat,
+  body: (record Production.ThreatModel::ModeledThreat {threat := "Product.Security::threatInvalidRequest", name := "Validate range", text := "A malformed request could address bytes beyond the owned DIMM.", category := (ctor Production.ThreatModel::Stride.informationDisclosure)})
+}
+
+definition{
+  name: riskInvalidRequest, parameters: [], result: Foundation.Sec::Risk,
+  body: (record Foundation.Sec::Risk {index := 2, assetIndex := 2, threatIndex := 2, likelihood := (ctor Foundation.Sec::Likelihood.medium), impact := (ctor Foundation.Sec::Impact.major)})
+}
+
+definition{
+  name: controlInvalidRequest, parameters: [], result: Foundation.Sec::ApplicationSecurityControl,
+  body: (record Foundation.Sec::ApplicationSecurityControl {index := 2, riskIndex := 2})
+}
+
+definition{
+  name: evidenceInvalidRequest, parameters: [], result: Production.ThreatModel::ModeledControl,
+  body: (record Production.ThreatModel::ModeledControl {control := "Product.Security::controlInvalidRequest", name := "Validate range", text := "Check operation, offset alignment and range before dispatch.", evidence := (cons (record Production.ThreatModel::Evidence {kind := (ctor Production.ThreatModel::EvidenceKind.review), reference := "host/projection.c"}) (nil Production.ThreatModel::Evidence))})
+}
+
+definition{
+  name: mappingInvalidRequest, parameters: [], result: Production.ThreatModel::ThreatMapping,
+  body: (record Production.ThreatModel::ThreatMapping {threat := "Product.Security::threatInvalidRequest", controls := (cons "Product.Security::controlInvalidRequest" (nil String))})
+}
+
+definition{
+  name: trustBoundary, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "projection port and host storage", title := "Trusted local administration", text := "The host controls the guest mappings and backing files. The optional projection port serves a trusted guest that owns the operand. Deployment-specific risk decisions belong to the operator.", evidence := (cons "host/packaging/USAGE.md" (cons "SECURITY.md" (nil String)))})
+}
+\end{semanticmodule}
+\end{lexlean}

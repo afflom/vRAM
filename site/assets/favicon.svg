@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">vRAM</title>
+<rect width="64" height="64" rx="13" fill="#062e27"/>
+<path fill="#c5f16a" d="M9 12l21 11v8L9 20zm0 12 21 11v8L9 32zm0 12 21 11v8L9 44z"/>
+<path fill="#94d573" d="M30 23l25-14v8L30 31zm0 12 25-14v8L30 43zm0 12 25-14v8L30 55z"/>
+</svg>

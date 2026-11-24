@@ -1,0 +1,84 @@
+\begin{lexlean}{Product.Quality}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Qual}
+\importmodule{Foundation.Product.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: characteristicIntegrity, parameters: [], result: Foundation.Qual::ProductQualityCharacteristic,
+  body: (record Foundation.Qual::ProductQualityCharacteristic {index := 0})
+}
+
+definition{
+  name: subcharacteristicIntegrity, parameters: [], result: Foundation.Qual::QualitySubcharacteristic,
+  body: (record Foundation.Qual::QualitySubcharacteristic {index := 0, characteristicIndex := 0})
+}
+
+definition{
+  name: requirementIntegrity, parameters: [], result: Foundation.Qual::QualityRequirement,
+  body: (record Foundation.Qual::QualityRequirement {index := 0, subcharacteristicIndex := 0})
+}
+
+definition{
+  name: measureIntegrity, parameters: [], result: Foundation.Qual::QualityMeasure,
+  body: (record Foundation.Qual::QualityMeasure {index := 0, requirementIndex := 0, threshold := 0})
+}
+
+definition{
+  name: methodIntegrity, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Product.Quality::measureIntegrity", title := "Mismatched bytes", text := "Functional suitability / Functional correctness. Compare the complete readback with independent expected bytes. The acceptable mismatch count is zero.", evidence := (cons "host/qualification.h" (nil String))})
+}
+
+definition{
+  name: characteristicQualification, parameters: [], result: Foundation.Qual::ProductQualityCharacteristic,
+  body: (record Foundation.Qual::ProductQualityCharacteristic {index := 1})
+}
+
+definition{
+  name: subcharacteristicQualification, parameters: [], result: Foundation.Qual::QualitySubcharacteristic,
+  body: (record Foundation.Qual::QualitySubcharacteristic {index := 1, characteristicIndex := 1})
+}
+
+definition{
+  name: requirementQualification, parameters: [], result: Foundation.Qual::QualityRequirement,
+  body: (record Foundation.Qual::QualityRequirement {index := 1, subcharacteristicIndex := 1})
+}
+
+definition{
+  name: measureQualification, parameters: [], result: Foundation.Qual::QualityMeasure,
+  body: (record Foundation.Qual::QualityMeasure {index := 1, requirementIndex := 1, threshold := 0})
+}
+
+definition{
+  name: methodQualification, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Product.Quality::measureQualification", title := "Unmet floors", text := "Performance efficiency / Time behaviour. Compute separate read and write service rates across the full configured target. Both must meet the operator floors.", evidence := (cons "automation/qualification.mjs" (nil String))})
+}
+
+definition{
+  name: characteristicAdmission, parameters: [], result: Foundation.Qual::ProductQualityCharacteristic,
+  body: (record Foundation.Qual::ProductQualityCharacteristic {index := 2})
+}
+
+definition{
+  name: subcharacteristicAdmission, parameters: [], result: Foundation.Qual::QualitySubcharacteristic,
+  body: (record Foundation.Qual::QualitySubcharacteristic {index := 2, characteristicIndex := 2})
+}
+
+definition{
+  name: requirementAdmission, parameters: [], result: Foundation.Qual::QualityRequirement,
+  body: (record Foundation.Qual::QualityRequirement {index := 2, subcharacteristicIndex := 2})
+}
+
+definition{
+  name: measureAdmission, parameters: [], result: Foundation.Qual::QualityMeasure,
+  body: (record Foundation.Qual::QualityMeasure {index := 2, requirementIndex := 2, threshold := 0})
+}
+
+definition{
+  name: methodAdmission, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Product.Quality::measureAdmission", title := "Missing reserve bytes at launch", text := "Reliability / Fault tolerance. Require complete reservation of the configured target plus one replacement page. Verify cleanup on a failed allocation.", evidence := (cons "host/tests/capacity.py" (nil String))})
+}
+\end{semanticmodule}
+\end{lexlean}

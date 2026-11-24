@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="console-application">
+  <id>io.github.afflom.vRAM</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>vRAM</name>
+  <summary>Boot Linux on Verdant-backed virtual memory</summary>
+  <description>
+    <p>vRAM supplies system RAM to a virtualized Linux workstation through QEMU. The launcher calculates the configured capacity, reserves backing storage and can attach a memory module while the guest is running.</p>
+    <p>The capacity qualification writes and verifies dense pages at the configured target and measures read and write throughput. A separate service supplies volatile swap to directly booted Linux systems.</p>
+  </description>
+  <icon type="stock">io.github.afflom.vRAM</icon>
+  <provides><binary>vram-machine</binary><binary>vram-host</binary></provides>
+  <categories><category>System</category></categories>
+  <url type="homepage">https://afflom.github.io/vRAM/</url>
+  <url type="vcs-browser">https://github.com/afflom/vRAM</url>
+  <url type="help">https://afflom.github.io/vRAM/#install</url>
+</component>

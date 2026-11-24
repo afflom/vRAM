@@ -1,0 +1,23 @@
+\begin{lexlean}{Product.Behavior}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Product.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: policyAdmission, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "CapacityPolicy::plan", title := "Maximum capacity", text := "Select the greatest admissible target under the supplied bounds.", evidence := (cons "app/src/CapacityPolicy.lex.tex" (cons "host/tests/capacity.py" (nil String)))})
+}
+
+definition{
+  name: policyMeasurement, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Contract::observe", title := "Checkpoint decision", text := "A failed byte comparison stops qualification. The verified checkpoint can advance or complete within budget.", evidence := (cons "app/src/Contract.lex.tex" (cons "features/suites/capacity.feature" (nil String)))})
+}
+
+definition{
+  name: policyPerformance, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Performance::rateFloor", title := "Performance replay", text := "Require the verified read and write throughput floors. Device readback remains a measured native result.", evidence := (cons "app/src/Performance.lex.tex" (cons "measurements/qualified-capacity-0.6.0.json" (nil String)))})
+}
+\end{semanticmodule}
+\end{lexlean}

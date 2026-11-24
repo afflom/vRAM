@@ -281,3 +281,9 @@ Feature: capacity
     Given a verified one MiB extent and a one MiB per second read floor
     When reading takes one nanosecond longer than a second
     Then qualification returns "budget"
+
+  @VR-38 @open
+  Scenario: Inspect the product model from the published catalog
+    Given the operator opens the facet catalog for this build
+    When the catalog renders a feature, measure, threat or release record
+    Then its record identifier resolves to the checked model and its evidence resolves to the repository

@@ -1,0 +1,89 @@
+\begin{lexlean}{Production.BrowserSystem}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Production.Core}
+\title{Text application model}
+\begin{semanticmodule}
+structure{
+  name: ApplicationProfile,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: contract, type: String},
+    {name: applicationModelDigest, type: String},
+    {name: execution, type: String},
+    {name: persistentStorage, type: String},
+    {name: externalServices, type: String},
+    {name: resources, type: (List String)},
+    {name: capabilities, type: (List String)}
+  ]
+}
+
+structure{
+  name: GeneratedArtifact,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: role, type: String},
+    {name: licenseExpression, type: String}
+  ]
+}
+
+structure{
+  name: Component,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: artifact, type: String},
+    {name: kind, type: String},
+    {name: version, type: String}
+  ]
+}
+
+structure{
+  name: Target,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: kind, type: String},
+    {name: adapterDigest, type: String},
+    {name: apiVersion, type: String},
+    {name: minimumReleaseStatus, type: String}
+  ]
+}
+
+structure{
+  name: SystemModel,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: product, type: Production.Core::Product},
+    {name: applicationProfile, type: ApplicationProfile},
+    {name: artifacts, type: (List GeneratedArtifact)},
+    {name: components, type: (List Component)},
+    {name: targets, type: (List Target)},
+    {name: controls, type: (List String)},
+    {name: standards, type: (List String)}
+  ]
+}
+
+structure{
+  name: SystemManifest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: applicationModelDigest, type: String},
+    {name: productId, type: String},
+    {name: productVersion, type: String},
+    {name: componentId, type: String},
+    {name: artifactId, type: String},
+    {name: targetId, type: String},
+    {name: controls, type: (List String)}
+  ]
+}
+\end{semanticmodule}
+\end{lexlean}

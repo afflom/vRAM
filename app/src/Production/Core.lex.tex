@@ -1,0 +1,21 @@
+\begin{lexlean}{Production.Core}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\title{Text application model}
+\begin{semanticmodule}
+structure{
+  name: Product,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: owner, type: String},
+    {name: version, type: String},
+    {name: lifecycle, type: String},
+    {name: sourcePolicy, type: String},
+    {name: supportedPlatforms, type: (List String)}
+  ]
+}
+\end{semanticmodule}
+\end{lexlean}

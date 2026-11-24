@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 64" role="img" aria-labelledby="title">
+  <title id="title">vRAM</title>
+<rect width="64" height="64" rx="13" fill="#062e27"/>
+<path fill="#c5f16a" d="M9 12l21 11v8L9 20zm0 12 21 11v8L9 32zm0 12 21 11v8L9 44z"/>
+<path fill="#94d573" d="M30 23l25-14v8L30 31zm0 12 25-14v8L30 43zm0 12 25-14v8L30 55z"/>
+<g transform="translate(76 8)" fill="#062e27">
+<path d="M0 14h7.3l8.3 20.7L24 14h7.2L19.5 42h-7.6z"/>
+<path fill-rule="evenodd" d="M36 3h15.5c9.8 0 15.4 4.8 15.4 12.9 0 5.7-2.9 9.7-8 11.6L68.5 42h-8.6l-8.6-13.2h-8.1V42H36zm7.2 6.5v13h7.9c5.4 0 8.5-2.4 8.5-6.5s-3.1-6.5-8.5-6.5z"/>
+<path fill-rule="evenodd" d="M69.6 42 84.5 3h8.3l15 39h-7.7l-3.3-9.1H80.4L77.1 42zm13.1-15.4h11.8l-6-16.4z"/>
+<path d="M113 42V3h8.4l12.2 25.3L145.9 3h8.3v39h-7.1V15.1l-10.8 22.2h-5.5l-10.7-22.2V42z"/>
+</g>
+</svg>

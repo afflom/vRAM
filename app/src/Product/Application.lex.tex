@@ -1,0 +1,13 @@
+\begin{lexlean}{Product.Application}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Product.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: capacityController, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Contract::application", title := "vRAM capacity controller", text := "The Prism text application runs its registered dispatch entry with no ambient host capabilities. Build verification replays the acceptance vectors before publication.", evidence := (cons "app/src/Contract.lex.tex" (cons "automation/verified-model.mjs" (nil String)))})
+}
+\end{semanticmodule}
+\end{lexlean}

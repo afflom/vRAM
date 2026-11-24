@@ -1,0 +1,178 @@
+\begin{lexlean}{Product.Architecture}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Arch}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: stakeholderOperator, parameters: [], result: Foundation.Arch::Stakeholder,
+  body: (record Foundation.Arch::Stakeholder {index := 0, name := "Workstation operator", text := "Sets guest and backing limits, qualifies the target and boots a guest."})
+}
+
+definition{
+  name: stakeholderDeveloper, parameters: [], result: Foundation.Arch::Stakeholder,
+  body: (record Foundation.Arch::Stakeholder {index := 1, name := "Guest developer", text := "Runs workloads and requests projections on an owned DIMM page."})
+}
+
+definition{
+  name: stakeholderReviewer, parameters: [], result: Foundation.Arch::Stakeholder,
+  body: (record Foundation.Arch::Stakeholder {index := 2, name := "Release reviewer", text := "Checks the model, native receipts and package provenance."})
+}
+
+definition{
+  name: concernCapacity, parameters: [], result: Foundation.Arch::Concern,
+  body: (record Foundation.Arch::Concern {index := 0, name := "Usable capacity", text := "The complete target fits the configured ceiling and has reserved backing."})
+}
+
+definition{
+  name: concernExactness, parameters: [], result: Foundation.Arch::Concern,
+  body: (record Foundation.Arch::Concern {index := 1, name := "Exact reconstruction", text := "Every restored byte and signed projection agrees with independent readback."})
+}
+
+definition{
+  name: concernEvidence, parameters: [], result: Foundation.Arch::Concern,
+  body: (record Foundation.Arch::Concern {index := 2, name := "Reproducible evidence", text := "A release connects source, bounds, measurements and artifacts."})
+}
+
+definition{
+  name: componentLauncher, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 0, kind := (ctor Foundation.Arch::ComponentKind.cliAdapter), name := "Workstation launcher", text := "Reads the platform and guest configuration, reserves backing and launches QEMU."})
+}
+
+definition{
+  name: componentGuest, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 1, kind := (ctor Foundation.Arch::ComponentKind.externalSystem), name := "Linux guest", text := "Allocates ordinary system memory and can online an added DIMM."})
+}
+
+definition{
+  name: componentQemu, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 2, kind := (ctor Foundation.Arch::ComponentKind.externalSystem), name := "QEMU / KVM", text := "Maps the boot and hotplug memory files into guest physical memory."})
+}
+
+definition{
+  name: componentServer, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 3, kind := (ctor Foundation.Arch::ComponentKind.service), name := "RAM file server", text := "Translates FUSE operations and projection requests into page-store calls."})
+}
+
+definition{
+  name: componentStore, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 4, kind := (ctor Foundation.Arch::ComponentKind.database), name := "Verdant page store", text := "Admits exact representations and restores pages or computes projections."})
+}
+
+definition{
+  name: componentReserve, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 5, kind := (ctor Foundation.Arch::ComponentKind.database), name := "Backing files", text := "Hold immutable dense slots across the admitted filesystems."})
+}
+
+definition{
+  name: componentController, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 6, kind := (ctor Foundation.Arch::ComponentKind.service), name := "Prism controller", text := "Evaluates capacity, checkpoint and performance observations."})
+}
+
+definition{
+  name: componentNative, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 7, kind := (ctor Foundation.Arch::ComponentKind.service), name := "Native swap service", text := "Exposes the Verdant store through Linux NBD for a directly booted system."})
+}
+
+definition{
+  name: edgeLaunch, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 0, fromIndex := 0, toIndex := 2, kind := (ctor Foundation.Arch::EdgeKind.controlFlow)})
+}
+
+definition{
+  name: edgeGuestMemory, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 1, fromIndex := 1, toIndex := 2, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+
+definition{
+  name: edgeMemoryFile, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 2, fromIndex := 2, toIndex := 3, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+
+definition{
+  name: edgePageRequest, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 3, fromIndex := 3, toIndex := 4, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+
+definition{
+  name: edgeLiteralIo, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 4, fromIndex := 4, toIndex := 5, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+
+definition{
+  name: edgeQualify, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 5, fromIndex := 0, toIndex := 3, kind := (ctor Foundation.Arch::EdgeKind.controlFlow)})
+}
+
+definition{
+  name: edgeNativeSwap, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 6, fromIndex := 7, toIndex := 4, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+
+definition{
+  name: viewpointCapacity, parameters: [], result: Foundation.Arch::Viewpoint,
+  body: (record Foundation.Arch::Viewpoint {index := 0, stakeholderIndex := 0, concernIndex := 0, modelKindIndex := 0})
+}
+
+definition{
+  name: viewCapacity, parameters: [], result: Foundation.Arch::View,
+  body: (record Foundation.Arch::View {index := 0, viewpointIndex := 0, modelKindIndex := 0})
+}
+
+definition{
+  name: viewpointExactness, parameters: [], result: Foundation.Arch::Viewpoint,
+  body: (record Foundation.Arch::Viewpoint {index := 1, stakeholderIndex := 1, concernIndex := 1, modelKindIndex := 0})
+}
+
+definition{
+  name: viewExactness, parameters: [], result: Foundation.Arch::View,
+  body: (record Foundation.Arch::View {index := 1, viewpointIndex := 1, modelKindIndex := 0})
+}
+
+definition{
+  name: viewpointEvidence, parameters: [], result: Foundation.Arch::Viewpoint,
+  body: (record Foundation.Arch::Viewpoint {index := 2, stakeholderIndex := 2, concernIndex := 2, modelKindIndex := 2})
+}
+
+definition{
+  name: viewEvidence, parameters: [], result: Foundation.Arch::View,
+  body: (record Foundation.Arch::View {index := 2, viewpointIndex := 2, modelKindIndex := 2})
+}
+
+definition{
+  name: standardArch, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 0, editionIndex := 0, standardId := "ISO/IEC/IEEE 42010", edition := "2022"})
+}
+
+definition{
+  name: standardOpm, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 1, editionIndex := 0, standardId := "ISO/PAS 19450", edition := "2015"})
+}
+
+definition{
+  name: standardUml, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 2, editionIndex := 0, standardId := "OMG UML", edition := "2.5.1"})
+}
+
+definition{
+  name: standardQual, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 3, editionIndex := 0, standardId := "ISO/IEC 25010", edition := "2023"})
+}
+
+definition{
+  name: standardSec, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 4, editionIndex := 0, standardId := "ISO/IEC 27034-1", edition := "2011"})
+}
+
+definition{
+  name: standardRisk, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 5, editionIndex := 0, standardId := "ISO/IEC 27005", edition := "2022"})
+}
+
+definition{
+  name: standardSpdx, parameters: [], result: Foundation.Arch::StandardReference,
+  body: (record Foundation.Arch::StandardReference {standardIndex := 6, editionIndex := 0, standardId := "SPDX License List", edition := "MIT OR Apache-2.0"})
+}
+\end{semanticmodule}
+\end{lexlean}

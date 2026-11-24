@@ -1,0 +1,65 @@
+\begin{lexlean}{Foundation.Experience.V1.Model}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\title{Text application model}
+\begin{semanticmodule}
+inductive{
+  name: BrandElementKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: name, fields: []},
+    {name: tagline, fields: []},
+    {name: promise, fields: []},
+    {name: positioning, fields: []},
+    {name: mission, fields: []},
+    {name: value, fields: []},
+    {name: steward, fields: []},
+    {name: callToAction, fields: []},
+    {name: mark, fields: []},
+    {name: palette, fields: []},
+    {name: typography, fields: []},
+    {name: productName, fields: []},
+    {name: productPromise, fields: []}
+  ]
+}
+
+inductive{
+  name: TokenType,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: color, fields: []},
+    {name: dimension, fields: []},
+    {name: number, fields: []},
+    {name: gradient, fields: []},
+    {name: fontFamily, fields: []}
+  ]
+}
+
+structure{
+  name: BrandElement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: BrandElementKind},
+    {name: text, type: String},
+    {name: source, type: Nat}
+  ]
+}
+
+structure{
+  name: DesignToken,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: name, type: String},
+    {name: type, type: TokenType},
+    {name: value, type: String},
+    {name: hex, type: String},
+    {name: source, type: Nat}
+  ]
+}
+\end{semanticmodule}
+\end{lexlean}

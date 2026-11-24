@@ -1,16 +1,20 @@
 # vRAM
 
+[![vRAM product preview](site/assets/social-preview.png)](https://afflom.github.io/vRAM/)
+
+[Product and downloads](https://afflom.github.io/vRAM/) · [Prism facets](https://afflom.github.io/vRAM/facets.html) · [Brand guide](docs/brand.md) · [Publishing and verification](docs/product-presentation.md)
+
 vRAM supplies System RAM to a virtualized Linux operating system. The packaged `vram-machine` launcher boots an existing VM disk on Verdant-backed memory with stock QEMU and can plug an additional DIMM while applications run. Linux sees the memory in `/proc/meminfo` under `MemTotal`. The separate `vram-host` service supplies volatile swap to a directly booted Linux system. Both use the same Verdant Engine 2.20.0 store and Prism representation policy.
 
 On a write, the store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
 
 ## Install on a Linux computer
 
-Get the amd64 package built for your distribution. The Ubuntu 24.04 build is in the `vram-linux-x86_64` artifact of the [device workflow](https://github.com/afflom/vRAM/actions/workflows/device.yml). The local package build below uses the distribution's libfuse3 ABI. After extracting a workflow artifact, install with:
+Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.1_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.6.0_amd64.deb qemu-system-x86 fuse3
+sudo apt install ./vram-host_0.6.1_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Size a virtualized workstation to its configured maximum
@@ -96,7 +100,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.1_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

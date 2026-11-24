@@ -68,7 +68,7 @@ jobs:
       - name: Boot Linux and verify Verdant swap
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 seabios
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 seabios graphviz
           kernel=linux-image-6.12.117+deb13-amd64_6.12.117-1_amd64.deb
           curl --retry 3 -fsSL "https://deb.debian.org/debian/pool/main/l/linux-signed-amd64/$kernel" -o "$RUNNER_TEMP/linux.deb" ||
             curl --retry 3 -fsSL 'https://snapshot.debian.org/file/8d84a75c14dcaabe4a09e361972d5303721084aa' -o "$RUNNER_TEMP/linux.deb"
@@ -130,3 +130,32 @@ jobs:
         with:
           name: vram-linux-x86_64
           path: dist/
+      - name: Assemble the product site from the verified model and tested package
+        run: |
+          python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
+          cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
+          (cd product-public/downloads && sha256sum -c SHA256SUMS)
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &
+          trap 'kill $!' EXIT
+          node automation/test-product-site.mjs http://127.0.0.1:8765/
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: product-public
+  pages:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: vram-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

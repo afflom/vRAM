@@ -1,0 +1,184 @@
+\begin{lexlean}{Product.Brand}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Product.V1.Model}
+\importmodule{Foundation.Experience.V1.Model}
+\importmodule{Foundation.Provenance.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: assetMark, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Product mark", text := "Scalable mark for product identification.", path := "site/assets/mark.svg"})
+}
+
+definition{
+  name: assetWordmark, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Wordmark", text := "Primary signature for light surfaces.", path := "site/assets/wordmark.svg"})
+}
+
+definition{
+  name: assetReverse, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Reversed wordmark", text := "Signature for dark surfaces.", path := "site/assets/wordmark-light.svg"})
+}
+
+definition{
+  name: assetCover, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Preview image", text := "Shareable product artwork for link previews.", path := "site/assets/social-preview.png"})
+}
+
+definition{
+  name: assetFavicon, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Browser icon", text := "Scalable tab icon.", path := "site/assets/favicon.svg"})
+}
+
+definition{
+  name: assetIcon, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Fallback icon", text := "Raster icon for older browser clients.", path := "site/assets/favicon.ico"})
+}
+
+definition{
+  name: assetTouch, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Touch icon", text := "Home-screen icon.", path := "site/assets/apple-touch-icon.png"})
+}
+
+definition{
+  name: assetHero, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Product imagery", text := "Memory-inspired hero artwork.", path := "site/assets/hero.webp"})
+}
+
+definition{
+  name: assetStyle, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Themes and type", text := "Responsive layout, typography and theme definitions.", path := "site/styles.css"})
+}
+
+definition{
+  name: assetGuide, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "Brand guide", text := "Usage rules and product messaging for maintainers.", path := "docs/brand.md"})
+}
+definition{
+  name: source0, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 0, location := "docs/brand.md", firstLine := 8, lastLine := 8, kappa := "18657c6ca8b8ebc4492bbef71415d0693503e723e000504cc937b27cc7a6a377"})
+}
+
+definition{
+  name: elementName, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.productName), text := "vRAM", source := 0})
+}
+
+definition{
+  name: source1, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 1, location := "docs/brand.md", firstLine := 13, lastLine := 13, kappa := "99e5d66d7ee822fffaa147f1e6bd3fc8ce07810dd4f65cf2487c6c5bbe1dad8f"})
+}
+
+definition{
+  name: elementHeadline, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.tagline), text := "System RAM for virtualized Linux.", source := 1})
+}
+
+definition{
+  name: source2, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 2, location := "docs/brand.md", firstLine := 16, lastLine := 16, kappa := "55a6a95f6d2db5d5efc9c4532b6963e5c7e6871a3957bbdadd5579d4acde70ac"})
+}
+
+definition{
+  name: elementPromise, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.productPromise), text := "vRAM supplies System RAM to a Linux workstation running on QEMU/KVM.", source := 2})
+}
+
+definition{
+  name: source3, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 3, location := "docs/brand.md", firstLine := 25, lastLine := 25, kappa := "56bfaffa6a01d08c08c550db24e487bee61322c9bf6d3091cffd2e35b973de51"})
+}
+
+definition{
+  name: elementMark, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.mark), text := "Three folded pages form the V.", source := 3})
+}
+
+definition{
+  name: source4, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 4, location := "docs/brand.md", firstLine := 37, lastLine := 37, kappa := "a01f0251fb4b5522c97ef34dd8958da308a8cbea4ea22c26a9272487e15f52f8"})
+}
+
+definition{
+  name: token0, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Forest ink", type := (ctor Foundation.Experience.V1.Model::TokenType.color), value := "#062e27", hex := "#062e27", source := 4})
+}
+
+definition{
+  name: source5, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 5, location := "docs/brand.md", firstLine := 38, lastLine := 38, kappa := "6ea4df04d8a50f903e49ff4d583f80478167ca32598e8ca1a96b3e7360c920d4"})
+}
+
+definition{
+  name: token1, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Paper", type := (ctor Foundation.Experience.V1.Model::TokenType.color), value := "#f4f6ed", hex := "#f4f6ed", source := 5})
+}
+
+definition{
+  name: source6, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 6, location := "docs/brand.md", firstLine := 39, lastLine := 39, kappa := "6f63bea0da2dd63cdebb840c8fc76b3ddd482b3d01feb5092ce5727313485780"})
+}
+
+definition{
+  name: token2, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Signal lime", type := (ctor Foundation.Experience.V1.Model::TokenType.color), value := "#c5f16a", hex := "#c5f16a", source := 6})
+}
+
+definition{
+  name: source7, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 7, location := "docs/brand.md", firstLine := 40, lastLine := 40, kappa := "c835da37631241f4907c0391ec0493f321a73f9b053a040cd1ae630bfd4e5c26"})
+}
+
+definition{
+  name: token3, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Jade", type := (ctor Foundation.Experience.V1.Model::TokenType.color), value := "#17815c", hex := "#17815c", source := 7})
+}
+
+definition{
+  name: source8, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 8, location := "docs/brand.md", firstLine := 41, lastLine := 41, kappa := "a55cbab26a7132191aa6f162bb1c48b7a4b3a22f80a7788f9b4668c818b6e3db"})
+}
+
+definition{
+  name: token4, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Fold green", type := (ctor Foundation.Experience.V1.Model::TokenType.color), value := "#94d573", hex := "#94d573", source := 8})
+}
+
+definition{
+  name: source9, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 9, location := "docs/brand.md", firstLine := 47, lastLine := 47, kappa := "30fd22757bdc27f65c824f159dbeb3ac9e860a5a011c667b4cece1f25fc18f78"})
+}
+
+definition{
+  name: token5, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Display face", type := (ctor Foundation.Experience.V1.Model::TokenType.fontFamily), value := "Bricolage Grotesque", hex := "", source := 9})
+}
+
+definition{
+  name: token6, parameters: [], result: Foundation.Experience.V1.Model::DesignToken,
+  body: (record Foundation.Experience.V1.Model::DesignToken {name := "Body face", type := (ctor Foundation.Experience.V1.Model::TokenType.fontFamily), value := "DM Sans", hex := "", source := 9})
+}
+
+definition{
+  name: assetDisplayFont, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "DisplayFont", text := "Self-hosted heading font.", path := "site/assets/fonts/bricolage-grotesque.woff2"})
+}
+
+definition{
+  name: assetBodyFont, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "BodyFont", text := "Self-hosted body font.", path := "site/assets/fonts/dm-sans.woff2"})
+}
+
+definition{
+  name: assetPreviewSource, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "PreviewSource", text := "Editable preview artwork.", path := "docs/brand/social-preview.svg"})
+}
+
+definition{
+  name: assetAppStream, parameters: [], result: Foundation.Product.V1.Model::AssetLink,
+  body: (record Foundation.Product.V1.Model::AssetLink {role := "AppStream", text := "Software-center listing.", path := "host/packaging/io.github.afflom.vRAM.metainfo.xml"})
+}
+\end{semanticmodule}
+\end{lexlean}

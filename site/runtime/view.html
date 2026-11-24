@@ -1,0 +1,20 @@
+<main id="main" class="ref-main">
+<p class="ref-crumb"><a href="../">vRAM</a> / Prism model</p>
+<h1>Capacity controller</h1>
+<p class="ref-intro">Set the outcome of a capacity trial. The same Prism model used by the vRAM verifier decides whether the trial can advance.</p>
+<form id="checkpoint" class="ref-panel">
+<fieldset><legend>Trial conditions</legend>
+<label><input type="checkbox" name="verified" checked> Every restored byte matched</label>
+<label><input type="checkbox" name="fits" checked> The trial stayed within budget</label>
+<label><input type="checkbox" name="ceiling"> The configured ceiling was reached</label>
+</fieldset>
+<button id="run" disabled>Evaluate checkpoint</button>
+<output id="answer" role="status" aria-live="polite">Loading the model…</output>
+</form>
+<noscript><p>Enable JavaScript to execute this model. The archive and model sources are available below.</p></noscript>
+<h2>Verify the model</h2>
+<p>The browser checks the archive identity and runs its WebAssembly locally. To measure your workstation, use <a href="../#install"><code>vram-machine qualify</code></a> on Linux.</p>
+<button type="button" id="replay" disabled>Replay acceptance vectors</button>
+<output id="acceptance" role="status" aria-live="polite"></output>
+<p class="ref-links"><a href="app.holo" download>Download the Holo archive</a><a href="app.holo.json">Archive identity</a><a href="model/project.json">Model source listing</a></p>
+</main>

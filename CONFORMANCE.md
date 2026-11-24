@@ -57,6 +57,7 @@ The three honesty levels (R2):
 | `VR-35` | `build` | For aligned backing budgets expressed in pages, assigning as many as fit in the first reserve conserves the requested page count and the remainder fits the second reserve exactly when the pooled budget suffices | `Performance.reserveConservation`, `Performance.reserveFits` |
 | `VR-36` | `open` | An installed capacity qualification writes and verifies every page at the configured maximum through the pooled store and reports elapsed read and write service time for equal verified bytes |  |
 | `VR-37` | `build` | For a common throughput floor, two measured ranges that each meet their required work also meet it in aggregate when their work and service times are summed | `Performance.composeRateFloor`, refuses with `budget` |
+| `VR-38` | `open` | The published product catalog resolves its Prism facet records to the workstation model, source evidence and product assets |  |
 
 ## Cited authorities
 

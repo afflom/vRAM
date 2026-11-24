@@ -245,3 +245,9 @@ statement = "For a common throughput floor, two measured ranges that each meet t
 theorems = ["Performance.composeRateFloor"]
 failure = "budget"
 negative = "VR-37"
+
+[[id]]
+id = "VR-38"
+level = "open"
+suite = "capacity"
+statement = "The published product catalog resolves its Prism facet records to the workstation model, source evidence and product assets"

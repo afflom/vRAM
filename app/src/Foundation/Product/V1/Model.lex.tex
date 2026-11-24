@@ -1,0 +1,27 @@
+\begin{lexlean}{Foundation.Product.V1.Model}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\title{Text application model}
+\begin{semanticmodule}
+structure{
+  name: Facet, type_parameters: [], parameters: [],
+  fields: [{name: slug, type: String}, {name: title, type: String}, {name: summary, type: String}, {name: evidence, type: (List String)}]
+}
+
+structure{
+  name: EvidenceLink, type_parameters: [], parameters: [],
+  fields: [{name: subject, type: String}, {name: title, type: String}, {name: text, type: String}, {name: evidence, type: (List String)}]
+}
+
+structure{
+  name: Obligation, type_parameters: [], parameters: [],
+  fields: [{name: standard, type: String}, {name: subject, type: String}, {name: text, type: String}, {name: evidence, type: (List String)}]
+}
+
+structure{
+  name: AssetLink, type_parameters: [], parameters: [],
+  fields: [{name: role, type: String}, {name: text, type: String}, {name: path, type: String}]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#062e27">
+  <title>vRAM · System RAM in software</title>
+  <meta name="description" content="Boot a Linux workstation on Verdant-backed system memory. Plan, reserve and verify the configured RAM target with vRAM.">
+  <link rel="canonical" href="https://afflom.github.io/vRAM/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="vRAM">
+  <meta property="og:title" content="vRAM · System RAM in software">
+  <meta property="og:description" content="A Verdant-backed memory device for Linux workstations running on QEMU and KVM.">
+  <meta property="og:url" content="https://afflom.github.io/vRAM/">
+  <meta property="og:image" content="https://afflom.github.io/vRAM/assets/social-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="vRAM identity with a stack of green memory planes">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="vRAM · System RAM in software">
+  <meta name="twitter:description" content="A Verdant-backed memory device for Linux workstations running on QEMU and KVM.">
+  <meta name="twitter:image" content="https://afflom.github.io/vRAM/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="vRAM identity with a stack of green memory planes">
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="ui.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <a class="brand" href="./" aria-label="vRAM home">
+        <img class="logo-on-light" src="assets/wordmark.svg" alt="vRAM" width="100" height="32">
+        <img class="logo-on-dark" src="assets/wordmark-light.svg" alt="vRAM" width="100" height="32">
+      </a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="./#overview">Overview</a>
+        <a href="./#verification">Measurements</a>
+        <a href="facets.html">Model facets</a>
+        <a href="./#install">Install</a>
+      </nav>
+      <label class="theme-control" hidden>
+        <span class="sr-only">Color theme</span>
+        <span class="theme-swatch" aria-hidden="true"></span>
+        <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+      </label>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="edition"><span>vRAM 0.6.1</span><span>Linux amd64</span></p>
+          <h1 id="hero-title">System RAM,<br><em>in software.</em></h1>
+          <p class="hero-intro">Boot your Linux workstation on a Verdant-backed memory device. vRAM reserves the configured capacity and serves each page through QEMU.</p>
+          <div class="actions">
+            <a class="button primary" href="#install">Install vRAM</a>
+            <a class="hero-secondary" href="facets.html">Explore the model</a>
+          </div>
+        </div>
+        <div class="hero-art"><img src="assets/hero.webp" width="1536" height="1024" fetchpriority="high" alt="An exploded stack of translucent green planes, an illustration of virtual memory layers"></div>
+      </div>
+    </section>
+
+    <section id="overview" class="wrap section overview" aria-labelledby="overview-title">
+      <div class="overview-head">
+        <p class="kicker">Memory interfaces</p>
+        <h2 id="overview-title">How Linux sees vRAM</h2>
+        <p>One Verdant page store serves two Linux interfaces. Where you run your workload determines how the kernel accounts for the capacity.</p>
+      </div>
+      <div class="interfaces">
+        <article>
+          <div class="interface-title"><h3>Virtualized workstation</h3><code>MemTotal</code></div>
+          <p>Boot an existing VM disk with <code>vram-machine</code>. The guest sees system RAM at boot and can online a reserved DIMM while applications run.</p>
+          <a class="text-link" href="https://github.com/afflom/vRAM/blob/main/host/packaging/USAGE.md#size-a-virtualized-workstation-to-its-configured-maximum">Workstation guide</a>
+        </article>
+        <article>
+          <div class="interface-title"><h3>Directly booted Linux</h3><code>SwapTotal</code></div>
+          <p>Enable the optional <code>vram-host</code> service to add volatile swap through a Linux NBD device. The native kernel reports the additional capacity as swap.</p>
+          <a class="text-link" href="https://github.com/afflom/vRAM/blob/main/host/packaging/USAGE.md#directly-booted-linux-swap">Native swap guide</a>
+        </article>
+      </div>
+    </section>
+
+    <section id="verification" class="measurement" aria-labelledby="measure-title">
+      <div class="wrap">
+        <p class="kicker">Capacity qualification</p>
+        <h2 id="measure-title">A full reserve, measured.</h2>
+        <p class="section-intro">A local 0.6.0 qualification wrote and read back every byte of a configured 4 GiB target. A 1.5 GiB per-file limit split the reserve across three files.</p>
+        <figure class="reserve-figure">
+          <figcaption><span>Backing allocation</span><span class="mono">4 GiB + 4 KiB</span></figcaption>
+          <div class="bar" aria-hidden="true"><span></span><span></span><span></span></div>
+          <ol class="legend">
+            <li><span>File 1</span><strong>1.5 GiB</strong></li>
+            <li><span>File 2</span><strong>1.5 GiB</strong></li>
+            <li><span>File 3</span><strong>1 GiB + one spare page</strong></li>
+          </ol>
+        </figure>
+        <dl class="metrics">
+          <div><dt>Dense pages verified</dt><dd>1,048,576</dd></div>
+          <div><dt>Sequential store reads</dt><dd>7,914 <small>MiB/s</small></dd></div>
+          <div><dt>Sequential store writes</dt><dd>611 <small>MiB/s</small></dd></div>
+        </dl>
+        <p class="measure-note">Rates cover timed 64-page store calls on this host and include page-cache service. Guest application latency varies with the workload and storage. <a class="text-link" href="https://github.com/afflom/vRAM/blob/4d1c92455c80a9ad352ebc0b37e4bbf75a045177/measurements/qualified-capacity-0.6.0.json">Read the receipt</a></p>
+      </div>
+    </section>
+
+    <section id="install" class="wrap section install" aria-labelledby="install-title">
+      <div class="install-head">
+        <p class="kicker">Ubuntu 24.04 · amd64</p>
+        <h2 id="install-title">Install vRAM</h2>
+        <p>Download the Debian package and its checksum file into the same directory. Verify the package before installing.</p>
+        <a class="button solid" href="downloads/vram-host_0.6.1_amd64.deb">Download vRAM 0.6.1</a>
+        <a class="text-link" href="downloads/SHA256SUMS" download>Download checksum</a>
+      </div>
+      <div class="instructions">
+        <h3>Install the package</h3>
+        <pre tabindex="0"><code>sha256sum -c SHA256SUMS
+sudo apt install ./vram-host_0.6.1_amd64.deb qemu-system-x86 fuse3</code></pre>
+        <h3>Plan the workstation</h3>
+        <p>Use your domain XML to read the configured guest limit. vRAM uses the lower of that limit and the platform maximum.</p>
+        <pre tabindex="0"><code>vram-machine capacity --domain-xml workstation.xml</code></pre>
+        <details><summary>Qualify the full target</summary>
+          <p>With the backing space free, this command temporarily reserves the full target, verifies dense pages, and releases the files. The example floors are in MiB/s.</p>
+          <pre tabindex="0"><code>vram-machine qualify --domain-xml workstation.xml \
+  --min-read-mib-s 100 --min-write-mib-s 50</code></pre>
+        </details>
+        <details><summary>Boot your workstation</summary>
+          <p>Substitute your bootable disk and its usual QEMU options. Repeat <code>--backing-dir</code> before the double dash to pool filesystems.</p>
+          <pre tabindex="0"><code>vram-machine run --state "$XDG_RUNTIME_DIR/workstation" \
+  --domain-xml workstation.xml -- \
+  -accel kvm -drive file=workstation.qcow2,format=qcow2</code></pre>
+        </details>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <a class="brand" href="./" aria-label="vRAM home"><img src="assets/wordmark-light.svg" alt="vRAM" width="100" height="32"></a>
+      <nav aria-label="Product resources"><a href="facets.html">Model facets</a><a href="runtime/">Prism application</a><a href="https://github.com/afflom/vRAM/blob/main/docs/brand.md">Brand guide</a><a href="assets/brand-kit.zip" download>Brand kit</a><a href="https://github.com/afflom/vRAM">GitHub</a></nav>
+    </div>
+  </footer>
+</body>
+</html>

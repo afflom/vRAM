@@ -1,0 +1,244 @@
+\begin{lexlean}{Product.Design}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Arch}
+\importmodule{Product.Architecture}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: processReserve, parameters: [], result: Foundation.Arch::SystemProcess,
+  body: (record Foundation.Arch::SystemProcess {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: processAdmit, parameters: [], result: Foundation.Arch::SystemProcess,
+  body: (record Foundation.Arch::SystemProcess {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: processLaunch, parameters: [], result: Foundation.Arch::SystemProcess,
+  body: (record Foundation.Arch::SystemProcess {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: processRefuse, parameters: [], result: Foundation.Arch::SystemProcess,
+  body: (record Foundation.Arch::SystemProcess {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: processRead, parameters: [], result: Foundation.Arch::SystemProcess,
+  body: (record Foundation.Arch::SystemProcess {owner := "Product.Architecture::componentStore"})
+}
+
+definition{
+  name: stateRequested, parameters: [], result: Foundation.Arch::SystemState,
+  body: (record Foundation.Arch::SystemState {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: stateReserved, parameters: [], result: Foundation.Arch::SystemState,
+  body: (record Foundation.Arch::SystemState {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: stateRunning, parameters: [], result: Foundation.Arch::SystemState,
+  body: (record Foundation.Arch::SystemState {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: stateRefused, parameters: [], result: Foundation.Arch::SystemState,
+  body: (record Foundation.Arch::SystemState {owner := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: viewOpm, parameters: [], result: Foundation.Arch::DesignView,
+  body: (record Foundation.Arch::DesignView {title := "Reserving the backing", viewpoint := "Product.Architecture::viewpointCapacity", diagram := (ctor Foundation.Arch::DesignDiagram.opmObjectProcess)})
+}
+
+definition{
+  name: viewTopology, parameters: [], result: Foundation.Arch::DesignView,
+  body: (record Foundation.Arch::DesignView {title := "Memory device components", viewpoint := "Product.Architecture::viewpointCapacity", diagram := (ctor Foundation.Arch::DesignDiagram.umlComponent)})
+}
+
+definition{
+  name: viewRead, parameters: [], result: Foundation.Arch::DesignView,
+  body: (record Foundation.Arch::DesignView {title := "Reading a page", viewpoint := "Product.Architecture::viewpointExactness", diagram := (ctor Foundation.Arch::DesignDiagram.umlSequence)})
+}
+
+definition{
+  name: viewAdmission, parameters: [], result: Foundation.Arch::DesignView,
+  body: (record Foundation.Arch::DesignView {title := "Starting a workstation", viewpoint := "Product.Architecture::viewpointCapacity", diagram := (ctor Foundation.Arch::DesignDiagram.umlStateMachine)})
+}
+
+definition{
+  name: opmReserve, parameters: [], result: Foundation.Arch::OpmThing,
+  body: (record Foundation.Arch::OpmThing {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmThingKind.process), subject := "Product.Design::processReserve"})
+}
+
+definition{
+  name: opmAdmit, parameters: [], result: Foundation.Arch::OpmThing,
+  body: (record Foundation.Arch::OpmThing {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmThingKind.process), subject := "Product.Design::processAdmit"})
+}
+
+definition{
+  name: objectLauncher, parameters: [], result: Foundation.Arch::OpmThing,
+  body: (record Foundation.Arch::OpmThing {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmThingKind.object), subject := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: objectReserve, parameters: [], result: Foundation.Arch::OpmThing,
+  body: (record Foundation.Arch::OpmThing {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmThingKind.object), subject := "Product.Architecture::componentReserve"})
+}
+
+definition{
+  name: opmLinkOperator, parameters: [], result: Foundation.Arch::OpmLink,
+  body: (record Foundation.Arch::OpmLink {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmLinkKind.agent), source := "Product.Architecture::componentLauncher", target := "Product.Design::processAdmit"})
+}
+
+definition{
+  name: opmLinkBacking, parameters: [], result: Foundation.Arch::OpmLink,
+  body: (record Foundation.Arch::OpmLink {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmLinkKind.result), source := "Product.Design::processReserve", target := "Product.Architecture::componentReserve"})
+}
+
+definition{
+  name: opmLinkAdmission, parameters: [], result: Foundation.Arch::OpmLink,
+  body: (record Foundation.Arch::OpmLink {view := "Product.Design::viewOpm", kind := (ctor Foundation.Arch::OpmLinkKind.invocation), source := "Product.Design::processAdmit", target := "Product.Design::processReserve"})
+}
+
+definition{
+  name: zoomReserve, parameters: [], result: Foundation.Arch::OpmZoom,
+  body: (record Foundation.Arch::OpmZoom {view := "Product.Design::viewOpm", process := "Product.Design::processAdmit", subprocess := "Product.Design::processReserve", order := 0})
+}
+
+definition{
+  name: opmReserved, parameters: [], result: Foundation.Arch::OpmState,
+  body: (record Foundation.Arch::OpmState {view := "Product.Design::viewOpm", thing := "Product.Architecture::componentLauncher", state := "Product.Design::stateReserved"})
+}
+
+definition{
+  name: partLauncher, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentLauncher"})
+}
+
+definition{
+  name: partGuest, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentGuest"})
+}
+
+definition{
+  name: partQemu, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentQemu"})
+}
+
+definition{
+  name: partServer, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentServer"})
+}
+
+definition{
+  name: partStore, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentStore"})
+}
+
+definition{
+  name: partReserve, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentReserve"})
+}
+
+definition{
+  name: partController, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentController"})
+}
+
+definition{
+  name: partNative, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentNative"})
+}
+
+definition{
+  name: connectorLaunch, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeLaunch"})
+}
+
+definition{
+  name: connectorGuestMemory, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeGuestMemory"})
+}
+
+definition{
+  name: connectorMemoryFile, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeMemoryFile"})
+}
+
+definition{
+  name: connectorPageRequest, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgePageRequest"})
+}
+
+definition{
+  name: connectorLiteralIo, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeLiteralIo"})
+}
+
+definition{
+  name: connectorQualify, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeQualify"})
+}
+
+definition{
+  name: connectorNativeSwap, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeNativeSwap"})
+}
+
+definition{
+  name: lifelineServer, parameters: [], result: Foundation.Arch::UmlLifeline,
+  body: (record Foundation.Arch::UmlLifeline {view := "Product.Design::viewRead", component := "Product.Architecture::componentServer", order := 0})
+}
+
+definition{
+  name: lifelineStore, parameters: [], result: Foundation.Arch::UmlLifeline,
+  body: (record Foundation.Arch::UmlLifeline {view := "Product.Design::viewRead", component := "Product.Architecture::componentStore", order := 1})
+}
+
+definition{
+  name: messageRead, parameters: [], result: Foundation.Arch::UmlMessage,
+  body: (record Foundation.Arch::UmlMessage {view := "Product.Design::viewRead", kind := (ctor Foundation.Arch::UmlMessageKind.synchronous), order := 0, source := "Product.Architecture::componentServer", target := "Product.Architecture::componentStore", process := "Product.Design::processRead"})
+}
+
+definition{
+  name: umlRequested, parameters: [], result: Foundation.Arch::UmlState,
+  body: (record Foundation.Arch::UmlState {view := "Product.Design::viewAdmission", state := "Product.Design::stateRequested", initial := true})
+}
+
+definition{
+  name: umlReserved, parameters: [], result: Foundation.Arch::UmlState,
+  body: (record Foundation.Arch::UmlState {view := "Product.Design::viewAdmission", state := "Product.Design::stateReserved", initial := false})
+}
+
+definition{
+  name: umlRunning, parameters: [], result: Foundation.Arch::UmlState,
+  body: (record Foundation.Arch::UmlState {view := "Product.Design::viewAdmission", state := "Product.Design::stateRunning", initial := false})
+}
+
+definition{
+  name: umlRefused, parameters: [], result: Foundation.Arch::UmlState,
+  body: (record Foundation.Arch::UmlState {view := "Product.Design::viewAdmission", state := "Product.Design::stateRefused", initial := false})
+}
+
+definition{
+  name: transitionReserved, parameters: [], result: Foundation.Arch::UmlTransition,
+  body: (record Foundation.Arch::UmlTransition {view := "Product.Design::viewAdmission", order := 0, source := "Product.Design::stateRequested", target := "Product.Design::stateReserved", trigger := "Product.Design::processReserve"})
+}
+
+definition{
+  name: transitionRefused, parameters: [], result: Foundation.Arch::UmlTransition,
+  body: (record Foundation.Arch::UmlTransition {view := "Product.Design::viewAdmission", order := 1, source := "Product.Design::stateRequested", target := "Product.Design::stateRefused", trigger := "Product.Design::processRefuse"})
+}
+
+definition{
+  name: transitionRunning, parameters: [], result: Foundation.Arch::UmlTransition,
+  body: (record Foundation.Arch::UmlTransition {view := "Product.Design::viewAdmission", order := 2, source := "Product.Design::stateReserved", target := "Product.Design::stateRunning", trigger := "Product.Design::processLaunch"})
+}
+\end{semanticmodule}
+\end{lexlean}

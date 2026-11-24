@@ -1,0 +1,33 @@
+\begin{lexlean}{Product.Compliance}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\useglossary{prism.arch@1.0.0}
+\importmodule{Foundation.Product.V1.Model}
+\title{Text application model}
+\begin{semanticmodule}
+definition{
+  name: obligationArchitecture, parameters: [], result: Foundation.Product.V1.Model::Obligation,
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "ISO/IEC/IEEE 42010:2022", subject := "Architecture description", text := "Identify each stakeholder and concern and connect viewpoints to architecture and evidence.", evidence := (cons "app/src/Product/Architecture.lex.tex" (nil String))})
+}
+
+definition{
+  name: obligationDesign, parameters: [], result: Foundation.Product.V1.Model::Obligation,
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "ISO/PAS 19450 and OMG UML 2.5.1", subject := "Design vocabulary", text := "Use typed OPM and UML records for the device topology, a page read, and admission.", evidence := (cons "app/src/Product/Design.lex.tex" (nil String))})
+}
+
+definition{
+  name: obligationSecurity, parameters: [], result: Foundation.Product.V1.Model::Obligation,
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "ISO/IEC 27034-1 and ISO/IEC 27005", subject := "Threat and control evidence", text := "Connect the modeled threats to assets, risks and controls, with named verification evidence.", evidence := (cons "app/src/Product/Security.lex.tex" (nil String))})
+}
+
+definition{
+  name: obligationQuality, parameters: [], result: Foundation.Product.V1.Model::Obligation,
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "ISO/IEC 25010:2023", subject := "Product quality measurements", text := "Tie each quality requirement to a measure and an acceptance threshold.", evidence := (cons "app/src/Product/Quality.lex.tex" (nil String))})
+}
+
+definition{
+  name: obligationLicense, parameters: [], result: Foundation.Product.V1.Model::Obligation,
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "SPDX", subject := "Licensing", text := "Distribute the repository software under the included MIT or Apache-2.0 terms and preserve third-party notices.", evidence := (cons "LICENSE" (cons "LICENSE-APACHE" (cons "LICENSE-MIT" (nil String))))})
+}
+\end{semanticmodule}
+\end{lexlean}
