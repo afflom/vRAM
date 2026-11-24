@@ -24,7 +24,7 @@ Applications can now page to Verdant through the normal Linux memory manager. Th
 
 Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pages consume host RAM. Capacity gains depend on the data and the resident working set. A process crash or loss of power can lose paged-out data. The service needs memory and locked-memory privileges for the store and headroom for Linux to drain it.
 
-On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. Linux counted 100,613 swap-outs and 94,629 swap-ins during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
+On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. Linux counted 99,682 swap-outs and 94,055 swap-ins during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
 To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
 
@@ -36,11 +36,11 @@ Independent pages can still inform scheduling. In a 64-page region, a full liter
 
 The native comparison times 128 MiB of writes with the same harness and input generator against the previous and current libraries. R cycles through 256 pseudorandom bases. D makes four pseudorandom byte edits to each recurrence. U generates each page independently. The measurements include full readback and three trials in alternating order. [Native comparison](measurements/literal-reuse.json) · [Managed repeated pages](measurements/managed-repeated.json) · [Managed dense residuals](measurements/managed-dense.json) · [Independent control](measurements/managed-independent.json)
 
-| 128 MiB written and read back | Previous store | Current store | Median write time (previous → current) |
-|---|---:|---:|---:|
-| Repeated dense literals | 128.51 MiB | 1.78 MiB | 0.493 s → 0.021 s |
-| Dense literals with four edits per recurrence | 128.51 MiB | 6.02 MiB | 0.279 s → 0.124 s |
-| Independent pseudorandom pages | 128.51 MiB | 129.77 MiB | 0.286 s → 0.117 s |
+| 128 MiB written and read back | Previous store | Current store | Median write time (previous → current) | Median readback time (previous → current) |
+|---|---:|---:|---:|---:|
+| Repeated dense literals | 128.51 MiB | 1.78 MiB | 0.493 s → 0.021 s | 0.025 s → 0.020 s |
+| Dense literals with four edits per recurrence | 128.51 MiB | 6.02 MiB | 0.279 s → 0.124 s | 0.027 s → 0.021 s |
+| Independent pseudorandom pages | 128.51 MiB | 129.77 MiB | 0.286 s → 0.117 s | 0.026 s → 0.031 s |
 
 Store charges include the directory, lookup table and live representations. Process RSS, kernel memory and allocator overhead can be higher. The independent control spent more bytes on metadata and less time searching for representations.
 
