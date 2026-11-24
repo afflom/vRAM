@@ -34,7 +34,7 @@ The three honesty levels (R2):
 | `VR-12` | `open` | A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse |  |
 | `VR-13` | `open` | Fitting a sparse XOR residual reads each candidate base at most once and restores the admitted page exactly |  |
 | `VR-14` | `open` | Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes |  |
-| `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, `CapacityPolicy.fullAdmissionTarget`, refuses with `capacity mismatch` |
+| `VR-15` | `build` | The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing | `CapacityPolicy.admissible`, `CapacityPolicy.greatest`, `CapacityPolicy.monotoneBacking`, `CapacityPolicy.fullTarget`, `QualificationPolicy.fullAdmissionTarget`, refuses with `capacity mismatch` |
 | `VR-16` | `open` | An untouched virtual extent has constant directory cost and range discard skips unallocated leaves |  |
 | `VR-17` | `open` | Returning fragmented file-backed literal slots needs no new slot metadata and surviving slots retain exact contents |  |
 | `VR-18` | `open` | A converging overwrite applies the existing index policy when it retires the last owner of a dense base |  |

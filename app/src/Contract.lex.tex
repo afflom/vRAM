@@ -6,6 +6,7 @@
 \importmodule{Product.Architecture}
 \importmodule{Product.Design}
 \importmodule{Product.Features}
+\importmodule{QualificationPolicy}
 \importmodule{FacetPolicy}
 \importmodule{Product.FacetQueries}
 \importmodule{Product.Security}
@@ -181,7 +182,7 @@ definition{
 definition{
   name: dispatchQualification, parameters: [v : Bytes], result: Bytes,
   body: (if (((Foundation.Bytes::byteLength v) =? 41) && ((flag v 0) =? 67)) then
-    (if (CapacityPolicy::fullAdmission (ticks v 1) (ticks v 9) (ticks v 17) (ticks v 25) (ticks v 33)) then
+    (if (QualificationPolicy::fullAdmission (ticks v 1) (ticks v 9) (ticks v 17) (ticks v 25) (ticks v 33)) then
       0x796573 else 0x6361706163697479206d69736d61746368)
     else (dispatchRates v)), axioms: [Quot.sound, propext]
 }

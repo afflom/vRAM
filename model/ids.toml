@@ -102,7 +102,7 @@ suite = "capacity"
 statement = "The capacity ceiling is feasible and greatest for all supplied platform, guest and backing limits and monotone in backing"
 failure = "capacity mismatch"
 negative = "VR-15"
-theorems = ["CapacityPolicy.admissible", "CapacityPolicy.greatest", "CapacityPolicy.monotoneBacking", "CapacityPolicy.fullTarget", "CapacityPolicy.fullAdmissionTarget"]
+theorems = ["CapacityPolicy.admissible", "CapacityPolicy.greatest", "CapacityPolicy.monotoneBacking", "CapacityPolicy.fullTarget", "QualificationPolicy.fullAdmissionTarget"]
 
 [[id]]
 id = "VR-16"

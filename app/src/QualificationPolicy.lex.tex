@@ -1,0 +1,23 @@
+\begin{lexlean}{QualificationPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\importmodule{CapacityPolicy}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: confirmsTarget, parameters: [configured : Nat, feasible : Nat, target : Nat], result: Bool,
+  body: ((0 <? target) && ((target =? configured) && (target =? feasible))), executable: true
+}
+definition{
+  name: fullAdmission, parameters: [platform : Nat, guest : Nat, address : Nat, backing : Nat, target : Nat], result: Bool,
+  body: (confirmsTarget (CapacityPolicy::smaller platform guest)
+    (CapacityPolicy::plan platform (CapacityPolicy::smaller guest (prim quotient address 1048576 0 : Nat)) backing) target),
+  executable: true
+}
+theorem{
+  name: fullAdmissionTarget, parameters: [c : Nat, f : Nat, t : Nat],
+  statement: (((confirmsTarget c f t) && (not ((t =? c) && (t =? f)))) = false),
+  proof: linear_arithmetic{definitions: [confirmsTarget]}, axioms: [Classical.choice, Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

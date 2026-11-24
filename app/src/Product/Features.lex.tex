@@ -13,7 +13,7 @@ definition{
 
 definition{
   name: featureQualify, parameters: [], result: Foundation.Arch::Feature,
-  body: (record Foundation.Arch::Feature {statement := "Reserve the full target and check byte-exact restoration and throughput floors.", calls := (cons "CapacityPolicy::fullAdmission" (cons "Performance::rateFloor" (cons "Contract::observe" (nil String)))), acceptance := (cons "CapacityPolicy::fullAdmissionTarget" (cons "Contract::corruptionStops" (cons "Performance::composeRateFloor" (nil String))))})
+  body: (record Foundation.Arch::Feature {statement := "Reserve the full target and check byte-exact restoration and throughput floors.", calls := (cons "QualificationPolicy::fullAdmission" (cons "Performance::rateFloor" (cons "Contract::observe" (nil String)))), acceptance := (cons "QualificationPolicy::fullAdmissionTarget" (cons "Contract::corruptionStops" (cons "Performance::composeRateFloor" (nil String))))})
 }
 
 definition{
