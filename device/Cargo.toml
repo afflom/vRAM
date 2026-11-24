@@ -16,3 +16,5 @@ vram_range_model = { package = "vram_range", version = "=0.1.0", registry = "ver
 vram_search = { version = "=0.1.0", registry = "verdant" }
 vram_advance = { version = "=0.1.0", registry = "verdant" }
 vram_schedule = { version = "=0.1.0", registry = "verdant" }
+vram_host_size = { version = "=0.1.0", registry = "verdant" }
+vram_empty_group = { version = "=0.1.0", registry = "verdant" }

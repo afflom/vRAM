@@ -1,6 +1,8 @@
 //! Lossless backing values for 4 KiB guest pages. FFI buffers are borrowed
 //! for one call. The pager owns the store until its fault worker has joined.
+mod directory;
 mod lifecycle;
+mod literals;
 mod search;
 mod selector;
 use selector::Selector;
@@ -10,7 +12,7 @@ use std::{
     ptr, slice,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Mutex, OnceLock, RwLock,
+        OnceLock, RwLock,
     },
 };
 use verdant_tensor::{
@@ -64,6 +66,8 @@ enum Value {
     Sparse(Box<Exceptions>),
     Packed(Box<Packed>),
     Raw(Box<[u8; PAGE]>),
+    Shared(std::sync::Arc<literals::Literal>),
+    Residual(Box<literals::Residual>),
     Selector(Box<Selector>),
     Corrected(Box<Corrected>),
 }
@@ -81,6 +85,8 @@ impl Value {
         match self {
             Self::Fill(_) => 0,
             Self::Raw(_) => PAGE,
+            Self::Residual(p) => p.charge(),
+            Self::Shared(_) => 0, // The pool charges each live payload once.
             Self::Selector(_) => size_of::<Selector>(),
             Self::Corrected(p) => size_of::<Corrected>() + size_of_val(&*p.edits),
             Self::Sparse(p) => size_of::<Exceptions>() + size_of_val(&*p.entries),
@@ -215,12 +221,16 @@ impl Value {
     fn decode(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
         match self {
             Self::Program(p) => return p.decode(out, false),
+            Self::Residual(p) => p.decode(out),
             Self::Fill(b) => out.fill(*b),
             Self::Sparse(p) => {
                 out.fill(p.base);
                 for &(i, b) in p.entries.iter() {
                     out[usize::from(i)] = b;
                 }
+            }
+            Self::Shared(page) => {
+                copy_storage_block(&page.bytes[..], out).expect("equal page extents")
             }
             Self::Raw(data) => copy_storage_block(&data[..], out).expect("equal page extents"),
             Self::Selector(model) => return model.decode(out),
@@ -272,7 +282,12 @@ impl Value {
                         i64::from(weights[i / SIDE]) * (i64::from(b) - i64::from(p.base));
                 }
             }
-            Self::Program(_) | Self::Selector(_) | Self::Corrected(_) | Self::Raw(_) => {
+            Self::Program(_)
+            | Self::Selector(_)
+            | Self::Corrected(_)
+            | Self::Raw(_)
+            | Self::Residual(_)
+            | Self::Shared(_) => {
                 let mut expanded = [0u8; PAGE];
                 let b = if let Self::Raw(raw) = self {
                     &**raw
@@ -293,12 +308,13 @@ impl Value {
 }
 
 pub struct Store {
-    values: RwLock<Vec<Value>>,
+    values: RwLock<directory::Directory>,
     restores: AtomicU64,
+    literal_skips: AtomicU64,
     node_budget: usize,
     nodes_visited: AtomicU64,
     searches: AtomicU64,
-    regions: Mutex<Vec<search::Region>>,
+    adaptive: bool,
     refits: AtomicU64,
     skips: AtomicU64,
 }
@@ -315,30 +331,20 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
     if node_budget > search::MAX_NODES {
         return ptr::null_mut();
     }
-    let mut values = Vec::new();
-    if nibble_table().is_none()
-        || selector::mask_table().is_none()
-        || count == 0
-        || values.try_reserve_exact(count).is_err()
-    {
+    if count == 0 || nibble_table().is_none() || selector::mask_table().is_none() {
         return ptr::null_mut();
     }
-    values.resize_with(count, || Value::Fill(0));
-    let mut regions = Vec::new();
-    if adaptive && node_budget > 0 {
-        let n = count.div_ceil(64);
-        if regions.try_reserve_exact(n).is_err() {
-            return ptr::null_mut();
-        }
-        regions.resize_with(n, search::Region::default);
-    }
+    let Some(values) = directory::Directory::new(count) else {
+        return ptr::null_mut();
+    };
     Box::into_raw(Box::new(Store {
         values: RwLock::new(values),
         restores: AtomicU64::new(0),
+        literal_skips: AtomicU64::new(0),
         node_budget,
         nodes_visited: AtomicU64::new(0),
         searches: AtomicU64::new(0),
-        regions: Mutex::new(regions),
+        adaptive,
         refits: AtomicU64::new(0),
         skips: AtomicU64::new(0),
     }))
@@ -350,7 +356,7 @@ pub unsafe extern "C" fn store_free(s: *mut Store) {
 #[no_mangle]
 pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) -> c_int {
     let mut values = s.values.write().unwrap();
-    let Some(dst) = values.get_mut(page) else {
+    let Some(dst) = values.get(page) else {
         return -1;
     };
     // Capture-all KVM may return an unchanged modeled frame. A matching expansion
@@ -361,24 +367,72 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
             return 0;
         }
     }
-    let incumbent = Value::encode(dst, data);
-    let mut regions = s.regions.lock().unwrap();
+    if data.iter().all(|&b| b == 0) {
+        values.discard(page, page + 1);
+        return 0;
+    }
+    let hash = values
+        .literals
+        .active()
+        .then(|| values.literals.fingerprint(data));
+    if let Some(shared) = hash.and_then(|h| values.literals.lookup(h, data)) {
+        values.write_group(page).values[page % 64] = shared;
+        return 0;
+    }
+    let group = values.write_group(page);
+    let credits = group.literal_credits;
+    if matches!(
+        vram_schedule::run(s.adaptive, credits, false),
+        vram_schedule::Adt0::C2
+    ) && matches!(group.values[page % 64], Value::Fill(_) | Value::Shared(_))
+        && literals::diverse_axes(data)
+    {
+        group.literal_credits = vram_advance::run(false, credits);
+        let key = hash.unwrap_or_else(|| values.literals.fingerprint(data));
+        let literal = values.literals.insert(key, Box::new(*data));
+        values.write_group(page).values[page % 64] = Value::Shared(literal);
+        s.literal_skips.fetch_add(1, Ordering::Relaxed);
+        return 0;
+    }
+    let incumbent = Value::encode(&group.values[page % 64], data);
     let result = search::optimize(
         data,
         incumbent.charge(),
         s.node_budget,
-        regions.get_mut(page / 64),
+        s.adaptive.then_some(&mut group.region),
     );
     s.searches.fetch_add(result.probes, Ordering::Relaxed);
     s.nodes_visited
         .fetch_add(result.nodes as u64, Ordering::Relaxed);
     s.refits.fetch_add(result.refits, Ordering::Relaxed);
     s.skips.fetch_add(result.skips, Ordering::Relaxed);
-    *dst = match result.program {
+    let candidate = match result.program {
         Some(program) => Value::Program(Box::new(program)),
         None => incumbent,
     };
+    if let Value::Raw(bytes) = candidate {
+        group.literal_credits = vram_advance::run(true, credits);
+        let key = hash.unwrap_or_else(|| values.literals.fingerprint(data));
+        let shared = values.literals.insert(key, bytes);
+        values.write_group(page).values[page % 64] = Value::Shared(shared);
+    } else {
+        group.literal_credits = 0;
+        group.values[page % 64] = candidate;
+    }
     0
+}
+#[no_mangle]
+pub unsafe extern "C" fn store_discard(s: &Store, start: usize, count: usize) -> c_int {
+    let mut values = s.values.write().unwrap();
+    if start > values.count || count > values.count - start {
+        return -1;
+    }
+    values.discard(start, start + count);
+    0
+}
+#[no_mangle]
+pub extern "C" fn vram_host_auto_mib(available: u64) -> u64 {
+    vram_host_size::run(available)
 }
 #[no_mangle]
 pub unsafe extern "C" fn store_get(s: &Store, page: usize, data: &mut [u8; PAGE]) -> c_int {
@@ -413,21 +467,17 @@ pub unsafe extern "C" fn store_stats(s: &Store, out: *mut u64) {
     let out = slice::from_raw_parts_mut(out, 5);
     out.fill(0);
     let values = s.values.read().unwrap();
-    out[4] = (values.capacity() * size_of::<Value>() + size_of::<Store>()) as u64;
-    let regions = s.regions.lock().unwrap();
-    out[4] += (regions.capacity() * size_of::<search::Region>()
-        + regions
-            .iter()
-            .map(search::Region::extra_bytes)
-            .sum::<usize>()) as u64;
+    out[4] = (size_of::<Store>() + values.metadata() + values.literals.charge()) as u64;
+    out[0] = values.count as u64;
     for value in values.iter() {
+        out[0] -= 1;
         out[4] += value.charge() as u64;
         match value {
             Value::Fill(_) => out[0] += 1,
             Value::Packed(_) => out[1] += 1,
-            Value::Raw(_) => out[2] += 1,
+            Value::Raw(_) | Value::Shared(_) => out[2] += 1,
             Value::Sparse(_) => out[3] += 1,
-            Value::Selector(_) | Value::Corrected(_) | Value::Program(_) => {}
+            Value::Selector(_) | Value::Corrected(_) | Value::Residual(_) | Value::Program(_) => {}
         }
     }
 }
@@ -444,6 +494,20 @@ pub unsafe extern "C" fn store_selector_stats(s: &Store, pages: &mut u64, restor
     *restores = s.restores.load(Ordering::Relaxed);
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn store_literal_stats(
+    s: &Store,
+    unique: &mut u64,
+    hits: &mut u64,
+    skipped: &mut u64,
+    residuals: &mut u64,
+) {
+    let values = s.values.read().unwrap();
+    *unique = values.literals.live();
+    *hits = values.literals.hits;
+    *skipped = s.literal_skips.load(Ordering::Relaxed);
+    *residuals = values.literals.residuals;
+}
 #[no_mangle]
 pub unsafe extern "C" fn store_edits(s: &Store, pages: &mut u64, entries: &mut u64) {
     *pages = 0;
@@ -548,5 +612,75 @@ mod runtime_tests {
         assert_eq!(vram_discarded(false), 7);
         assert!(!vram_trim(0, 100));
         assert!(vram_trim(99, 100));
+    }
+}
+
+#[cfg(test)]
+mod host_tests {
+    use super::*;
+
+    #[test]
+    fn sparse_terabyte_directory_restores_implicit_zero_and_releases_empty_leaves() {
+        unsafe {
+            let n = 1usize << 28;
+            let s = &*store_new_config(n, 49, true);
+            let mut stats = [0; 5];
+            store_stats(s, stats.as_mut_ptr());
+            let initial = stats[4];
+            assert!(initial < 256 * 1024);
+            assert_eq!(stats[0], n as u64);
+            let mut out = [1; PAGE];
+            for at in [0, 63, 64, n - 2, n - 1] {
+                assert_eq!(store_put(s, at, &[65; PAGE]), 0);
+            }
+            assert_eq!(store_discard(s, 63, 2), 0);
+            assert_eq!(store_get(s, 64, &mut out), 0);
+            assert_eq!(out, [0; PAGE]);
+            assert_eq!(store_discard(s, n - 1, 2), -1);
+            assert_eq!(store_get(s, n - 1, &mut out), 0);
+            assert_eq!(out, [65; PAGE]);
+            assert_eq!(store_discard(s, 0, n), 0);
+            store_stats(s, stats.as_mut_ptr());
+            assert_eq!(stats[4], initial);
+            assert_eq!(stats[0], n as u64);
+            store_free(s as *const _ as *mut _);
+        }
+    }
+
+    #[test]
+    fn fingerprint_collision_overwrite_and_discard_preserve_shared_bytes() {
+        unsafe {
+            let s = &*store_new(128);
+            let a = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let mut b = a;
+            for byte in &mut b[100..200] {
+                *byte ^= 3;
+            } // same sample, distinct literal
+            for (i, bytes) in [(0, &a), (1, &a), (2, &b), (0, &b)] {
+                assert_eq!(store_put(s, i, bytes), 0);
+            }
+            let (mut unique, mut hits, mut fast) = (0, 0, 0);
+            store_literal_stats(s, &mut unique, &mut hits, &mut fast, &mut 0);
+            assert_eq!(unique, 2);
+            assert_eq!(hits, 2);
+            let mut out = [0; PAGE];
+            for (i, expected) in [(0, &b), (1, &a), (2, &b)] {
+                assert_eq!(store_get(s, i, &mut out), 0);
+                assert_eq!(&out, expected);
+            }
+            let mut near = a;
+            near[77] ^= 43;
+            assert_eq!(store_put(s, 3, &near), 0);
+            assert_eq!(store_discard(s, 0, 3), 0);
+            let mut residuals = 0;
+            store_literal_stats(s, &mut unique, &mut hits, &mut fast, &mut residuals);
+            assert_eq!((unique, residuals), (1, 1));
+            assert_eq!(store_get(s, 3, &mut out), 0);
+            assert_eq!(out, near);
+            assert_eq!(store_discard(s, 3, 1), 0);
+            store_literal_stats(s, &mut unique, &mut hits, &mut fast, &mut 0);
+            assert_eq!(unique, 0);
+            store_free(s as *const _ as *mut _);
+        }
     }
 }

@@ -22,6 +22,8 @@ enum { PAGE = 4096 };
 struct io_counts { uint64_t writes, reads, trims; };
 static void die(const char *name) { perror(name); exit(1); }
 
+#include "managed.h"
+
 static int transfer(int fd, void *buffer, size_t bytes, bool send)
 {
     unsigned char *p = buffer;
@@ -74,13 +76,14 @@ static int serve(int fd, struct store *store, size_t pages, struct io_counts *co
             }
             continue;
         }
-        if (type == NBD_CMD_WRITE || type == NBD_CMD_TRIM) {
-            if (type == NBD_CMD_TRIM) memset(data, 0, PAGE);
+        if (type == NBD_CMD_TRIM) {
+            if (store_discard(store, begin, end - begin)) return -1;
+            counts->trims += end - begin;
+        } else if (type == NBD_CMD_WRITE) {
             for (size_t i = begin; i < end; ++i) {
-                if (type == NBD_CMD_WRITE && transfer(fd, data, PAGE, false)) return -1;
+                if (transfer(fd, data, PAGE, false)) return -1;
                 if (store_put(store, i, data)) return -1;
-                if (type == NBD_CMD_WRITE) counts->writes++;
-                else counts->trims++;
+                counts->writes++;
             }
         } else {
             reply.error = htonl(EOPNOTSUPP);
@@ -102,12 +105,13 @@ static void *drive_kernel(void *arg)
 
 static void usage(void)
 {
-    fputs("vram-host attach /dev/nbdN SIZE_MiB [SEARCH_NODES]\nvram-host detach /dev/nbdN\n", stderr);
+    fputs("vram-host run /dev/nbdN auto|SIZE_MiB [SEARCH_NODES]\nvram-host attach /dev/nbdN SIZE_MiB [SEARCH_NODES]\nvram-host detach /dev/nbdN\n", stderr);
     exit(2);
 }
 int main(int argc, char **argv)
 {
-    bool attach = (argc == 4 || argc == 5) && !strcmp(argv[1], "attach");
+    bool managed = (argc == 4 || argc == 5) && !strcmp(argv[1], "run");
+    bool attach = managed || ((argc == 4 || argc == 5) && !strcmp(argv[1], "attach"));
     if (!attach && (argc != 3 || strcmp(argv[1], "detach"))) usage();
     int fd = open(argv[2], O_RDWR | O_CLOEXEC | (attach ? 0 : O_EXCL));
     struct stat st;
@@ -117,9 +121,18 @@ int main(int argc, char **argv)
         if (ioctl(fd, NBD_DISCONNECT)) die("NBD_DISCONNECT");
         return 0;
     }
+    if (sysconf(_SC_PAGESIZE) != PAGE) {
+        fputs("vRAM requires 4 KiB host pages.\n", stderr);
+        return 1;
+    }
     char *tail;
     errno = 0;
     unsigned long mib = strtoul(argv[3], &tail, 10);
+    if (managed && !strcmp(argv[3], "auto")) {
+        mib = available_mib();
+        tail = argv[3] + strlen(argv[3]);
+        errno = 0;
+    }
     if (errno || *tail || !mib || mib > 1048576 || sizeof(size_t) < 8) usage();
     unsigned long nodes = 49;
     if (argc == 5) {
@@ -158,7 +171,16 @@ int main(int argc, char **argv)
     /* Sharing the locked address space prevents a forked ioctl worker from
        retaining copy-on-write snapshots of the store during reclaim. */
     struct kernel_loop loop = { .device = fd, .socket = pair[0] };
-    pthread_t worker;
+    struct managed control = { .device = fd, .socket = pair[0], .path = argv[2], .store = store };
+    pthread_t worker, manager;
+    if (managed) {
+        sigemptyset(&control.signals);
+        sigaddset(&control.signals, SIGINT);
+        sigaddset(&control.signals, SIGTERM);
+        sigaddset(&control.signals, SIGUSR1);
+        int rc = pthread_sigmask(SIG_BLOCK, &control.signals, NULL);
+        if (rc) { ioctl(fd, NBD_CLEAR_SOCK); errno = rc; die("block management signals"); }
+    }
     pthread_attr_t attr;
     int error = pthread_attr_init(&attr);
     if (!error) {
@@ -171,6 +193,16 @@ int main(int argc, char **argv)
         errno = error;
         die("start NBD kernel worker");
     }
+    if (managed) {
+        error = pthread_create(&manager, NULL, manage_swap, &control);
+        if (error) {
+            shutdown(pair[0], SHUT_RDWR);
+            pthread_join(worker, NULL);
+            ioctl(fd, NBD_CLEAR_SOCK);
+            errno = error;
+            die("start swap activation");
+        }
+    }
     signal(SIGPIPE, SIG_IGN);
     printf("Serving %lu MiB of volatile Verdant swap on %s\n", mib, argv[2]);
     fflush(stdout);
@@ -179,6 +211,10 @@ int main(int argc, char **argv)
     shutdown(pair[0], SHUT_RDWR);
     error = pthread_join(worker, NULL);
     if (error) { errno = error; die("join NBD kernel worker"); }
+    if (managed) {
+        pthread_kill(manager, SIGTERM);
+        pthread_join(manager, NULL);
+    }
     close(pair[0]);
     if (loop.error) { errno = loop.error; perror("NBD_DO_IT"); }
     ioctl(fd, NBD_CLEAR_SOCK);
@@ -188,6 +224,7 @@ int main(int argc, char **argv)
     printf("VRAM_STORE {\"write_pages\":%lu,\"read_pages\":%lu,\"trim_pages\":%lu,"
            "\"raw_pages\":%lu,\"selector_pages\":%lu,\"selector_restores\":%lu,\"store_bytes\":%lu}\n",
            counts.writes, counts.reads, counts.trims, stats[2], modeled, restores, stats[4]);
+    report_store(store);
     store_free(store);
-    return rc || loop.error;
+    return rc || loop.error || control.error;
 }

@@ -1,0 +1,21 @@
+[Unit]
+Description=Verdant volatile swap on /dev/%i
+Documentation=https://github.com/afflom/vRAM
+ConditionPathExists=/proc/swaps
+After=systemd-modules-load.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+Environment=VRAM_SIZE_MIB=auto VRAM_SEARCH_NODES=49
+EnvironmentFile=-/etc/default/vram
+ExecStartPre=/sbin/modprobe nbd
+ExecStart=/usr/sbin/vram-host run /dev/%i ${VRAM_SIZE_MIB} ${VRAM_SEARCH_NODES}
+LimitMEMLOCK=infinity
+OOMScoreAdjust=-1000
+TimeoutStopSec=infinity
+SendSIGKILL=no
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

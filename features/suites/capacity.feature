@@ -35,3 +35,21 @@ Feature: capacity
     Given an eight MiB checkpoint and a twelve MiB ceiling
     When the model schedules the next trial
     Then the extent is twelve MiB and a partial observation stops at budget
+
+  @VR-07 @build
+  Scenario: Size a managed device and retire unused page groups
+    Given 8192 MiB of available memory
+    When a managed device starts and a group loses its final occupied page
+    Then its automatic size is 1024 MiB and the empty group is released
+
+  @VR-08 @open
+  Scenario: Reuse an exact literal across unrelated swap addresses
+    Given equal high-entropy pages and independently generated high-entropy controls
+    When the device receives them under pressure
+    Then measure exact restores, shared literal allocations and write time
+
+  @VR-09 @open
+  Scenario: Reconstruct a dense tensor from an immutable base and changed coordinates
+    Given high-entropy pages with a small number of changed coordinates
+    When the original address is overwritten or discarded
+    Then every dependent page still reconstructs its original bytes

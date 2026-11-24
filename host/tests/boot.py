@@ -19,16 +19,17 @@ for name in ("qemu", "kernel", "nbd", "result"):
     parser.add_argument("--" + name, type=Path, required=True)
 parser.add_argument("--bios-dir", type=Path, help="firmware directory for a custom QEMU build")
 parser.add_argument("--mib", type=int, default=32)
-parser.add_argument("--profile", choices=("S", "M"), default="M")
+parser.add_argument("--profile", choices=("S", "M", "R", "U", "D"), default="M")
+parser.add_argument("--managed", action="store_true", help="exercise automatic swapon, readiness, status and drain")
 args = parser.parse_args()
 if not 16 <= args.mib <= 8192:
     parser.error("use a workload between 16 and 8192 MiB")
 server = root / "host/build/vram-host"
 payload = server.read_bytes()
-vm_mib = 256 + (args.mib if args.profile == "M" else args.mib // 8)
+vm_mib = 256 + (args.mib if args.profile in ("M", "U") else args.mib // 8)
 with tempfile.TemporaryDirectory() as directory:
     tmp = Path(directory)
-    subprocess.run(["cc", "-static", "-O2", f"-DWORK_MIB={args.mib}",
+    subprocess.run(["cc", "-static", "-O2", f"-DWORK_MIB={args.mib}", f"-DMANAGED={int(args.managed)}",
                     f'-DSWAP_SIZE="{args.mib + 64}"', f"-DPROFILE='{args.profile}'", root / "host/tests/init.c", "-o", tmp / "init"], check=True)
     entries = {d: (stat.S_IFDIR | 0o755, b"", 0, 0) for d in ("dev", "sys", "proc")}
     entries["dev/console"] = (stat.S_IFCHR | 0o600, b"", 5, 1)
@@ -54,9 +55,21 @@ with tempfile.TemporaryDirectory() as directory:
         sys.exit("Linux swap round trip failed")
     result = json.loads(match[1])
     store = json.loads(re.search(r"VRAM_STORE (\{[^\n]+\})", log)[1])
-    if (not store["selector_pages"] or not store["selector_restores"]
+    live = [json.loads(line) for line in re.findall(r"VRAM_LIVE (\{[^\n]+\})", log)]
+    if args.managed:
+        if len(live) < 2 or not store["read_pages"]:
+            sys.exit("Managed device did not publish live and shutdown statistics")
+        if args.profile == "R" and (live[0]["literal_hits"] < args.mib * 128 or
+                                     live[0]["unique_literals"] >= live[0]["raw_pages"]):
+            sys.exit("Repeated literals were not shared")
+        if args.profile == "D" and live[0]["residual_captures"] < args.mib * 128:
+            sys.exit("Dense residuals were not admitted")
+        if args.profile == "U" and live[0]["literal_fast_writes"] < args.mib * 128:
+            sys.exit("Independent literals did not activate the Prism scheduler")
+    elif args.profile in ("S", "M") and (not store["selector_pages"] or not store["selector_restores"]
             or (args.profile == "M" and not store["raw_pages"])):
         sys.exit("Missing modeled, literal, or restored pages in Verdant")
+    result.update(managed=args.managed, live=live)
     result.update(store=store, kernel=args.kernel.name, linux_ram_mib=vm_mib, workload_memcg_mib=48, server_sha256=hashlib.sha256(payload).hexdigest(),
                   kernel_sha256=hashlib.sha256(args.kernel.read_bytes()).hexdigest(),
                   accelerator="TCG", profile=args.profile)

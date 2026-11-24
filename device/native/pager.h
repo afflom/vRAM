@@ -12,6 +12,8 @@ void store_feedback_stats(struct store *, uint64_t *refits, uint64_t *skips);
 void store_search_stats(struct store *, uint64_t *pages, uint64_t *bytes, uint64_t *searches, uint64_t *nodes);
 void store_free(struct store *);
 int store_put(struct store *, size_t page, const uint8_t *bytes4096);
+int store_discard(struct store *, size_t start, size_t count);
+uint64_t vram_host_auto_mib(uint64_t available_mib);
 int store_get(struct store *, size_t page, uint8_t *bytes4096);
 int store_project(struct store *, size_t page, const int32_t *weights64, int64_t *output64);
 void store_selector_stats(struct store *, uint64_t *pages, uint64_t *restores);
@@ -30,6 +32,7 @@ bool vram_trim(uint64_t limit, uint64_t resident);
 bool vram_permitted(bool opted, bool quiescent, bool tcg, bool kvm, bool capture_all, bool migration_idle);
 uint64_t vram_membership(uint64_t word, uint64_t bit, bool present);
 bool vram_range(uint64_t offset, uint64_t length, uint64_t extent);
+void store_literal_stats(struct store *, uint64_t *unique, uint64_t *hits, uint64_t *skipped, uint64_t *residuals);
 void store_edits(struct store *, uint64_t *pages, uint64_t *entries);
 struct pager_metrics {
     uint64_t resident, clean_drops, captures, writes, automatic_drops;

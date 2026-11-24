@@ -9,7 +9,7 @@ on:
         description: Workload (S for two-class pages, F for tiled factors, U for pseudorandom, M for mixed)
         default: F
         type: choice
-        options: [S, F, U, M]
+        options: [S, F, U, M, R, D]
       ceiling:
         description: Logical ceiling in MiB
         default: '256'
@@ -66,14 +66,22 @@ jobs:
             --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* \
             --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
             --result measurements/local/linux-host.json
+          for profile in R D U; do
+            python3 host/tests/boot.py --qemu "$(command -v qemu-system-x86_64)" \
+              --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* \
+              --nbd "$RUNNER_TEMP"/linux/usr/lib/modules/*/kernel/drivers/block/nbd.ko.xz \
+              --managed --profile "$profile" --result "measurements/local/managed-$profile.json"
+          done
       - name: Calibrate the optimizer and check every restored page
         run: node automation/operate.mjs "$PROFILE" "$CEILING" "$BUDGET" measurements/local/receipt.json
       - name: Package Linux host software and receipt
         run: |
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
+          python3 host/package.py dist/vram-host_0.2.0_amd64.deb
+          cp measurements/local/managed-*.json dist/
           cp README.md dist/
-          (cd dist && sha256sum vram-host receipt.json linux-host.json README.md > SHA256SUMS)
+          (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: vram-linux-x86_64

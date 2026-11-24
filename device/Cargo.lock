@@ -146,6 +146,8 @@ version = "0.1.0"
 dependencies = [
  "verdant-tensor",
  "vram_advance",
+ "vram_empty_group",
+ "vram_host_size",
  "vram_lifecycle",
  "vram_range",
  "vram_representation",
@@ -723,6 +725,18 @@ name = "vram_advance"
 version = "0.1.0"
 source = "sparse+http://127.0.0.1:17943/"
 checksum = "23eaaf53e9013f2398e9ef6c67a0d14d0110d6d36d11f6d33ab61c6d27bb9a21"
+
+[[package]]
+name = "vram_empty_group"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "e60fc1b14d9ac4c8a42e50e4092f64b68a45ccba16ce9bef5194ccd2efbd2bea"
+
+[[package]]
+name = "vram_host_size"
+version = "0.1.0"
+source = "sparse+http://127.0.0.1:17943/"
+checksum = "9db124e764bebbc7b7cd31ced5067be743892f16ff084e8dd498b5fda8931c1e"
 
 [[package]]
 name = "vram_lifecycle"

@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     long mib = atol(argv[1]), budget = atol(argv[2]), nodes = atol(argv[4]);
     char profile = argv[3][0];
     if (mib < 1 || mib > 1048576 || budget < 1 || budget > 1048576 ||
-        nodes < 0 || nodes > 49 || strlen(argv[3]) != 1 || !strchr("SFUM", profile)) return 2;
+        nodes < 0 || nodes > 49 || strlen(argv[3]) != 1 || !strchr("SFUMRD", profile)) return 2;
     size_t target = (size_t)mib * 256, count = 0, verified = 0;
     uint8_t original[PAGE], decoded[PAGE];
     struct store *s = store_new_config(target, nodes, true);

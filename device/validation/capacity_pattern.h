@@ -5,7 +5,7 @@ static u32 mix(u32 x) {
     return x ^ (x >> 15);
 }
 static void expected(u32 page, u8 profile, u8 *out) {
-    u32 seed = mix(page ^ 0x64e31b0d);
+    u32 seed = mix(((profile == 'R' || profile == 'D') ? page % 256 : page) ^ 0x64e31b0d);
     if (profile == 'F') {
         /* Different ranks and axes on each side of the cut. No representation
          * or cut positions are supplied to the pager. */
@@ -18,10 +18,16 @@ static void expected(u32 page, u8 profile, u8 *out) {
         }
         return;
     }
-    if (profile == 'U' || (profile == 'M' && (page & 1))) {
+    if (profile == 'D' || profile == 'R' || profile == 'U' || (profile == 'M' && (page & 1))) {
         for (u32 k = 0; k < PAGE; k += 4) {
             u32 w = mix(seed + k);
             __builtin_memcpy(out + k, &w, sizeof w);
+        }
+        if (profile == 'D' && page >= 256) {
+            for (u32 j = 0; j < 4; j++) {
+                u32 edit = mix(page + 37 * j);
+                out[edit % PAGE] ^= (u8)((edit >> 16) | 1);
+            }
         }
         return;
     }

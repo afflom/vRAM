@@ -10,9 +10,9 @@ import {load} from 'prism-code';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [profile, ceilingText, budgetText, filename] = process.argv.slice(2);
 const ceiling = Number(ceilingText), budget = Number(budgetText);
-if (!/^[SFUM]$/.test(profile ?? '') || !Number.isSafeInteger(ceiling) || ceiling < 4 ||
+if (!/^[SFUMRD]$/.test(profile ?? '') || !Number.isSafeInteger(ceiling) || ceiling < 4 ||
     ceiling > 65536 || !Number.isSafeInteger(budget) || budget < 8 || budget > 65536 || !filename) {
-  throw Error('Usage: node automation/operate.mjs S|F|U|M CEILING_MiB(4..65536) RSS_BUDGET_MiB(8..65536) OUTPUT.json');
+  throw Error('Usage: node automation/operate.mjs S|F|U|M|R|D CEILING_MiB(4..65536) RSS_BUDGET_MiB(8..65536) OUTPUT.json');
 }
 const out = resolve(filename);
 if (existsSync(out)) throw Error('Use a fresh output path for each experiment');

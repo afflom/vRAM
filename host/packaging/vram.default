@@ -1,0 +1,3 @@
+# Read at service start. auto uses one eighth of Linux MemAvailable.
+VRAM_SIZE_MIB=auto
+VRAM_SEARCH_NODES=49

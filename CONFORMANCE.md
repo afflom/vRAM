@@ -26,6 +26,9 @@ The three honesty levels (R2):
 | `VR-04` | `build` | Pilot optimization replaces the incumbent only for a verified improvement | `Contract.preferSmaller`, `Contract.preferFasterTie`, `Contract.replaceImprovement`, `Contract.keepIncumbent`, `Contract.rejectPilot` |
 | `VR-05` | `build` | Malformed requests are refused | `Contract.emptyRefused`, refuses with `invalid request` |
 | `VR-06` | `build` | The model schedules calibration candidates and growing extents, and assesses raw observations | `Contract.startSmall`, `Contract.growTwice`, `Contract.capAtCeiling`, `Contract.pilotSequenceEnds`, `Contract.partialStops`, `Contract.corruptionStops` |
+| `VR-07` | `build` | Host autosizing reserves headroom and empty page groups can be released | `HostPolicy.sizeFromAvailable`, `HostPolicy.retainOccupied`, `HostPolicy.releaseEmpty` |
+| `VR-08` | `open` | Instance-wide exact literal reuse is measured on repeated and independent high-entropy input |  |
+| `VR-09` | `open` | Dense pages sharing a literal base may be stored as exact sparse XOR residuals |  |
 
 ## Cited authorities
 

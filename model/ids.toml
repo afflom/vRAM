@@ -44,3 +44,22 @@ level = "build"
 suite = "capacity"
 statement = "The model schedules calibration candidates and growing extents, and assesses raw observations"
 theorems = ["Contract.startSmall", "Contract.growTwice", "Contract.capAtCeiling", "Contract.pilotSequenceEnds", "Contract.partialStops", "Contract.corruptionStops"]
+
+[[id]]
+id = "VR-07"
+level = "build"
+suite = "capacity"
+statement = "Host autosizing reserves headroom and empty page groups can be released"
+theorems = ["HostPolicy.sizeFromAvailable", "HostPolicy.retainOccupied", "HostPolicy.releaseEmpty"]
+
+[[id]]
+id = "VR-08"
+level = "open"
+suite = "capacity"
+statement = "Instance-wide exact literal reuse is measured on repeated and independent high-entropy input"
+
+[[id]]
+id = "VR-09"
+level = "open"
+suite = "capacity"
+statement = "Dense pages sharing a literal base may be stored as exact sparse XOR residuals"

@@ -8,7 +8,7 @@ all: build/vram-host build/vram-scale
 runtime:
 	cd $(DEVICE) && python3 build.py
 
-build/vram-host: vram_host.c $(DEVICE)/native/pager.h runtime
+build/vram-host: vram_host.c managed.h $(DEVICE)/native/pager.h runtime
 	mkdir -p build
 	$(CC) $(CFLAGS) -Wall -Wextra -O2 -I$(DEVICE)/native $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 

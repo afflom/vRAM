@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/io.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <signal.h>
+#include <poll.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <sys/mman.h>
@@ -62,14 +66,27 @@ int main(void)
 	if (mknod("/dev/nbd0", S_IFBLK | 0600, makedev(43,0))) fail("mknod");
 	struct rlimit lock = { RLIM_INFINITY, RLIM_INFINITY };
 	if (setrlimit(RLIMIT_MEMLOCK, &lock)) fail("memlock");
+	int notify = -1;
+	if (MANAGED) {
+		notify = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+		struct sockaddr_un addr = { .sun_family = AF_UNIX, .sun_path = "/notify" };
+		if (notify < 0 || bind(notify, (struct sockaddr *)&addr, sizeof(addr))) fail("notify socket");
+	}
 	pid_t host = fork();
 	if (host < 0) fail("fork");
 	if (!host) {
-		execl("/vram-host", "vram-host", "attach", "/dev/nbd0", SWAP_SIZE, NULL);
+		if (MANAGED) setenv("NOTIFY_SOCKET", "/notify", 1);
+		execl("/vram-host", "vram-host", MANAGED ? "run" : "attach", "/dev/nbd0", SWAP_SIZE, NULL);
 		fail("exec attach");
 	}
+	if (MANAGED) {
+		struct pollfd pollfd = {.fd=notify,.events=POLLIN};
+		char message[160] = {0};
+		if (poll(&pollfd, 1, 30000) != 1 || recv(notify, message, sizeof(message)-1, 0) <= 0 ||
+		    !strstr(message, "READY=1")) fail("missing readiness");
+	}
 	int retries = 0;
-	while (access("/sys/block/nbd0/pid", F_OK) || swapon("/dev/nbd0", 0)) {
+	while (!MANAGED && (access("/sys/block/nbd0/pid", F_OK) || swapon("/dev/nbd0", 0))) {
 		if (++retries > 60) fail("swapon");
 		usleep(100000);
 	}
@@ -107,29 +124,42 @@ int main(void)
 	control("/sys/fs/cgroup/test/memory.max", "50331648");
 	unsigned long written = vmstat("pswpout") - writes_before;
 	unsigned long reads_before = vmstat("pswpin");
+	if (MANAGED) { if (kill(host, SIGUSR1)) fail("live stats"); usleep(100000); }
 	for (size_t i = 0; i < pages; i++) {
 		u8 want[PAGE];
 		if (i && !(i % (65536U))) dprintf(1, "verified %zu MiB\n", i / 256);
 		expected(i, PROFILE, want);
 		if (memcmp(mem + i * PAGE, want, PAGE)) fail("readback");
-		if (i % 256 == 255 && madvise(mem + (i - 255) * PAGE, 256 * PAGE, MADV_DONTNEED))
+		if ((!MANAGED || i >= 256) && i % 256 == 255 && madvise(mem + (i - 255) * PAGE, 256 * PAGE, MADV_DONTNEED))
 			fail("drop verified tile");
 	}
 	unsigned long read = vmstat("pswpin") - reads_before;
 	/* Release the verified virtual extent before fork. Linux otherwise
 	   charges a potential copy of that entire private mapping to commit. */
+	int status;
+	if (MANAGED) {
+		if (madvise(mem, 256 * PAGE, MADV_PAGEOUT) || kill(host, SIGTERM)) fail("managed stop");
+		if (waitpid(host, &status, 0) != host || status) fail("managed drain");
+		for (size_t i = 0; i < 256; ++i) {
+			u8 want[PAGE];
+			expected(i, PROFILE, want);
+			if (memcmp(mem+i*PAGE, want, PAGE)) fail("post-stop readback");
+		}
+		close(notify);
+	}
 	if (munmap(mem, bytes)) fail("release verified mapping");
 	free(present);
-	if (swapoff("/dev/nbd0")) fail("swapoff");
-	pid_t closer = fork();
-	if (closer < 0) fail("fork detach");
-	if (!closer) {
-		execl("/vram-host", "vram-host", "detach", "/dev/nbd0", NULL);
-		fail("exec detach");
+	if (!MANAGED) {
+		if (swapoff("/dev/nbd0")) fail("swapoff");
+		pid_t closer = fork();
+		if (closer < 0) fail("fork detach");
+		if (!closer) {
+			execl("/vram-host", "vram-host", "detach", "/dev/nbd0", NULL);
+			fail("exec detach");
+		}
+		if (waitpid(closer, &status, 0) != closer || status) fail("detach");
+		if (waitpid(host, &status, 0) != host || status) fail("host exit");
 	}
-	int status;
-	if (waitpid(closer, &status, 0) != closer || status) fail("detach");
-	if (waitpid(host, &status, 0) != host || status) fail("host exit");
 	printf("VRAM_RESULT {\"verified_bytes\":%zu,\"linux_swap_writes\":%lu,"
 	       "\"linux_swap_reads\":%lu}\n", bytes, written, read);
 	stop(written < pages || read < pages * 3 / 4);

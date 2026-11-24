@@ -1,0 +1,20 @@
+\begin{lexlean}{HostPolicy}
+\useglossary{lexlean.std.bool@1.2.0}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{Natural number}
+\begin{semanticmodule}
+definition{
+  name: autoSize, parameters: [available : Nat], result: Nat,
+  body: (let fraction : Nat := (prim quotient available 8 0 : Nat); (if (fraction <=? 1048576) then fraction else 1048576)),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+definition{
+  name: emptyGroup, parameters: [occupied : Nat], result: Bool,
+  body: (occupied =? 0),
+  executable: true, production: {effects: [], targets: [rust-core]}
+}
+theorem{ name: sizeFromAvailable, parameters: [], statement: ((autoSize 8192) = 1024), proof: reflexivity{} }
+theorem{ name: retainOccupied, parameters: [], statement: ((emptyGroup 1) = false), proof: reflexivity{} }
+theorem{ name: releaseEmpty, parameters: [], statement: ((emptyGroup 0) = true), proof: reflexivity{} }
+\end{semanticmodule}
+\end{lexlean}

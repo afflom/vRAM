@@ -4,36 +4,43 @@ vRAM stores cold 4 KiB pages in the Verdant Engine 2.20.0 tensor runtime. Linux 
 
 On a write, the store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
 
-## Use it on a Linux host
+## Install on a Linux computer
 
-The host frontend has been exercised on x86-64 Linux 6.12 with 4 KiB pages, the NBD kernel module and swap support. Build prerequisites are Python 3.11+, a C toolchain and Rust. The recorded build used Rust 1.97.1. From a checkout run:
+On amd64 Debian or Ubuntu with systemd, download `vram-host_0.2.0_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
 
 ```sh
-make -C host
-sudo make -C host install
-sudo modprobe nbd
+sha256sum -c SHA256SUMS
+sudo apt install ./vram-host_0.2.0_amd64.deb
 ```
 
-You can also download the `vram-linux-x86_64` artifact from a successful [device workflow run](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract it, run `sha256sum -c SHA256SUMS` in the extracted directory, then install the server with `sudo install -m755 vram-host /usr/local/sbin/vram-host`. The host still needs the NBD module.
-
-Choose an unused whole NBD device. Start the server in a dedicated terminal or under a supervisor that keeps it alive for the entire swap session. This example advertises 128 MiB of logical swap. The server initializes a fresh swap header inside Verdant and locks its own memory to avoid recursive swapping. Linux zswap must be disabled while using this path.
+The package installs a service and configuration. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
 
 ```sh
-sudo /usr/local/sbin/vram-host attach /dev/nbd0 128
-```
-
-In a second terminal, activate the device, inspect Linux accounting, and after use return its pages to the host before detaching:
-
-```sh
-sudo swapon /dev/nbd0
+sudo systemctl enable --now vram@nbd0.service
 swapon --show
-# After the workload has finished:
-sudo swapoff /dev/nbd0 && sudo /usr/local/sbin/vram-host detach /dev/nbd0
 ```
 
-For an exclusively Verdant experiment, configure this as the workload's only swap device. The installer leaves existing swap configuration to the operator. Allow sufficient host memory and locked-memory privileges for the server, page metadata, working set and literal pages. Killing the serving process while swap is active loses the device contents. Size the first deployment on a disposable host. A RAM-backed swap workload dominated by literal pages can exhaust the host.
+Applications can now page to Verdant through the normal Linux memory manager. The service starts at boot, reports readiness after swap activation, and drains the device before disconnecting. Its default logical size is one eighth of Linux `MemAvailable` at startup. The page directory grows on first write and releases empty groups on discard. To change the logical size or search budget, edit `/etc/default/vram` and restart the service. To remove it, first run `sudo systemctl disable --now vram@nbd0.service`, then `sudo apt remove vram-host`. [Service configuration, statistics and shutdown](host/packaging/USAGE.md)
 
-Linux reports this capacity under `SwapTotal`. Physical `MemTotal` stays hardware-defined. QEMU reports the configured guest main RAM to the guest. The reachable working set depends on content, resident frames, metadata, search cost and the host's memory budget. This repository establishes neither a universal multiplier nor a host-independent maximum.
+Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pages consume host RAM. Capacity gains depend on the data and the resident working set. A process crash or loss of power can lose paged-out data. The service needs memory and locked-memory privileges for the store and headroom for Linux to drain it.
+
+To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.2.0_amd64.deb`. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves.
+
+## How dense pages interact
+
+Two pages with high byte diversity can share every coordinate, or differ at only a few. Verdant maintains a bounded index of literal bases across the whole running store. A fingerprint proposes a candidate. Verdant compares the bytes before sharing an immutable allocation. For near matches it builds a sparse list of coordinate-wise XOR differences and admits it after exact reconstruction. A write to the original swap address cannot change any dependent page.
+
+Independent pages can still inform scheduling. In a 64-page region, a full literal result allows the Prism scheduler to reduce subsequent fitting work when samples on both axes have high byte diversity. The credits expire and trigger another full probe. This saves CPU on sustained high-entropy writes. Sampling can pass over a compressible page until a later probe. Every representation retains the original bytes.
+
+The native comparison times 128 MiB of writes with the same harness and input generator against the previous and current libraries. R cycles through 256 pseudorandom bases. D makes four pseudorandom byte edits to each recurrence. U generates each page independently. The measurements include full readback and three trials in alternating order. [Native comparison](measurements/literal-reuse.json) · [Managed repeated pages](measurements/managed-repeated.json) · [Managed dense residuals](measurements/managed-dense.json) · [Independent control](measurements/managed-independent.json)
+
+| 128 MiB written and read back | Previous store | Current store | Median write time (previous → current) |
+|---|---:|---:|---:|
+| Repeated dense literals | 128.51 MiB | 1.78 MiB | 0.493 s → 0.021 s |
+| Dense literals with four edits per recurrence | 128.51 MiB | 6.02 MiB | 0.279 s → 0.124 s |
+| Independent pseudorandom pages | 128.51 MiB | 129.77 MiB | 0.286 s → 0.117 s |
+
+Store charges include the directory, lookup table and live representations. Process RSS, kernel memory and allocator overhead can be higher. The independent control spent more bytes on metadata and less time searching for representations.
 
 ## Use it as guest main RAM
 
@@ -60,9 +67,9 @@ make -C host
 node automation/operate.mjs F 256 96 measurements/local/factors.json
 ```
 
-The arguments are workload, logical ceiling in MiB, process RSS budget in MiB and output file. Use `S` for rank-two pages, `F` for tiled factors, `M` for alternating structured and pseudorandom pages or `U` for pseudorandom bytes. The receipt records every pilot, selected budget, requested extent, actual page count, byte checks, store charge, RSS and timing. A partial final trial retains its actual verified count. RSS is sampled after groups of 64 writes and may cross the budget. Each trial runs in a fresh process.
+The arguments are workload, logical ceiling in MiB, process RSS budget in MiB and output file. Use `S` for rank-two pages, `F` for tiled factors, `M` for alternating structured and pseudorandom pages, `U` for independent pseudorandom bytes, `R` for repeated literals or `D` for dense pages with sparse edits. The receipt records every pilot, selected budget, requested extent, actual page count, byte checks, store charge, RSS and timing. A partial final trial retains its actual verified count. RSS is sampled after groups of 64 writes and may cross the budget. Each trial runs in a fresh process.
 
-For a matching workload, pass the receipt's `search_nodes` as the fourth argument to `vram-host attach`, or as QEMU's `x-search-nodes`. Calibration on representative pages matters. For the recorded 4 MiB tiled-factor pilot, the controller selected 49 nodes and reduced store charge from 4,210,808 to 710,184 bytes. The 64 MiB follow-up verified 16,384 pages and recorded 15,360 template refits. [Pilot and follow-up](measurements/scale-F.json)
+For a matching workload, pass the receipt's `search_nodes` as the fourth argument to `vram-host attach`, or as QEMU's `x-search-nodes`. Calibration on representative pages matters. For the earlier 4 MiB tiled-factor pilot, the controller selected 49 nodes and reduced store charge from 4,210,808 to 710,184 bytes. The 64 MiB follow-up verified 16,384 pages and recorded 15,360 template refits. [Pilot and follow-up](measurements/scale-F.json)
 
 The repository workflow builds the static Linux binary, runs calibration and uploads the binary, checksums and receipt. Its manual inputs select workload, ceiling and RSS budget. [Device workflow](.github/workflows/device.yml)
 
@@ -83,6 +90,6 @@ python3 host/tests/boot.py --qemu /path/to/qemu-system-x86_64 \
 
 Add `--mib 2048 --profile S` to replay the larger Linux trial.
 
-The native rank-two trial wrote and read back 4,194,304 distinct page positions (16 GiB of logical contents). The store charged 637,534,328 bytes, and the process reached 657,336 KiB peak RSS. The pseudorandom trial selected literal pages and stopped during its 64 MiB attempt under a 48 MiB RSS budget. [Rank-two sweep](measurements/scale-S.json) · [Pseudorandom control](measurements/scale-U.json)
+The earlier native rank-two trial wrote and read back 4,194,304 distinct page positions (16 GiB of logical contents). The store charged 637,534,328 bytes, and the process reached 657,336 KiB peak RSS. The pseudorandom trial selected literal pages and stopped during its 64 MiB attempt under a 48 MiB RSS budget. [Rank-two sweep](measurements/scale-S.json) · [Pseudorandom control](measurements/scale-U.json)
 
 The native scale receipts measure the store in isolation. Linux swap receipts exercise the kernel path. The QEMU receipts measure the guest backend. [Native and Linux measurements](measurements) · [Proof scope and fault injection](docs/device-verification.md)
