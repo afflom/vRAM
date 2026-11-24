@@ -71,3 +71,15 @@ Feature: capacity
     Given a private backing file and pages sharing a dense base
     When the original address changes and retired slots are reused
     Then surviving references restore their original bytes from the Verdant store
+
+  @VR-13 @open
+  Scenario: Fit a dense page with a single read of each candidate base
+    Given several distinct file-backed pages with equal sample fingerprints
+    When a page matches one base exactly or differs at a few coordinates
+    Then each candidate is read at most once and the chosen representation restores every byte
+
+  @VR-14 @open
+  Scenario: Preserve a sparse address space after a backing write error
+    Given one committed page and previously untouched page groups
+    When writes to the backing file fail
+    Then the committed page retains its bytes and the empty groups release their metadata

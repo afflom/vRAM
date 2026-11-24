@@ -9,6 +9,24 @@ use std::sync::{
 };
 use verdant_tensor::coded::{decide_uorc_challenger_admission, UorcChallengerVerdict};
 
+pub(super) enum Capture<'a> {
+    Borrowed(&'a [u8; PAGE]),
+    Owned(Box<[u8; PAGE]>),
+}
+impl Capture<'_> {
+    fn bytes(&self) -> &[u8; PAGE] {
+        match self {
+            Self::Borrowed(bytes) => bytes,
+            Self::Owned(bytes) => bytes,
+        }
+    }
+    fn into_box(self) -> Box<[u8; PAGE]> {
+        match self {
+            Self::Borrowed(bytes) => Box::new(*bytes),
+            Self::Owned(bytes) => bytes,
+        }
+    }
+}
 enum Payload {
     Memory(Box<[u8; PAGE]>),
     File(literal_file::Slot),
@@ -70,6 +88,7 @@ impl Pool {
     }
     pub(super) fn lookup(&mut self, hash: u64, data: &[u8; PAGE]) -> Option<super::Value> {
         let bucket = &self.buckets[hash as usize & (self.buckets.len() - 1)];
+        let mut best: Option<Residual> = None;
         for (tag, weak) in bucket {
             if *tag != hash {
                 continue;
@@ -92,24 +111,26 @@ impl Pool {
                 self.hits += 1;
                 return Some(super::Value::Shared(page));
             }
+            let limit = best
+                .as_ref()
+                .map_or(Residual::MAX_EDITS, |r| r.edits.len().saturating_sub(1));
+            if let Some(residual) = Residual::fit(&page, bytes, data, limit) {
+                best = Some(residual);
+            }
         }
-        let residual = bucket
-            .iter()
-            .filter(|(tag, _)| *tag == hash)
-            .filter_map(|(_, weak)| Residual::fit(weak.upgrade()?, data))
-            .min_by_key(Residual::charge)?;
+        let residual = best?;
         self.residuals += 1;
         Some(super::Value::Residual(Box::new(residual)))
     }
     pub(super) fn insert(
         &mut self,
         hash: Option<u64>,
-        bytes: Box<[u8; PAGE]>,
+        capture: Capture<'_>,
     ) -> Option<Arc<Literal>> {
-        let hash = hash.unwrap_or_else(|| self.fingerprint(&bytes));
+        let hash = hash.unwrap_or_else(|| self.fingerprint(capture.bytes()));
         let payload = match &self.arena {
-            Some(arena) => Payload::File(arena.store(&bytes)?),
-            None => Payload::Memory(bytes),
+            Some(arena) => Payload::File(arena.store(capture.bytes())?),
+            None => Payload::Memory(capture.into_box()),
         };
         let page = Arc::new(Literal {
             payload,
@@ -212,23 +233,49 @@ pub(super) struct Residual {
     edits: Box<[(u16, u8)]>,
 }
 impl Residual {
-    fn fit(base: Arc<Literal>, data: &[u8; PAGE]) -> Option<Self> {
-        // A short edit list bounds unsuccessful fits on pages with common headers.
-        // Each nonzero byte is a coordinate of the XOR residual over GF(2).
-        let mut edits = Vec::new();
-        let mut scratch = [0; PAGE];
-        let bytes = base.view(&mut scratch)?;
-        for (i, (&a, &b)) in bytes.iter().zip(data).enumerate() {
-            if a != b {
-                if edits.len() == 64 {
+    const MAX_EDITS: usize = 64;
+
+    fn fit(
+        base: &Arc<Literal>,
+        bytes: &[u8; PAGE],
+        data: &[u8; PAGE],
+        limit: usize,
+    ) -> Option<Self> {
+        // Skip the shared fingerprint prefix. Each differing word in the sample
+        // requires at least one edit, regardless of differences elsewhere.
+        let unequal_words = bytes[8..]
+            .chunks_exact(8)
+            .zip(data[8..].chunks_exact(8))
+            .take(Self::MAX_EDITS + 1)
+            .filter(|(a, b)| a != b)
+            .count();
+        if unequal_words > limit {
+            return None;
+        }
+        let mut edits = [(0u16, 0u8); Self::MAX_EDITS];
+        let mut count = 0;
+        for (row, (a, b)) in bytes
+            .chunks_exact(super::SIDE)
+            .zip(data.chunks_exact(super::SIDE))
+            .enumerate()
+        {
+            if a == b {
+                continue;
+            }
+            for (col, (&old, &new)) in a.iter().zip(b).enumerate() {
+                if old == new {
+                    continue;
+                }
+                if count == limit {
                     return None;
                 }
-                edits.push((i as u16, a ^ b));
+                edits[count] = ((row * super::SIDE + col) as u16, old ^ new);
+                count += 1;
             }
         }
         let candidate = Self {
-            base,
-            edits: edits.into_boxed_slice(),
+            base: Arc::clone(base),
+            edits: edits[..count].into(),
         };
         let cost = candidate.charge();
         if !matches!(
@@ -237,18 +284,22 @@ impl Residual {
         ) {
             return None;
         }
-        let mut check = [0u8; PAGE];
-        candidate.decode(&mut check).ok()?;
+        // Admission and restore apply the same edits to the same immutable base.
+        let mut check = *bytes;
+        candidate.apply(&mut check);
         (decide_uorc_challenger_admission(data, &check, true, PAGE, cost)
             == UorcChallengerVerdict::AdmitChallenger)
             .then_some(candidate)
     }
     pub(super) fn decode(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
         self.base.read(out)?;
+        self.apply(out);
+        Ok(())
+    }
+    fn apply(&self, out: &mut [u8; PAGE]) {
         for &(i, delta) in &self.edits {
             out[usize::from(i)] ^= delta;
         }
-        Ok(())
     }
     pub(super) fn charge(&self) -> usize {
         size_of::<Self>() + std::mem::size_of_val(&*self.edits)
@@ -260,13 +311,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_later_base_with_fewer_edits_wins() {
+        let mut pool = Pool::new();
+        let a = [5; PAGE];
+        let mut b = a;
+        b[100..180].fill(7);
+        let mut near = a;
+        near[100..150].fill(7);
+        let tag = pool.fingerprint(&a);
+        let _first = pool.insert(Some(tag), Capture::Borrowed(&a)).unwrap();
+        let second = pool.insert(Some(tag), Capture::Borrowed(&b)).unwrap();
+        let Some(super::super::Value::Residual(residual)) = pool.lookup(tag, &near) else {
+            panic!("expected a sparse residual");
+        };
+        assert!(Arc::ptr_eq(&residual.base, &second));
+        assert_eq!(residual.edits.len(), 30);
+        assert!(
+            matches!(pool.lookup(tag, &b), Some(super::super::Value::Shared(exact)) if Arc::ptr_eq(&exact, &second))
+        );
+    }
+
+    #[test]
     fn large_dictionary_survives_growth_and_partial_trim() {
         let mut pool = Pool::new();
         let mut owners = Vec::new();
         for tag in 0..32768u64 {
             let mut bytes = Box::new([0; PAGE]);
             bytes[..8].copy_from_slice(&tag.to_le_bytes());
-            owners.push(pool.insert(Some(tag), bytes).unwrap());
+            owners.push(pool.insert(Some(tag), Capture::Owned(bytes)).unwrap());
         }
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(

@@ -407,46 +407,51 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
         return 0;
     }
     let credits = group.literal_credits;
-    if matches!(
+    let fast = matches!(
         vram_schedule::run(s.adaptive, credits, false),
         vram_schedule::Adt0::C2
     ) && matches!(slot, Value::Fill(_) | Value::Shared(_))
-        && literals::diverse_axes(data)
-    {
-        group.literal_credits = vram_advance::run(false, credits);
-        let Some(base) = literals.insert(hash, Box::new(*data)) else {
-            return -1;
-        };
-        *slot = Value::Shared(base);
-        s.literal_skips.fetch_add(1, Ordering::Relaxed);
-        return 0;
-    }
-    let incumbent = Value::encode(slot, data);
-    let result = search::optimize(
-        data,
-        incumbent.charge(),
-        s.node_budget,
-        s.adaptive.then_some(&mut group.region),
-    );
-    s.searches.fetch_add(result.probes, Ordering::Relaxed);
-    s.nodes_visited
-        .fetch_add(result.nodes as u64, Ordering::Relaxed);
-    s.refits.fetch_add(result.refits, Ordering::Relaxed);
-    s.skips.fetch_add(result.skips, Ordering::Relaxed);
-    let candidate = match result.program {
-        Some(program) => Value::Program(Box::new(program)),
-        None => incumbent,
-    };
-    if let Value::Raw(bytes) = candidate {
-        group.literal_credits = vram_advance::run(true, credits);
-        let Some(base) = literals.insert(hash, bytes) else {
-            return -1;
-        };
-        *slot = Value::Shared(base);
+        && literals::diverse_axes(data);
+    let capture = if fast {
+        literals::Capture::Borrowed(data)
     } else {
-        group.literal_credits = 0;
-        *slot = candidate;
-        literals.resize_for_live_bases();
+        let incumbent = Value::encode(slot, data);
+        let result = search::optimize(
+            data,
+            incumbent.charge(),
+            s.node_budget,
+            s.adaptive.then_some(&mut group.region),
+        );
+        s.searches.fetch_add(result.probes, Ordering::Relaxed);
+        s.nodes_visited
+            .fetch_add(result.nodes as u64, Ordering::Relaxed);
+        s.refits.fetch_add(result.refits, Ordering::Relaxed);
+        s.skips.fetch_add(result.skips, Ordering::Relaxed);
+        let candidate = match result.program {
+            Some(program) => Value::Program(Box::new(program)),
+            None => incumbent,
+        };
+        match candidate {
+            Value::Raw(bytes) => literals::Capture::Owned(bytes),
+            modeled => {
+                group.literal_credits = 0;
+                *slot = modeled;
+                literals.resize_for_live_bases();
+                return 0;
+            }
+        }
+    };
+    let Some(base) = literals.insert(hash, capture) else {
+        // write_group marks a previously untouched lane before the file I/O.
+        if matches!(slot, Value::Fill(0)) {
+            values.discard(page, page + 1);
+        }
+        return -1;
+    };
+    *slot = Value::Shared(base);
+    group.literal_credits = vram_advance::run(!fast, credits);
+    if fast {
+        s.literal_skips.fetch_add(1, Ordering::Relaxed);
     }
     0
 }

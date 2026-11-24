@@ -82,3 +82,15 @@ id = "VR-12"
 level = "open"
 suite = "capacity"
 statement = "A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse"
+
+[[id]]
+id = "VR-13"
+level = "open"
+suite = "capacity"
+statement = "Fitting a sparse XOR residual reads each candidate base at most once and restores the admitted page exactly"
+
+[[id]]
+id = "VR-14"
+level = "open"
+suite = "capacity"
+statement = "Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes"

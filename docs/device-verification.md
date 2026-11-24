@@ -51,6 +51,29 @@ python3 host/tests/file_scale.py --mib 1024 --result /tmp/independent.json
 
 Without the FUSE timestamp operation, Linux returned `ENOSYS` from `fsync` after the guest had already written its anonymous allocation. The restored synchronization and independent direct-read checks exercise the missing operation. In an isolated copy, changing the literal slot reader to always read offset zero made `cargo test --locked --offline file_bases_outlive_original_addresses_and_reuse_slots` fail its byte comparison. The restored test covers duplicate bases, a surviving residual, repeated overwrites, slot recycling and a truncated-file read error. [Linux DIMM receipt](../measurements/linux-virtual-dimm.json) · [Independent-page receipt](../measurements/file-backed-independent.json)
 
+## File-backed admission and write rollback in 0.4.1
+
+The native comparison replays 128 MiB per trial on one CPU with fresh preallocated files. Each input contains 32,768 pages. Six pairs alternate which version runs first. Every trial regenerates and compares every byte. Wall times include the filesystem page cache. The backing-read counter counts calls to read a literal slot, including reads satisfied by that cache.
+
+| Input | Median write time, 0.4.0 | Median write time, 0.4.1 | Backing reads during admission, 0.4.0 → 0.4.1 |
+| --- | ---: | ---: | ---: |
+| Dense pages with sparse edits | 176.7 ms | 70.2 ms | 95,226 → 31,742 |
+| Exact repeats | 34.4 ms | 33.5 ms | 32,512 → 32,512 |
+| Independent pseudorandom pages | 131.9 ms | 115.0 ms | 0 → 0 |
+| Four repeating bases with identical fingerprint samples | 43.2 ms | 45.4 ms | 81,922 → 81,916 |
+
+Both versions admitted 31,742 sparse residuals on the edited input. The new path compares 64-byte rows and applies the candidate's XOR edits to the bytes already read before Verdant checks exact reconstruction and size. An exact match still takes precedence. For independent pages on the fast literal path the file writer now borrows the incoming page buffer. The in-memory store retains an owned copy. The collision control measured a 4.9% increase in median write time. [All paired timings and read counts](../measurements/file-admission.json)
+
+Linking `device/validation/file_admission.c` against the unmodified 0.4.0 library reproduced both regressions. A colliding residual followed by an exact match took eight base reads where four suffice. Sealing the backing file against writes and retrying several new addresses raised store charge from 7,696 to 15,000 bytes. The updated gate requires four reads, exact restores after the original addresses are discarded, admission at 64 edits and literal storage at 65 edits. It also requires the old committed bytes, zero-filled untouched addresses and the original store charge after the failed writes. The device workflow runs this gate against the production library.
+
+To replay the paired trials, build the release library from `c5533c8` separately, build the current device and run:
+
+```sh
+python3 device/validation/literal_reuse.py --file-backed \
+  --previous-library /path/to/0.4.0/libverdant_memory.a \
+  --previous-commit c5533c84284fa55b984768ce127302f21fcb444b --result /tmp/file-admission.json
+```
+
 ## Owner policy
 
 The inherited Qortara governance and security documents record the accountable owner and security process as `NOT_ESTABLISHED`. The repository-documents check reports these as open owner actions. The architecture index passes. An authorized repository owner must establish those policies.

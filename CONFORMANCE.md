@@ -32,6 +32,8 @@ The three honesty levels (R2):
 | `VR-10` | `build` | Literal index sizing follows live bases through growth, reuse and release | `IndexPolicy.releaseEmpty`, `IndexPolicy.firstBase`, `IndexPolicy.growAtLoad`, `IndexPolicy.stableAtLoad`, `IndexPolicy.shrinkAfterTrim` |
 | `VR-11` | `open` | A running Linux guest can online additional Verdant-backed System RAM and verify ordinary allocations with swap disabled |  |
 | `VR-12` | `open` | A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse |  |
+| `VR-13` | `open` | Fitting a sparse XOR residual reads each candidate base at most once and restores the admitted page exactly |  |
+| `VR-14` | `open` | Failed file-backed literal writes preserve previous page contents and release directory groups created for failed first writes |  |
 
 ## Cited authorities
 

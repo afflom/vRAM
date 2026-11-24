@@ -10,7 +10,7 @@ Get the amd64 package built for your distribution. The Ubuntu 24.04 build is in 
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.4.0_amd64.deb qemu-system-x86 fuse3
+sudo apt install ./vram-host_0.4.1_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Run your operating system on vRAM
@@ -39,6 +39,8 @@ Both memory ranges map into one private Verdant store. Linux manages the shared 
 
 A native store trial wrote and restored 1 GiB of unique pseudorandom pages with a 64 MiB process address-space limit. All 262,144 pages used their own literal slots in the reserved file. Process RSS excludes filesystem page cache. [Independent-page measurement](measurements/file-backed-independent.json) · [Linux hot-add measurement](measurements/linux-virtual-dimm.json)
 
+In 0.4.1, sparse edits to dense pages reuse the same base read for fitting and exact reconstruction. Median write time on the 128 MiB edited workload fell from 176.7 to 70.2 ms across six paired runs. The deliberately colliding four-base control rose from 43.2 to 45.4 ms. A failed literal write preserves the previous page and releases any newly allocated empty group. [Workloads, read counts and failure tests](docs/device-verification.md#file-backed-admission-and-write-rollback-in-041)
+
 ### Add swap to a directly booted Linux system
 
 The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
@@ -54,7 +56,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.4.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.4.1_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

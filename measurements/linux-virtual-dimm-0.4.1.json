@@ -1,0 +1,22 @@
+{
+  "guest": {
+    "before_kib": 85752,
+    "after_kib": 216824,
+    "swap_kib": 0,
+    "verified_bytes": 99614720,
+    "verified_on_dimm_bytes": 99614720
+  },
+  "store": {
+    "read_pages": 66561,
+    "write_pages": 128171,
+    "file_base_reads": 28627,
+    "file_base_writes": 38280,
+    "store_bytes": 152428404
+  },
+  "dimm_mib": 128,
+  "initial_mib": 192,
+  "acceleration": "KVM on emulated AMD SVM",
+  "qemu": "QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)",
+  "kernel": "vmlinuz-6.12.117+deb13-amd64",
+  "package_sha256": "29b45b265050df12f8c967291d33a469eb3e4798a85634d5c58fe0b7b8887e3d"
+}

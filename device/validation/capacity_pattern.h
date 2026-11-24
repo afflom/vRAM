@@ -8,6 +8,7 @@ static void expected(u32 page, u8 profile, u8 *out) {
     u32 base = page;
     if (profile == 'R' || profile == 'D') base %= 256;
     if (profile == 'W') base %= 32768;
+    if (profile == 'C') base %= 4;
     u32 seed = mix(base ^ 0x64e31b0d);
     if (profile == 'F') {
         /* Different ranks and axes on each side of the cut. No representation
@@ -21,10 +22,16 @@ static void expected(u32 page, u8 profile, u8 *out) {
         }
         return;
     }
-    if (profile == 'D' || profile == 'R' || profile == 'W' || profile == 'U' || (profile == 'M' && (page & 1))) {
+    if (profile == 'C' || profile == 'D' || profile == 'R' || profile == 'W' || profile == 'U' || (profile == 'M' && (page & 1))) {
         for (u32 k = 0; k < PAGE; k += 4) {
             u32 w = mix(seed + k);
             __builtin_memcpy(out + k, &w, sizeof w);
+        }
+        if (profile == 'C') {
+            /* Four unrelated dense bases deliberately occupy the same fingerprint chain. */
+            __builtin_memset(out, 0, 8);
+            __builtin_memset(out + PAGE / 2, 0, 8);
+            __builtin_memset(out + PAGE - 8, 0, 8);
         }
         if (profile == 'D' && page >= 256) {
             for (u32 j = 0; j < 4; j++) {
