@@ -1,6 +1,6 @@
 // Index entries are weak. Discarding the last logical page immediately frees
 // its 4 KiB payload, even when its fingerprint remains in the lookup table.
-use super::PAGE;
+use super::{literal_file, PAGE};
 use std::hash::{BuildHasher, RandomState};
 use std::mem::size_of;
 use std::sync::{
@@ -9,9 +9,32 @@ use std::sync::{
 };
 use verdant_tensor::coded::{decide_uorc_challenger_admission, UorcChallengerVerdict};
 
+enum Payload {
+    Memory(Box<[u8; PAGE]>),
+    File(literal_file::Slot),
+}
 pub(super) struct Literal {
-    pub(super) bytes: Box<[u8; PAGE]>,
+    payload: Payload,
     live: Arc<AtomicU64>,
+}
+impl Literal {
+    pub(super) fn read(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
+        match &self.payload {
+            Payload::Memory(data) => {
+                verdant_tensor::memory::copy_storage_block(&data[..], out).map_err(|_| ())
+            }
+            Payload::File(slot) => slot.read(out).map_err(|_| ()),
+        }
+    }
+    fn view<'a>(&'a self, scratch: &'a mut [u8; PAGE]) -> Option<&'a [u8; PAGE]> {
+        match &self.payload {
+            Payload::Memory(data) => Some(data),
+            Payload::File(slot) => {
+                slot.read(scratch).ok()?;
+                Some(scratch)
+            }
+        }
+    }
 }
 impl Drop for Literal {
     fn drop(&mut self) {
@@ -20,6 +43,7 @@ impl Drop for Literal {
 }
 type Entry = (u64, Weak<Literal>);
 pub(super) struct Pool {
+    pub(super) arena: Option<Arc<literal_file::Arena>>,
     keys: RandomState,
     buckets: Vec<Vec<Entry>>,
     live: Arc<AtomicU64>,
@@ -29,6 +53,7 @@ pub(super) struct Pool {
 impl Pool {
     pub(super) fn new() -> Self {
         Self {
+            arena: None,
             keys: RandomState::new(),
             buckets: Vec::new(),
             live: Arc::default(),
@@ -52,9 +77,13 @@ impl Pool {
             let Some(page) = weak.upgrade() else {
                 continue;
             };
+            let mut scratch = [0; PAGE];
+            let Some(bytes) = page.view(&mut scratch) else {
+                continue;
+            };
             let verdict = decide_uorc_challenger_admission(
                 data,
-                &page.bytes[..],
+                &bytes[..],
                 true,
                 PAGE,
                 size_of::<Arc<Literal>>(),
@@ -72,16 +101,24 @@ impl Pool {
         self.residuals += 1;
         Some(super::Value::Residual(Box::new(residual)))
     }
-    pub(super) fn insert(&mut self, hash: Option<u64>, bytes: Box<[u8; PAGE]>) -> Arc<Literal> {
+    pub(super) fn insert(
+        &mut self,
+        hash: Option<u64>,
+        bytes: Box<[u8; PAGE]>,
+    ) -> Option<Arc<Literal>> {
         let hash = hash.unwrap_or_else(|| self.fingerprint(&bytes));
+        let payload = match &self.arena {
+            Some(arena) => Payload::File(arena.store(&bytes)?),
+            None => Payload::Memory(bytes),
+        };
         let page = Arc::new(Literal {
-            bytes,
+            payload,
             live: self.live.clone(),
         });
         self.live.fetch_add(1, Ordering::Relaxed);
         self.resize_for_live_bases();
         if self.buckets.is_empty() {
-            return page;
+            return Some(page);
         }
         let index = hash as usize & (self.buckets.len() - 1);
         let bucket = &mut self.buckets[index];
@@ -94,7 +131,7 @@ impl Pool {
         } else if bucket.try_reserve(1).is_ok() {
             bucket.push(entry);
         }
-        page
+        Some(page)
     }
     pub(super) fn live(&self) -> u64 {
         self.live.load(Ordering::Relaxed)
@@ -147,7 +184,10 @@ impl Pool {
             .flatten()
             .filter(|(_, weak)| weak.strong_count() == 0)
             .count();
-        self.buckets.capacity() * size_of::<Vec<Entry>>()
+        self.arena
+            .as_ref()
+            .map_or(0, |arena| arena.metadata_bytes())
+            + self.buckets.capacity() * size_of::<Vec<Entry>>()
             + allocated * size_of::<Entry>()
             + live * PAGE
             + (live + dead) * (size_of::<Literal>() + 2 * size_of::<usize>())
@@ -176,7 +216,9 @@ impl Residual {
         // A short edit list bounds unsuccessful fits on pages with common headers.
         // Each nonzero byte is a coordinate of the XOR residual over GF(2).
         let mut edits = Vec::new();
-        for (i, (&a, &b)) in base.bytes.iter().zip(data).enumerate() {
+        let mut scratch = [0; PAGE];
+        let bytes = base.view(&mut scratch)?;
+        for (i, (&a, &b)) in bytes.iter().zip(data).enumerate() {
             if a != b {
                 if edits.len() == 64 {
                     return None;
@@ -196,17 +238,17 @@ impl Residual {
             return None;
         }
         let mut check = [0u8; PAGE];
-        candidate.decode(&mut check);
+        candidate.decode(&mut check).ok()?;
         (decide_uorc_challenger_admission(data, &check, true, PAGE, cost)
             == UorcChallengerVerdict::AdmitChallenger)
             .then_some(candidate)
     }
-    pub(super) fn decode(&self, out: &mut [u8; PAGE]) {
-        verdant_tensor::memory::copy_storage_block(&self.base.bytes[..], out)
-            .expect("equal page extents");
+    pub(super) fn decode(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
+        self.base.read(out)?;
         for &(i, delta) in &self.edits {
             out[usize::from(i)] ^= delta;
         }
+        Ok(())
     }
     pub(super) fn charge(&self) -> usize {
         size_of::<Self>() + std::mem::size_of_val(&*self.edits)
@@ -224,11 +266,11 @@ mod tests {
         for tag in 0..32768u64 {
             let mut bytes = Box::new([0; PAGE]);
             bytes[..8].copy_from_slice(&tag.to_le_bytes());
-            owners.push(pool.insert(Some(tag), bytes));
+            owners.push(pool.insert(Some(tag), bytes).unwrap());
         }
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, &base.bytes),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap()),
                 Some(super::super::Value::Shared(_))
             ));
         }
@@ -236,7 +278,9 @@ mod tests {
         // Force a capacity error before replacing a populated index.
         pool.try_rebuild(usize::MAX);
         assert_eq!(pool.buckets.len(), full);
-        assert!(pool.lookup(1024, &owners[1024].bytes).is_some());
+        assert!(pool
+            .lookup(1024, owners[1024].view(&mut [0; PAGE]).unwrap())
+            .is_some());
         owners.truncate(257);
         pool.resize_for_live_bases();
         assert!(pool.buckets.len() < full);
@@ -246,7 +290,7 @@ mod tests {
         );
         for (tag, base) in owners.iter().enumerate() {
             assert!(matches!(
-                pool.lookup(tag as u64, &base.bytes),
+                pool.lookup(tag as u64, base.view(&mut [0; PAGE]).unwrap()),
                 Some(super::super::Value::Shared(_))
             ));
         }

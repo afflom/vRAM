@@ -1,17 +1,45 @@
 # vRAM
 
-vRAM stores cold 4 KiB pages in the Verdant Engine 2.20.0 tensor runtime. Linux processes can use it as volatile swap. QEMU 9.2.0 can use it as guest main RAM. Both frontends link the same Rust library, use the same Prism-generated representation and scheduling decisions, and restore through the same page store. The Linux adapter speaks NBD over a local Unix socket. It persists no page data to disk.
+vRAM supplies System RAM to a virtualized Linux operating system. The packaged `vram-machine` launcher boots an existing VM disk on Verdant-backed memory with stock QEMU and can plug an additional DIMM while applications run. Linux sees the memory in `/proc/meminfo` under `MemTotal`. The separate `vram-host` service supplies volatile swap to a directly booted Linux system. Both use the same Verdant Engine 2.20.0 store and Prism representation policy.
 
 On a write, the store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
 
 ## Install on a Linux computer
 
-On amd64 Debian or Ubuntu with systemd, download `vram-host_0.3.0_amd64.deb` from the `vram-linux-x86_64` artifact of a successful [device build](https://github.com/afflom/vRAM/actions/workflows/device.yml). Extract the artifact and run these commands in that directory.
+Get the amd64 package built for your distribution. The Ubuntu 24.04 build is in the `vram-linux-x86_64` artifact of the [device workflow](https://github.com/afflom/vRAM/actions/workflows/device.yml). The local package build below uses the distribution's libfuse3 ABI. After extracting a workflow artifact, install with:
 
 ```sh
 sha256sum -c SHA256SUMS
-sudo apt install ./vram-host_0.3.0_amd64.deb
+sudo apt install ./vram-host_0.4.0_amd64.deb qemu-system-x86 fuse3
 ```
+
+### Run your operating system on vRAM
+
+Use an existing bootable VM disk. This example gives the operating system 8 GiB at boot. Supply the drive, firmware and other QEMU options you normally use for this image after `--`. The launcher owns the memory configuration and private management socket. Run it as your normal QEMU user.
+
+```sh
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib 8192 -- \
+  -accel kvm -drive file=workstation.qcow2,format=qcow2
+```
+
+For live growth, reserve a DIMM when starting the machine. This example boots with 4 GiB and adds another 4 GiB from a second terminal while applications keep running.
+
+```sh
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib 4096 --add-mib 4096 -- \
+  -accel kvm -drive file=workstation.qcow2,format=qcow2
+```
+
+```sh
+vram-machine grow --state "$XDG_RUNTIME_DIR/workstation"
+```
+
+In the virtualized OS, use `lsmem` and `grep MemTotal /proc/meminfo`. Linux onlines the DIMM according to its memory-hotplug policy. For guests configured to leave new memory offline, use the Linux boot option `memhp_default_state=online`. Repeating `grow` reports the same DIMM. Shut down through the guest normally.
+
+Both memory ranges map into one private Verdant store. Linux manages the shared mappings and their writeback. Verdant can represent a page as a tensor program, reuse a dense base, store its changed coordinates, or keep its exact literal bytes. Unique literal bases use a private, unlinked file. The launcher reserves the configured boot plus expansion capacity and one 4 KiB replacement slot before starting QEMU. The default filesystem is the user's cache directory. Supply `--backing-dir /path/to/local-ssd` to choose another. The operating system needs working DRAM for hot pages, page tables and the store's metadata. Disk reads and writes have storage latency. Guest shutdown releases the reserve.
+
+A native store trial wrote and restored 1 GiB of unique pseudorandom pages with a 64 MiB process address-space limit. All 262,144 pages used their own literal slots in the reserved file. Process RSS excludes filesystem page cache. [Independent-page measurement](measurements/file-backed-independent.json) · [Linux hot-add measurement](measurements/linux-virtual-dimm.json)
+
+### Add swap to a directly booted Linux system
 
 The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
 
@@ -26,7 +54,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.3.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.4.0_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 
@@ -54,7 +82,7 @@ The Prism-controlled sweep selected a search budget of seven nodes and advanced 
 
 In a separate Linux trial, a 1 GiB VM used the host server's NBD swap path for a 4 GiB anonymous mapping. Before readback, 1,048,576 page-table entries were swapped and 0 were present. Linux registered 1,047,347 swap-ins. The application checked every byte, and the service drained cleanly. [Linux working-set trial](measurements/linux-wide-4gib.json)
 
-## Use it as guest main RAM
+## Use the custom userfaultfd QEMU backend
 
 Build the QEMU backend using [the QEMU instructions](device/README.md). Select it as machine RAM:
 

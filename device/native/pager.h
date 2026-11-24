@@ -6,6 +6,9 @@
 struct store;
 struct pager;
 struct store *store_new(size_t npages);
+/* fd is a private, preallocated, writable file of exactly (npages + 1) pages. */
+struct store *store_new_file(size_t npages, int fd);
+void store_file_stats(struct store *, uint64_t *reads, uint64_t *writes);
 struct store *store_new_with_search(size_t npages, size_t node_budget);
 struct store *store_new_config(size_t npages, size_t node_budget, bool adaptive);
 void store_feedback_stats(struct store *, uint64_t *refits, uint64_t *skips);

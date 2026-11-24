@@ -1,5 +1,20 @@
 # Using vRAM on Linux
 
+## Virtualized Linux workstation
+
+The `vram-machine` command uses stock QEMU, Linux FUSE and the Verdant page store. Install `qemu-system-x86` and `fuse3` alongside the package. Use an existing bootable VM image and the firmware settings it expects. The command runs in the foreground and owns its private runtime directory.
+
+```sh
+vram-machine run --state "$XDG_RUNTIME_DIR/workstation" --ram-mib 4096 --add-mib 4096 -- \
+  -accel kvm -drive file=workstation.qcow2,format=qcow2
+```
+
+Run `vram-machine grow --state "$XDG_RUNTIME_DIR/workstation"` in a second terminal. Linux applications use the additional online System RAM through normal allocations. Check `lsmem` and `/proc/meminfo` inside the guest. The Linux boot option `memhp_default_state=online` selects automatic onlining. To have the entire capacity available from boot, set `--ram-mib 8192` and omit `--add-mib`.
+
+The launcher reserves the configured total plus 4 KiB in an unlinked temporary file before boot. Unique dense literal bases use that file. Choose a local disk with sufficient free space using `--backing-dir DIRECTORY` or use the default user cache. Active pages, kernel cache and model metadata consume hypervisor RAM. Shut down the guest normally to release the temporary file and mount. The guest's VM disk holds persistent data. Like other volatile memory, this device loses its contents if the memory server or machine stops.
+
+## Directly booted Linux swap
+
 The package installs an amd64 server and a systemd service template. Services are enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.
 
 1. Check whether Linux zswap is active with `cat /sys/module/zswap/parameters/enabled`. vRAM can start when this reads N or the parameter is absent. If you choose to switch from zswap, use your distribution's boot configuration to set `zswap.enabled=0` and reboot. Existing ordinary swap devices can stay enabled.

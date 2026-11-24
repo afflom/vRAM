@@ -1,0 +1,177 @@
+#!/usr/bin/python3
+"""Boot a guest on Verdant memory and online its reserved DIMM at runtime."""
+import argparse
+import errno
+import json
+import os
+from pathlib import Path
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def monitor(stream, name, arguments=None):
+    request = {"execute": name}
+    if arguments is not None:
+        request["arguments"] = arguments
+    stream.write(json.dumps(request).encode() + b"\n")
+    stream.flush()
+    while True:
+        reply = json.loads(stream.readline())
+        if "event" in reply:
+            continue
+        if "error" in reply:
+            raise RuntimeError(reply["error"]["desc"])
+        return reply["return"]
+
+
+def grow(state):
+    state = state.resolve()
+    with socket.socket(socket.AF_UNIX) as sock:
+        sock.settimeout(30)
+        sock.connect(str(state / "qmp"))
+        with sock.makefile("rwb") as stream:
+            if "QMP" not in json.loads(stream.readline()):
+                raise ValueError("expected a QEMU monitor")
+            monitor(stream, "qmp_capabilities")
+            def prop(name):
+                return monitor(stream, "qom-get", {"path": "/objects/vram-extra", "property": name})
+            if prop("mem-path") != str(state / "ram/dimm") or not prop("share"):
+                raise ValueError("reserved DIMM does not use this machine's Verdant memory mount")
+            size = prop("size")
+
+            def attached():
+                for device in monitor(stream, "query-memory-devices"):
+                    data = device["data"]
+                    if data.get("id") == "vram-dimm":
+                        if (device["type"] != "dimm" or data["memdev"] != "/objects/vram-extra"
+                                or data["size"] != size):
+                            raise ValueError("vram-dimm is occupied by a different device")
+                        return data
+                return None
+
+            data = attached()
+            if data is None:
+                try:
+                    monitor(stream, "device_add", {"driver": "pc-dimm", "id": "vram-dimm",
+                                                   "memdev": "vram-extra"})
+                except RuntimeError:
+                    # A simultaneous grow may have completed first.
+                    if not attached():
+                        raise
+                data = attached()
+            if data is None:
+                raise RuntimeError("QEMU did not enumerate the DIMM")
+            print(json.dumps({"address": data["addr"], "size": size, "slot": data["slot"]}))
+
+
+def run(args):
+    extra = args.options[1:] if args.options[:1] == ["--"] else args.options
+    if "-daemonize" in extra or "--daemonize" in extra:
+        raise ValueError("vram-machine requires foreground QEMU")
+    if not 1 <= args.ram_mib <= 1048576 or not 0 <= args.add_mib <= 1048576 - args.ram_mib:
+        raise ValueError("total RAM must be between 1 MiB and 1 TiB")
+    state = args.state.resolve()
+    if "," in str(state) or len(os.fsencode(state / "qmp")) >= 108:
+        raise ValueError("use a shorter state path without commas")
+    helper = Path(__file__).resolve().parents[1] / "lib/vram/vram-ram-file"
+    state.mkdir(mode=0o700)
+    mount = state / "ram"
+    vm = server = None
+    pending = []
+
+    def forward(signum, frame):
+        pending.append(signum)
+        if vm is not None:
+            vm.send_signal(signum)
+
+    old = {sig: signal.signal(sig, forward) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    try:
+        mount.mkdir(mode=0o700)
+        backing = args.backing_dir
+        if backing is None:
+            backing = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "vram"
+            backing.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with tempfile.TemporaryFile(dir=backing) as reserve:
+            os.posix_fallocate(reserve.fileno(), 0, ((args.ram_mib + args.add_mib) << 20) + 4096)
+            server = subprocess.Popen([helper, str(args.ram_mib), str(args.add_mib),
+                                       str(reserve.fileno()), mount], pass_fds=(reserve.fileno(),),
+                                      start_new_session=True)
+        deadline = time.monotonic() + 20
+        while not (mount / "boot").exists():
+            if server.poll() is not None or time.monotonic() > deadline:
+                raise RuntimeError("Verdant memory mount did not start")
+            if pending:
+                return 128 + pending[-1]
+            time.sleep(.05)
+        size = str(args.ram_mib) + "M"
+        command = [args.qemu, "-object", f"memory-backend-file,id=vram-boot,size={size},"
+                   f"mem-path={mount}/boot,share=on", "-machine", "memory-backend=vram-boot",
+                   "-qmp", f"unix:{state}/qmp,server=on,wait=off"]
+        if args.add_mib:
+            size += f",slots=1,maxmem={args.ram_mib + args.add_mib}M"
+            command.extend(["-object", f"memory-backend-file,id=vram-extra,size={args.add_mib}M,"
+                            f"mem-path={mount}/dimm,share=on"])
+        command.extend(["-m", size, *extra])
+        if pending:
+            return 128 + pending[-1]
+        vm = subprocess.Popen(command, start_new_session=True)
+        if pending:
+            vm.send_signal(pending[-1])
+        while True:
+            try:
+                rc = vm.wait(timeout=1)
+                break
+            except subprocess.TimeoutExpired:
+                if server.poll() is not None:
+                    raise RuntimeError("Verdant memory server exited while QEMU was running")
+        return 128 - rc if rc < 0 else rc
+    finally:
+        if vm is not None and vm.poll() is None:
+            vm.terminate()
+            vm.wait()
+        if server is not None:
+            server.terminate()
+            server.wait()
+        for sig, handler in old.items():
+            signal.signal(sig, handler)
+        (state / "qmp").unlink(missing_ok=True)
+        try:
+            mount.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as err:
+            if err.errno not in (errno.EBUSY, errno.ENOTCONN):
+                raise
+            subprocess.run(["fusermount3", "-u", str(mount)], check=True)
+            mount.rmdir()
+        state.rmdir()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    launch = commands.add_parser("run", help="start a VM on Verdant RAM")
+    launch.add_argument("--state", type=Path, required=True, help="private runtime directory to create")
+    launch.add_argument("--ram-mib", type=int, required=True)
+    launch.add_argument("--add-mib", type=int, default=0, help="reserve this much hot-pluggable RAM")
+    launch.add_argument("--backing-dir", type=Path, help="filesystem for private dense-page backing (default: user cache)")
+    launch.add_argument("--qemu", default="qemu-system-x86_64")
+    launch.add_argument("options", nargs=argparse.REMAINDER, help="QEMU guest, disk and accelerator options after --")
+    add = commands.add_parser("grow", help="plug the reserved DIMM into the running VM")
+    add.add_argument("--state", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        if args.command == "grow":
+            grow(args.state)
+            return 0
+        return run(args)
+    except (OSError, ValueError, RuntimeError, KeyError) as err:
+        parser.exit(1, f"vram-machine: {err}\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

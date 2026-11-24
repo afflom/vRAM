@@ -2,6 +2,7 @@
 //! for one call. The pager owns the store until its fault worker has joined.
 mod directory;
 mod lifecycle;
+mod literal_file;
 mod literals;
 mod search;
 mod selector;
@@ -221,7 +222,7 @@ impl Value {
     fn decode(&self, out: &mut [u8; PAGE]) -> Result<(), ()> {
         match self {
             Self::Program(p) => return p.decode(out, false),
-            Self::Residual(p) => p.decode(out),
+            Self::Residual(p) => return p.decode(out),
             Self::Fill(b) => out.fill(*b),
             Self::Sparse(p) => {
                 out.fill(p.base);
@@ -229,9 +230,7 @@ impl Value {
                     out[usize::from(i)] = b;
                 }
             }
-            Self::Shared(page) => {
-                copy_storage_block(&page.bytes[..], out).expect("equal page extents")
-            }
+            Self::Shared(page) => return page.read(out),
             Self::Raw(data) => copy_storage_block(&data[..], out).expect("equal page extents"),
             Self::Selector(model) => return model.decode(out),
             Self::Corrected(p) => {
@@ -349,6 +348,35 @@ pub extern "C" fn store_new_config(count: usize, node_budget: usize, adaptive: b
         skips: AtomicU64::new(0),
     }))
 }
+/// Construct a fresh store whose immutable literal payloads use a private,
+/// preallocated regular file. The caller keeps ownership of the input fd.
+#[no_mangle]
+pub unsafe extern "C" fn store_new_file(count: usize, fd: c_int) -> *mut Store {
+    use std::os::fd::BorrowedFd;
+    if fd < 0 {
+        return ptr::null_mut();
+    }
+    let Ok(owned) = BorrowedFd::borrow_raw(fd).try_clone_to_owned() else {
+        return ptr::null_mut();
+    };
+    let Some(arena) = literal_file::Arena::new(owned.into(), count) else {
+        return ptr::null_mut();
+    };
+    let store = store_new(count);
+    if !store.is_null() {
+        (*store).values.get_mut().unwrap().literals.arena = Some(arena);
+    }
+    store
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn store_file_stats(s: &Store, reads: &mut u64, writes: &mut u64) {
+    let values = s.values.read().unwrap();
+    let arena = values.literals.arena.as_ref();
+    *reads = arena.map_or(0, |a| a.reads.load(Ordering::Relaxed));
+    *writes = arena.map_or(0, |a| a.writes.load(Ordering::Relaxed));
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn store_free(s: *mut Store) {
     drop(Box::from_raw(s));
@@ -386,7 +414,10 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
         && literals::diverse_axes(data)
     {
         group.literal_credits = vram_advance::run(false, credits);
-        *slot = Value::Shared(literals.insert(hash, Box::new(*data)));
+        let Some(base) = literals.insert(hash, Box::new(*data)) else {
+            return -1;
+        };
+        *slot = Value::Shared(base);
         s.literal_skips.fetch_add(1, Ordering::Relaxed);
         return 0;
     }
@@ -408,7 +439,10 @@ pub unsafe extern "C" fn store_put(s: &Store, page: usize, data: &[u8; PAGE]) ->
     };
     if let Value::Raw(bytes) = candidate {
         group.literal_credits = vram_advance::run(true, credits);
-        *slot = Value::Shared(literals.insert(hash, bytes));
+        let Some(base) = literals.insert(hash, bytes) else {
+            return -1;
+        };
+        *slot = Value::Shared(base);
     } else {
         group.literal_credits = 0;
         *slot = candidate;
@@ -709,6 +743,53 @@ mod host_tests {
             let mut residuals = 0;
             store_literal_stats(&store, &mut 0, &mut hits, &mut 0, &mut residuals);
             assert_eq!((hits, residuals), (1, 1));
+        }
+    }
+
+    #[test]
+    fn file_bases_outlive_original_addresses_and_reuse_slots() {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::fs::OpenOptionsExt;
+        let path = std::env::temp_dir().join(format!("vram-literal-test-{}", std::process::id()));
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+            .unwrap();
+        std::fs::remove_file(path).unwrap();
+        let n = 4;
+        file.set_len(((n + 1) * PAGE) as u64).unwrap();
+        unsafe {
+            assert!(store_new_file(n + 1, file.as_raw_fd()).is_null());
+            let store = Box::from_raw(store_new_file(n, file.as_raw_fd()));
+            let a = std::array::from_fn(|i| ((i * 17 + i / 7) % 251) as u8);
+            let mut edited = a;
+            edited[77] ^= 43;
+            for (addr, page) in [(0, &a), (1, &a), (2, &edited)] {
+                assert_eq!(store_put(&store, addr, page), 0);
+            }
+            let mut previous = a;
+            let mut out = [0; PAGE];
+            for round in 1..24u8 {
+                let b = a.map(|v| v ^ round);
+                assert_eq!(store_put(&store, 0, &b), 0);
+                assert_eq!(store_put(&store, 3, &previous), 0);
+                for (addr, page) in [(0, &b), (1, &a), (2, &edited), (3, &previous)] {
+                    assert_eq!(store_get(&store, addr, &mut out), 0);
+                    assert_eq!(&out, page);
+                }
+                previous = b;
+            }
+            let (mut reads, mut writes) = (0, 0);
+            store_file_stats(&store, &mut reads, &mut writes);
+            assert!(reads >= 92 && writes >= 24);
+            // A failed read must propagate through the residual restore too.
+            file.set_len(0).unwrap();
+            assert_eq!(store_get(&store, 2, &mut out), -1);
+            assert_eq!(store_discard(&store, 0, n), 0);
+            assert_eq!(store.values.read().unwrap().literals.live(), 0);
         }
     }
 

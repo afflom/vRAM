@@ -43,6 +43,27 @@ def save(entries, path):
     path.write_bytes(archive(entries))
 
 
+def add_python_firmware(outer, system_python, bios_dir):
+    add_linked(outer, system_python, "usr/bin/python3")
+    probe = ("import argparse, mmap, struct, signal, tempfile, sys, sysconfig, json, socket, subprocess, codecs, pathlib, encodings.utf_8; "
+             "print(json.dumps([sysconfig.get_path('stdlib'),"
+             "[m.__file__ for m in sys.modules.values() if "
+             "str(getattr(m,'__file__','')).endswith('.so')]]))")
+    stdlib, extensions = json.loads(subprocess.check_output([system_python, "-S", "-c", probe]))
+    # Use a distro Python whose standard library lives under /usr.
+    if not Path(stdlib).is_relative_to("/usr/lib"):
+        raise ValueError("use a system Python installed under /usr with stdlib under /usr/lib")
+    for file in Path(stdlib).rglob("*.py"):
+        if not {"site-packages", "dist-packages", "test", "tests"}.intersection(file.parts):
+            add(outer, str(file).lstrip("/"), file)
+    outer[stdlib.lstrip("/") + "/lib-dynload"] = (stat.S_IFDIR | 0o755, b"", 0, 0)
+    for lib in extensions:
+        add_linked(outer, Path(lib), lib.lstrip("/"))
+    for glob in ("*.bin", "*.rom"):
+        for file in bios_dir.glob(glob):
+            add(outer, "firmware/" + file.name, file)
+
+
 def build_rom(tmp, maximum_mib):
     subprocess.run(["cc", "-m32", "-O2", "-ffreestanding", "-fno-pie", "-fno-stack-protector",
                     *([f"-DTILES={maximum_mib}"] if maximum_mib > 128 else []),
@@ -121,24 +142,7 @@ def main():
         subprocess.run(["strip", "-o", tmp/"qemu", args.qemu], check=True)
         add_linked(outer, tmp/"qemu", "qemu")
         inner_hash = hashlib.sha256((tmp/"qemu").read_bytes()).hexdigest()
-        add_linked(outer, args.system_python, "usr/bin/python3")
-        probe = ("import sys, sysconfig, json, socket, subprocess, codecs, pathlib, encodings.utf_8; "
-                 "print(json.dumps([sysconfig.get_path('stdlib'),"
-                 "[m.__file__ for m in sys.modules.values() if "
-                 "str(getattr(m,'__file__','')).endswith('.so')]]))")
-        stdlib, extensions = json.loads(subprocess.check_output([args.system_python, "-S", "-c", probe]))
-        # Use a distro Python whose standard library lives under /usr.
-        if not Path(stdlib).is_relative_to("/usr/lib"):
-            raise ValueError("use a system Python installed under /usr with stdlib under /usr/lib")
-        for file in Path(stdlib).rglob("*.py"):
-            if not {"site-packages", "dist-packages", "test", "tests"}.intersection(file.parts):
-                add(outer, str(file).lstrip("/"), file)
-        outer[stdlib.lstrip("/") + "/lib-dynload"] = (stat.S_IFDIR | 0o755, b"", 0, 0)
-        for lib in extensions:
-            add_linked(outer, Path(lib), lib.lstrip("/"))
-        for glob in ("*.bin", "*.rom"):
-            for file in args.bios_dir.glob(glob):
-                add(outer, "firmware/" + file.name, file)
+        add_python_firmware(outer, args.system_python, args.bios_dir)
         save(outer, tmp/"outer.cpio.gz")
         cmd = [args.qemu, "-accel", "tcg", "-smp", "2", "-m", "1024", "-machine", "pc",
                "-cpu", "max,vendor=AuthenticAMD,+svm" if args.svm_modules else "max", "-kernel", args.kernel, "-initrd", tmp/"outer.cpio.gz",

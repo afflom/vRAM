@@ -50,6 +50,8 @@ jobs:
           git diff --exit-code -- CONFORMANCE.md
       - name: Check the shared runtime and build the Linux host server
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libfuse3-dev fuse3
           (cd device && cargo test --locked --offline)
           make -C host LDFLAGS=-static
           cc -Wall -Wextra -O2 -Idevice/native device/validation/churn.c \
@@ -84,6 +86,10 @@ jobs:
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
           python3 host/package.py dist/
+          python3 host/tests/file_scale.py --result dist/file-backed-independent.json
+          sudo modprobe fuse
+          python3 host/tests/dimm.py --native --qemu "$(command -v qemu-system-x86_64)" \
+            --kernel "$RUNNER_TEMP"/linux/boot/vmlinuz-* --package dist/vram-host_*.deb --result dist/linux-dimm.json
           cp measurements/local/managed-*.json dist/
           cp README.md dist/
           (cd dist && sha256sum vram-host *.deb *.json README.md > SHA256SUMS)

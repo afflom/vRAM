@@ -13,6 +13,8 @@ enum { PAGE = 4096 };
 
 /* The comparison harness also links releases predating literal statistics. */
 #pragma weak store_literal_stats
+#pragma weak store_new_file
+#pragma weak store_file_stats
 
 static long peak(void)
 {
@@ -28,14 +30,24 @@ static double elapsed(void)
 }
 int main(int argc, char **argv)
 {
-    if (argc != 5) return 2;
+    if (argc != 5 && argc != 6) return 2;
     long mib = atol(argv[1]), budget = atol(argv[2]), nodes = atol(argv[4]);
     char profile = argv[3][0];
     if (mib < 1 || mib > 1048576 || budget < 1 || budget > 1048576 ||
         nodes < 0 || nodes > 49 || strlen(argv[3]) != 1 || !strchr("SFUMRDW", profile)) return 2;
     size_t target = (size_t)mib * 256, count = 0, verified = 0;
     uint8_t original[PAGE], decoded[PAGE];
-    struct store *s = store_new_config(target, nodes, true);
+    struct store *s;
+    if (argc == 6) {
+        /* The caller owns an unlinked, already reserved file descriptor. */
+        char *end;
+        long fd = strtol(argv[5], &end, 10);
+        if (end == argv[5] || *end || fd < 0 || fd > INT32_MAX || nodes != 49 ||
+            !store_new_file || !store_file_stats) return 2;
+        s = store_new_file(target, (int)fd);
+    } else {
+        s = store_new_config(target, nodes, true);
+    }
     if (!s) return 3;
     double start = elapsed();
     while (count < target) {
@@ -62,6 +74,11 @@ int main(int argc, char **argv)
         uint64_t bases, hits, fast, residuals;
         store_literal_stats(s, &bases, &hits, &fast, &residuals);
         printf(",\"unique_literals\":%lu,\"literal_hits\":%lu", bases, hits);
+    }
+    if (argc == 6) {
+        uint64_t reads, writes;
+        store_file_stats(s, &reads, &writes);
+        printf(",\"file_base_reads\":%lu,\"file_base_writes\":%lu", reads, writes);
     }
     puts("}");
     store_free(s);

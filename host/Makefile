@@ -3,7 +3,7 @@ DEVICE := ../device
 LIB := $(DEVICE)/target/release/libverdant_memory.a
 LDLIBS := -lpthread -ldl -lm
 
-all: build/vram-host build/vram-scale
+all: build/vram-host build/vram-scale build/vram-ram-file
 
 runtime:
 	cd $(DEVICE) && python3 build.py
@@ -16,7 +16,16 @@ build/vram-scale: $(DEVICE)/validation/scale.c $(DEVICE)/validation/capacity_pat
 	mkdir -p build
 	$(CC) $(CFLAGS) -Wall -Wextra -O2 -I$(DEVICE)/native $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
+FUSE_CFLAGS ?= $(shell pkg-config --cflags fuse3)
+FUSE_LIBS ?= $(shell pkg-config --libs fuse3)
+
+build/vram-ram-file: ram_file.c $(DEVICE)/native/pager.h runtime
+	mkdir -p build
+	$(CC) $(CFLAGS) -Wall -Wextra -O2 $(FUSE_CFLAGS) -I$(DEVICE)/native $< $(LIB) $(RAM_FILE_LDFLAGS) $(FUSE_LIBS) $(LDLIBS) -o $@
+
 install:
+	install -Dm755 build/vram-ram-file $(DESTDIR)$(PREFIX)/lib/vram/vram-ram-file
+	install -Dm755 vram-machine $(DESTDIR)$(PREFIX)/bin/vram-machine
 	install -Dm755 build/vram-host $(DESTDIR)$(PREFIX)/sbin/vram-host
 
 .PHONY: all runtime install

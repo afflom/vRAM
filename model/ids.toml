@@ -70,3 +70,15 @@ level = "build"
 suite = "capacity"
 statement = "Literal index sizing follows live bases through growth, reuse and release"
 theorems = ["IndexPolicy.releaseEmpty", "IndexPolicy.firstBase", "IndexPolicy.growAtLoad", "IndexPolicy.stableAtLoad", "IndexPolicy.shrinkAfterTrim"]
+
+[[id]]
+id = "VR-11"
+level = "open"
+suite = "capacity"
+statement = "A running Linux guest can online additional Verdant-backed System RAM and verify ordinary allocations with swap disabled"
+
+[[id]]
+id = "VR-12"
+level = "open"
+suite = "capacity"
+statement = "A file-backed Verdant literal remains exact across base sharing, overwrite and slot reuse"

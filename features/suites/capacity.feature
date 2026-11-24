@@ -59,3 +59,15 @@ Feature: capacity
     Given an index with 4096 buckets
     When the number of live bases increases from 16383 to 16384
     Then the next bucket count increases from 4096 to 8192
+
+  @VR-11 @open
+  Scenario: Online Verdant memory in a running operating system
+    Given a Linux guest booted on a shared Verdant memory file with swap disabled
+    When a second range of that store is plugged as a DIMM
+    Then MemTotal increases and an ordinary allocation reads back bytes from the added physical range
+
+  @VR-12 @open
+  Scenario: Reuse provisioned storage for independent literal bases
+    Given a private backing file and pages sharing a dense base
+    When the original address changes and retired slots are reused
+    Then surviving references restore their original bytes from the Verdant store

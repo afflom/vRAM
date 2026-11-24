@@ -12,6 +12,8 @@ args = parser.parse_args()
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     for source, dest, mode in [
+        ("build/vram-ram-file", "usr/lib/vram/vram-ram-file", 0o755),
+        ("vram-machine", "usr/bin/vram-machine", 0o755),
         ("build/vram-host", "usr/sbin/vram-host", 0o755),
         ("packaging/vram@.service", "usr/lib/systemd/system/vram@.service", 0o644),
         ("packaging/vram.default", "etc/default/vram", 0o644),
@@ -27,10 +29,17 @@ with tempfile.TemporaryDirectory() as directory:
         parser.error("package builds are validated on amd64")
     meta = root / "DEBIAN"
     meta.mkdir()
+    with tempfile.TemporaryDirectory() as build_dir:
+        debian = Path(build_dir) / "debian"
+        debian.mkdir()
+        (debian / "control").write_text("Source: vram-host\n\nPackage: vram-host\nArchitecture: amd64\n")
+        shlibs = subprocess.check_output(
+            ["dpkg-shlibdeps", "-O", "-e" + str(root / "usr/lib/vram/vram-ram-file")],
+            cwd=build_dir, text=True).strip().removeprefix("shlibs:Depends=")
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.3.0\nArchitecture: amd64\n"
-        "Maintainer: vRAM maintainers <noreply@github.com>\nDepends: systemd, kmod\n"
-        "Description: Verdant tensor-backed volatile Linux swap service\n"
+        "Package: vram-host\nVersion: 0.4.0\nArchitecture: amd64\n"
+        f"Maintainer: vRAM maintainers <noreply@github.com>\nDepends: {shlibs}, systemd, kmod, python3\nRecommends: fuse3, qemu-system-x86\n"
+        "Description: Verdant tensor-backed Linux swap and virtual machine system RAM\n"
         "Homepage: https://github.com/afflom/vRAM\n")
     (meta / "conffiles").write_text("/etc/default/vram\n")
     prerm = meta / "prerm"
