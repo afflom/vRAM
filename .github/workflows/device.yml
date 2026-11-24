@@ -148,6 +148,10 @@ jobs:
           assert current['kernel_sha256'] == previous['kernel_sha256'] and current['accelerator'] == previous['accelerator']
           assert current['literal_policy'] != previous['literal_policy']
           assert current['fill_store'][0]['directory_bytes'] * 2 == previous['fill_store'][0]['directory_bytes']
+          for report in (current, previous):
+              geometry = report['kernel_geometry']
+              assert geometry['capacity_bytes'] == 1 << 40 and geometry['verified_bytes'] == 128 << 20
+              assert geometry['directory_bytes'] == report['fill_store'][0]['directory_bytes'] * (geometry['capacity_bytes'] // (64 << 20))
           assert servers('kernel-fill.json')['kernel-literal'] == servers('kernel-literal.json')['kernel-literal']
           assert servers('kernel-literal.json')['vram-nbd'] == paired['candidate']
           assert servers('previous-swap-path.json')['candidate'] == paired['control']

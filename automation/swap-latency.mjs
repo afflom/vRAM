@@ -102,6 +102,12 @@ if (fill) {
     const width = new TextDecoder().decode(await model.dispatch(Uint8Array.of(79, 1)));
     if (!/^\d{5}$/.test(width) || !Number(width)) throw Error('Invalid Prism slot width');
     const directoryBytes = Math.ceil(slots * Number(width) / receipt.page_bytes) * receipt.page_bytes;
+    const geometry = receipt.kernel_geometry;
+    if (geometry?.capacity_bytes !== 2 ** 40 || geometry.verified_bytes !== 32768 * receipt.page_bytes ||
+        geometry.last_offset !== geometry.capacity_bytes - receipt.page_bytes ||
+        geometry.directory_bytes !== geometry.capacity_bytes / receipt.page_bytes * Number(width) ||
+        geometry.literal_pages !== 16384 || geometry.literal_pages_after_release !== 0)
+        throw Error('Invalid sparse device geometry evidence');
     const expected = [
         ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 6 * 2048 + 320, []]),
         ['all_literal', slots, slots, ['literal']],

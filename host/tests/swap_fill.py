@@ -132,3 +132,47 @@ def ranges(devices):
                           verified_bytes=len(data), write_ns=write_ns, read_ns=read_ns)), flush=True)
             for view in views:
                 view.release()
+
+
+def geometry():
+    capacity = 1 << 40
+    count = 32768
+    stride = capacity // count
+    offsets = [slot * stride for slot in range(count - 1)] + [capacity - PAGE]
+
+    def payload(index):
+        if index % 2 == 0:
+            return bytes([(index // 2) % 256]) * PAGE
+        return random.Random(index).randbytes(PAGE)
+
+    fd = os.open("/dev/vramfill0", os.O_RDWR | os.O_DIRECT | os.O_EXCL)
+    try:
+        size = os.lseek(fd, 0, os.SEEK_END)
+        assert size == capacity and int(parameter("literal_pages")) == 0
+        with mmap.mmap(-1, PAGE) as buf:
+            for i, offset in enumerate(offsets):
+                buf[:] = payload(i)
+                assert os.pwrite(fd, buf, offset) == PAGE
+            retained = int(parameter("literal_pages"))
+            assert retained == count // 2
+            order = list(range(count))
+            random.Random(479).shuffle(order)
+            verified = 0
+            for i in order:
+                assert os.preadv(fd, [buf], offsets[i]) == PAGE and buf[:] == payload(i)
+                verified += PAGE
+            assert os.preadv(fd, [buf], capacity - 2 * PAGE) == PAGE and buf[:] == bytes(PAGE)
+            buf[:] = bytes(PAGE)
+            for offset in offsets[1::2]:
+                assert os.pwrite(fd, buf, offset) == PAGE
+        final = int(parameter("literal_pages"))
+        assert final == 0
+        print("KERNEL_GEOMETRY", json.dumps(dict(capacity_bytes=size, directory_bytes=int(parameter("directory_bytes")),
+              verified_bytes=verified, last_offset=offsets[-1], literal_pages=retained,
+              literal_pages_after_release=final)), flush=True)
+    finally:
+        os.close(fd)
+
+
+if __name__ == "__main__":
+    geometry()

@@ -119,10 +119,23 @@ with tempfile.TemporaryDirectory() as tmp:
         command.extend(["-L", args.bios_dir])
     if args.accel == "kvm":
         command.extend(["-cpu", "host"])
-    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=360)
-    log = proc.stdout.decode(errors="replace")
-    if proc.returncode != 1:
-        sys.exit(log[-4000:])
+    def boot(argv):
+        proc = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=360)
+        output = proc.stdout.decode(errors="replace")
+        if proc.returncode != 1:
+            sys.exit(output[-4000:])
+        return output
+
+    log = boot(command)
+    if args.kernel_fill:
+        # Use a separate boot so directory allocation cannot affect the latency comparison.
+        large = command.copy()
+        large[large.index("-m") + 1] = "6144"
+        large[large.index("-append") + 1] += " -- geometry"
+        geometry_rows = re.findall(r"^KERNEL_GEOMETRY (.+)$", boot(large), re.M)
+        if len(geometry_rows) != 1:
+            sys.exit("Missing sparse device geometry evidence")
+        geometry = json.loads(geometry_rows[0])
     if args.trace_output:
         batches = json.loads(trace_file.read_bytes())
 
@@ -179,6 +192,7 @@ if args.kernel_fill:
     if len(pressure) != 1:
         sys.exit("Missing kernel reclaim evidence")
     result["kernel_reclaim"] = json.loads(pressure[0])
+    result["kernel_geometry"] = geometry
     result["range_throughput"] = [json.loads(row) for row in re.findall(r"^KERNEL_RANGE (.+)$", log, re.M)]
     result["fill_store"] = [json.loads(row) for row in re.findall(r"^FILL_STORE (.+)$", log, re.M)]
     result["server_sha256"] = {name: hashlib.sha256(files[name + ".ko"]).hexdigest() for name in (control, candidate)}

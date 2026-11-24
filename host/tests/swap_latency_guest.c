@@ -50,10 +50,28 @@ static void block_node(const char *sysfs, const char *node) {
     if (mknod(node, S_IFBLK | 0600, makedev(major_num, minor_num))) fail(node);
 }
 
-int main(void) {
+static void run_python(const char *script) {
+    pid_t workload = fork();
+    if (workload < 0) fail("fork workload");
+    if (!workload) {
+        execl("/usr/bin/python3", "python3", "-IS", script, NULL);
+        fail("exec benchmark");
+    }
+    int status;
+    if (waitpid(workload, &status, 0) != workload || status) fail("benchmark");
+}
+
+int main(int argc, char **argv) {
     if (getpid() != 1 || ioperm(0xf4, 4, 1)) return 2;
     if (mount("sysfs", "/sys", "sysfs", 0, NULL) || mount("proc", "/proc", "proc", 0, NULL))
         fail("mount");
+    if (argc == 2 && !strcmp(argv[1], "geometry")) {
+        load("/kernel-fill.ko", "capacity_mib=1048576");
+        block_node("/sys/block/vramfill0/dev", "/dev/vramfill0");
+        run_python("/swap_fill.py");
+        if (syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload after geometry test");
+        finish(0);
+    }
     load("/lz4_compress.ko", "");
     load("/lz4hc_compress.ko", "");
     load("/zram.ko", "num_devices=1");
@@ -102,14 +120,8 @@ int main(void) {
         printf("COMPLETION_AFFINITY %u %u\n", control, affinity(candidate));
         fflush(stdout);
     }
-    pid_t workload = fork();
-    if (workload < 0) fail("fork workload");
-    if (!workload) {
-        execl("/usr/bin/python3", "python3", "-IS", "/workload.py", NULL);
-        fail("exec benchmark");
-    }
+    run_python("/workload.py");
     int status;
-    if (waitpid(workload, &status, 0) != workload || status) fail("benchmark");
     if (fill) {
         if (unlink("/dev/vramfill0") || syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload fill");
         if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) fail("activation devtmpfs");
