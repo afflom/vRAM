@@ -7,7 +7,7 @@
 \begin{semanticmodule}
 definition{
   name: stakeholderOperator, parameters: [], result: Foundation.Arch::Stakeholder,
-  body: (record Foundation.Arch::Stakeholder {index := 0, name := "Workstation operator", text := "Sets guest and backing limits, qualifies the target and boots a guest."})
+  body: (record Foundation.Arch::Stakeholder {index := 0, name := "Workstation operator", text := "Installs native host swap or qualifies backing and boots a guest."})
 }
 
 definition{
@@ -22,7 +22,7 @@ definition{
 
 definition{
   name: concernCapacity, parameters: [], result: Foundation.Arch::Concern,
-  body: (record Foundation.Arch::Concern {index := 0, name := "Usable capacity", text := "The complete target fits the configured ceiling and has reserved backing."})
+  body: (record Foundation.Arch::Concern {index := 0, name := "Usable capacity", text := "Linux exposes the calculated swap deficit. A VM launch reserves the full admitted guest target."})
 }
 
 definition{
@@ -72,7 +72,7 @@ definition{
 
 definition{
   name: componentNative, parameters: [], result: Foundation.Arch::Component,
-  body: (record Foundation.Arch::Component {index := 7, kind := (ctor Foundation.Arch::ComponentKind.service), name := "Native swap service", text := "Exposes the Verdant store through Linux NBD for a directly booted system."})
+  body: (record Foundation.Arch::Component {index := 7, kind := (ctor Foundation.Arch::ComponentKind.service), name := "Advanced NBD service", text := "Passes swap requests from Linux NBD to the userspace Verdant store."})
 }
 
 definition{
@@ -173,6 +173,22 @@ definition{
 definition{
   name: standardSpdx, parameters: [], result: Foundation.Arch::StandardReference,
   body: (record Foundation.Arch::StandardReference {standardIndex := 6, editionIndex := 0, standardId := "SPDX License List", edition := "MIT OR Apache-2.0"})
+}
+definition{
+  name: componentHost, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 8, kind := (ctor Foundation.Arch::ComponentKind.externalSystem), name := "Linux host", text := "Submits swap reads and writes and reports active swap in /proc/swaps."})
+}
+definition{
+  name: componentResident, parameters: [], result: Foundation.Arch::Component,
+  body: (record Foundation.Arch::Component {index := 9, kind := (ctor Foundation.Arch::ComponentKind.service), name := "Native vRAM driver", text := "Serves swap in the kernel with inline fills, folded blocks and literal frames."})
+}
+definition{
+  name: edgeHostResident, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 7, fromIndex := 8, toIndex := 9, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
+}
+definition{
+  name: edgeHostNbd, parameters: [], result: Foundation.Arch::Edge,
+  body: (record Foundation.Arch::Edge {index := 8, fromIndex := 8, toIndex := 7, kind := (ctor Foundation.Arch::EdgeKind.dataFlow)})
 }
 \end{semanticmodule}
 \end{lexlean}

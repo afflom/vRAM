@@ -94,15 +94,40 @@ facets["semanticId"] = record["semanticId"]
 write_json("facets.json", facets)
 subprocess.run(["node", root / "automation/verify-facet-queries.mjs", holo, out / "facets.json"], check=True)
 release = next(r["fields"] for f in facets["facets"] for r in f["records"] if r["kind"].endswith("::SystemModel"))
-if release["product"]["version"] != version:
-    raise ValueError("package and modeled release versions differ")
+component_versions = {c["artifact"]: c["version"] for c in release["components"]}
+packages = {}
+for artifact, name, package_version, checksum in (
+    ("debian-package", "vram-host", version, digest),
+    ("kernel-package", "vram-kernel-dkms", kernel_version, kernel_digest),
+):
+    binary = downloads / f"{name}_{package_version}_amd64.deb"
+    if (component_versions.get(artifact) != package_version or
+            subprocess.check_output(["dpkg-deb", "-f", binary, "Package"], text=True).strip() != name):
+        raise ValueError(f"{name} differs from its modeled release component")
+    packages[name] = dict(version=package_version, path="downloads/" + binary.name, sha256=checksum)
 write_json("app.json", dict(name=record["name"], shortName="vRAM", live=base+"runtime/",
     purpose="Evaluate capacity checkpoints and replay the verified vRAM model in a browser.",
     repository=repo, report=repo+"/blob/main/CONFORMANCE.md", source="runtime/model/project.json",
     archive="runtime/app.holo", identity=record, facets="facets.json", facetIndexRequest="F/",
     facetsSha256=hashlib.sha256((out / "facets.json").read_bytes()).hexdigest(),
-    package=dict(version=version, path="downloads/"+package.name, sha256=digest)))
+    package=packages["vram-host"], packages=packages))
 landing = (out / "index.html").read_text()
+receipt = package.parent / "kernel-fill.json"
+if receipt.exists():
+    sample = json.loads(receipt.read_bytes())
+    if sample["prism_replay"]["address"] != verified["address"]:
+        raise ValueError("native latency receipt belongs to a different Prism model")
+    rows = []
+    for key, label in (("patterned_write", "Patterned write"), ("patterned_read", "Patterned read"),
+                       ("dense_write", "Dense write"), ("dense_read", "Dense read")):
+        medians = sample["workloads"][key]["median_ns"]
+        rows.append(f'<tr><th scope="row">{label}</th><td>{medians["kernel-fill"]/1000:.2f}</td>'
+                    f'<td>{medians["zram-zstd"]/1000:.2f}</td></tr>')
+    table = (f'<table class="latency"><caption>Median latency in µs · {escape(sample["accelerator"].upper())}</caption>'
+             '<thead><tr><th scope="col">Operation</th><th scope="col">vRAM</th><th scope="col">zram-zstd</th></tr>'
+             '</thead><tbody>' + "".join(rows) + '</tbody></table>')
+    landing = landing.replace("<!-- native-latency-table -->", table)
+    (out / "index.html").write_text(landing)
 header = re.search(r'<header\b.*?</header>', landing, re.S)[0]
 footer = re.search(r'<footer\b.*?</footer>', landing, re.S)[0]
 head = re.search(r'<head>.*?</head>', landing, re.S)[0]

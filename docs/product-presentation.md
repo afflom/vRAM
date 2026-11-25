@@ -1,6 +1,6 @@
 # Publishing the vRAM product
 
-The Linux package, browser controller and product site are the three release targets declared in Product.System. The site links the installable package to the same device workflow that exercised it. The homepage explains where each Linux kernel reports the added capacity. Its performance figures identify the workload, units and historical qualification receipt. [System declarations](../app/src/Product/System.lex.tex) · [Linux usage](../host/packaging/USAGE.md)
+Product.System declares four release targets. The native DKMS package supplies host swap. The host package supplies QEMU guest RAM and optional NBD swap. The browser controller and static product site publish the model and its evidence. The site links the installable package to the same device workflow that exercised it. The homepage explains where each Linux kernel reports the added capacity. Its performance figures identify the workload, units and historical qualification receipt. [System declarations](../app/src/Product/System.lex.tex) · [Linux usage](../host/packaging/USAGE.md)
 
 ## Facets and diagrams
 
@@ -15,7 +15,7 @@ On the package build host, install Graphviz and the dependencies in the device w
 ```sh
 npm ci --prefix automation --ignore-scripts
 PRISM_CODE_TIER=offline PRISM_LEXLEAN_FETCH=0 PRISM_TELEMETRY=0 \
-  python3 automation/product_site.py --package dist/vram-host_0.6.8_amd64.deb --out product-public
+  python3 automation/product_site.py --package dist/vram-host_0.6.9_amd64.deb --out product-public
 python3 -m http.server 8765 --directory product-public --bind 127.0.0.1
 ```
 
@@ -26,3 +26,7 @@ node automation/test-product-site.mjs http://127.0.0.1:8765/
 ```
 
 The browser gate exercises home, reference and controller pages at phone width, checks theme persistence between pages, evaluates changed inputs and runs the acceptance suite. Replacing the generated controller's decoded decision with a constant `advance` made this command fail with `Timed out waiting for ceiling decision`. Restoring the controller produced the three expected decisions and passed all 68 vectors. The device workflow publishes the checked directory to GitHub Pages after the Linux package tests pass.
+
+The default host download points to the kernel package recorded in `app.json` under `packages.vram-kernel-dkms`. The QEMU instructions use `packages.vram-host`, which also provides advanced NBD swap. The original `package` field continues to identify the host package. When the checked native receipt is available, the publisher renders its four median page latencies alongside zram and checks its Prism identity. Guest reserve throughput retains its own workload and units.
+
+Changing the main install button to the host package made the browser gate fail with `primary install selects the kernel package`. Restoring the DKMS link passed the install checks, the phone-width check and all 140 acceptance vectors.

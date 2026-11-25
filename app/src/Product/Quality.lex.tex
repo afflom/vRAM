@@ -80,5 +80,25 @@ definition{
   name: methodAdmission, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
   body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Product.Quality::measureAdmission", title := "Missing reserve bytes at launch", text := "Reliability / Fault tolerance. Require complete reservation of the configured target plus one replacement page. Verify cleanup on a failed allocation.", evidence := (cons "host/tests/capacity.py" (nil String))})
 }
+definition{
+  name: characteristicSwapLatency, parameters: [], result: Foundation.Qual::ProductQualityCharacteristic,
+  body: (record Foundation.Qual::ProductQualityCharacteristic {index := 3})
+}
+definition{
+  name: subcharacteristicSwapLatency, parameters: [], result: Foundation.Qual::QualitySubcharacteristic,
+  body: (record Foundation.Qual::QualitySubcharacteristic {index := 3, characteristicIndex := 3})
+}
+definition{
+  name: requirementSwapLatency, parameters: [], result: Foundation.Qual::QualityRequirement,
+  body: (record Foundation.Qual::QualityRequirement {index := 3, subcharacteristicIndex := 3})
+}
+definition{
+  name: measureSwapLatency, parameters: [], result: Foundation.Qual::QualityMeasure,
+  body: (record Foundation.Qual::QualityMeasure {index := 3, requirementIndex := 3, threshold := 0})
+}
+definition{
+  name: methodSwapLatency, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Product.Quality::measureSwapLatency", title := "Latency comparisons above zram", text := "Count workload cells where the median 4 KiB completion time exceeds zram-zstd on the same runner. Zero misses meets parity for the measured workload.", evidence := (cons "automation/swap-latency.mjs" (cons "host/tests/swap_latency_workload.py" (nil String)))})
+}
 \end{semanticmodule}
 \end{lexlean}

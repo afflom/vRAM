@@ -25,7 +25,11 @@ definition{
 }
 definition{
   name: blockRequest, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
-  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "BlockPolicy::step", title := "Linux block request", text := "Run the same request controller in the installed device and the archived model. Prism selects the largest read window that fits the request and frame. Measure the complete path from Linux submission to completion.", evidence := (cons "app/src/ReadPolicy.lex.tex" (cons "app/src/BlockPolicy.lex.tex" (cons "host/vram_host.c" (cons "host/tests/nbd_framing.c" (nil String)))))})
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "BlockPolicy::step", title := "Advanced NBD block request", text := "Run the same request controller in the installed device and the archived model. Prism selects the largest read window that fits the request and frame. Measure the complete path from Linux submission to completion.", evidence := (cons "app/src/ReadPolicy.lex.tex" (cons "app/src/BlockPolicy.lex.tex" (cons "host/vram_host.c" (cons "host/tests/nbd_framing.c" (nil String)))))})
+}
+definition{
+  name: nativeActivation, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "ResidentPolicy::nativeSizeAction", title := "Native swap sizing", text := "Choose a fallback, skip a covered target, or activate a fitting or capped deficit. The service checks usable KiB after swapon.", evidence := (cons "host/kernel/packaging/kernel-plan" (cons "host/kernel/packaging/start-kernel-swap" (nil String)))})
 }
 \end{semanticmodule}
 \end{lexlean}

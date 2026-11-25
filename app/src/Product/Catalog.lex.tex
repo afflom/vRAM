@@ -7,52 +7,52 @@
 \begin{semanticmodule}
 definition{
   name: architectureFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "architecture", title := "Architecture", summary := "Follow memory requests from a Linux workstation through QEMU and the Verdant store to the reserves.", evidence := (cons "host/vram-machine" (cons "host/ram_file.c" (cons "device/src/lib.rs" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "architecture", title := "Architecture", summary := "Trace host swap into the resident kernel driver, guest RAM through QEMU and FUSE, and advanced NBD requests into the userspace store.", evidence := (cons "host/kernel/vram_fill.c" (cons "host/ram_file.c" (cons "host/vram_host.c" (nil String))))})
 }
 
 definition{
   name: designFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "design", title := "Design views", summary := "Inspect the objects, messages and state transitions involved in qualifying and admitting workstation memory.", evidence := (cons "host/qualification.h" (cons "host/vram-machine" (cons "host/ram_file.c" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "design", title := "Design views", summary := "Follow the three data paths in the component diagram and inspect how the workstation launcher reserves, qualifies and serves guest memory.", evidence := (cons "app/src/Product/Architecture.lex.tex" (cons "host/kernel/packaging/start-kernel-swap" (cons "host/vram-machine" (nil String))))})
 }
 
 definition{
   name: featuresFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "features", title := "Features and journeys", summary := "Plan, qualify and boot a workstation. Trace the guest, native swap and verification paths to their acceptance evidence.", evidence := (cons "host/packaging/USAGE.md" (cons "features/suites/capacity.feature" (cons "model/ids.toml" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "features", title := "Features and journeys", summary := "Install native swap on a Linux host, qualify and boot guest RAM, or explicitly select the NBD backend.", evidence := (cons "README.md" (cons "features/suites/capacity.feature" (cons "model/ids.toml" (nil String))))})
 }
 
 definition{
   name: securityFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "security", title := "Security and threat model", summary := "Review the controls for invalid requests, altered pages and insufficient backing, and the trust placed in the host and projection-port owner.", evidence := (cons "host/projection.c" (cons "device/validation/file_admission.c" (cons "SECURITY.md" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "security", title := "Security and threat model", summary := "Review device ownership before formatting swap, reservation before VM launch, and access to guest pages.", evidence := (cons "host/kernel/packaging/start-kernel-swap" (cons "host/tests/capacity.py" (cons "host/projection.c" (nil String))))})
 }
 
 definition{
   name: qualityFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "quality", title := "Quality", summary := "Byte-exact restoration, complete reservation and user-defined throughput floors are measured on the configured host.", evidence := (cons "measurements/qualified-capacity-0.6.0.json" (cons "automation/qualification.mjs" (cons "host/qualification.h" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "quality", title := "Quality", summary := "Check native swap latency against zram, verify reclaim readback, and compare guest store rates with the configured floors.", evidence := (cons "automation/swap-latency.mjs" (cons "host/tests/kernel_reclaim.c" (cons "automation/qualification.mjs" (nil String))))})
 }
 
 definition{
   name: behaviorFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "behavior", title := "Behavior and proofs", summary := "The controller consumes observations and returns a checkpoint verdict. The claim register identifies the theorem or measurement behind each guarantee.", evidence := (cons "model/ids.toml" (cons "CONFORMANCE.md" (cons "VERIFICATION.md" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "behavior", title := "Behavior and proofs", summary := "Inspect native sizing and page representation decisions alongside guest admission, NBD request handling and measured performance.", evidence := (cons "app/src/ResidentPolicy.lex.tex" (cons "model/ids.toml" (cons "CONFORMANCE.md" (nil String))))})
 }
 
 definition{
   name: complianceFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "compliance", title := "Compliance", summary := "Standards references identify the vocabulary used for each record and its evidence. Licensing terms accompany the source and package.", evidence := (cons "LICENSE" (cons "LICENSE-MIT" (cons "LICENSE-APACHE" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "compliance", title := "Compliance", summary := "Trace package-specific licenses and the evidence used for architecture, security and quality records.", evidence := (cons "host/kernel/vram_fill.c" (cons "host/kernel/package.sh" (cons "host/package.py" (cons "LICENSE" (nil String)))))})
 }
 
 definition{
   name: systemFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "system", title := "System and release", summary := "The verified controller, static product site and Linux device package have distinct targets and verification steps.", evidence := (cons "automation/verified-model.mjs" (cons ".github/workflows/device.yml" (cons "host/package.py" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "system", title := "System and release", summary := "Resolve the kernel driver and host package separately, alongside the browser controller and product site.", evidence := (cons "host/kernel/dkms.conf" (cons "host/kernel/package.sh" (cons "host/package.py" (cons ".github/workflows/device.yml" (nil String)))))})
 }
 
 definition{
   name: extensionFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "extension", title := "Brand and product assets", summary := "The visual identity connects the product mark, type, themes and release artwork to the same software and evidence.", evidence := (cons "docs/brand.md" (cons "site/assets/mark.svg" (cons "site/styles.css" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "extension", title := "Brand and product assets", summary := "Use the product mark, accessible themes and share artwork with consistent names for host swap and guest RAM.", evidence := (cons "docs/brand.md" (cons "docs/brand/social-preview.svg" (cons "site/styles.css" (nil String))))})
 }
 
 definition{
   name: applicationFacet, parameters: [], result: Foundation.Product.V1.Model::Facet,
-  body: (record Foundation.Product.V1.Model::Facet {slug := "application", title := "Application", summary := "The browser runs the checked capacity controller. The installed Linux package supplies the actual memory device.", evidence := (cons "app/src/Contract.lex.tex" (cons "automation/verified-model.mjs" (cons "host/package.py" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Facet {slug := "application", title := "Application", summary := "Query all ten facets and replay decisions in the browser. Follow the native or guest install path to run the device.", evidence := (cons "app/src/Contract.lex.tex" (cons "automation/verify-facet-queries.mjs" (cons "README.md" (nil String))))})
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -68,22 +68,22 @@ definition{
 
 definition{
   name: source1, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
-  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 1, location := "docs/brand.md", firstLine := 13, lastLine := 13, kappa := "99e5d66d7ee822fffaa147f1e6bd3fc8ce07810dd4f65cf2487c6c5bbe1dad8f"})
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 1, location := "docs/brand.md", firstLine := 13, lastLine := 13, kappa := "81845009885070a6605172665816b7ca1df13192308940bfbd4c615e8048e4c3"})
 }
 
 definition{
   name: elementHeadline, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
-  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.tagline), text := "System RAM for virtualized Linux.", source := 1})
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.tagline), text := "Linux host swap. QEMU guest RAM.", source := 1})
 }
 
 definition{
   name: source2, parameters: [], result: Foundation.Provenance.V1.Model::SourceEntity,
-  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 2, location := "docs/brand.md", firstLine := 16, lastLine := 16, kappa := "55a6a95f6d2db5d5efc9c4532b6963e5c7e6871a3957bbdadd5579d4acde70ac"})
+  body: (record Foundation.Provenance.V1.Model::SourceEntity {index := 2, location := "docs/brand.md", firstLine := 16, lastLine := 16, kappa := "d0cedf56e1f2d1756bebcb0425d9ed42431929478701608996b9eba68d2bc4ee"})
 }
 
 definition{
   name: elementPromise, parameters: [], result: Foundation.Experience.V1.Model::BrandElement,
-  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.productPromise), text := "vRAM supplies System RAM to a Linux workstation running on QEMU/KVM.", source := 2})
+  body: (record Foundation.Experience.V1.Model::BrandElement {kind := (ctor Foundation.Experience.V1.Model::BrandElementKind.productPromise), text := "vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest.", source := 2})
 }
 
 definition{

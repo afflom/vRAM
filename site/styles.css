@@ -155,6 +155,11 @@ p.kicker { margin-bottom: 1rem; color: var(--accent); }
 .interfaces .text-link { display: inline-block; margin-top: .6rem; font-size: .94rem; }
 .measurement { padding: clamp(3.8rem, 6.2vw, 6.2rem) 0; background: var(--tint); border-block: 1px solid var(--rule); }
 .section-intro { font-size: 1.08rem; max-width: 44rem; margin-top: 1.15rem; }
+.guest-measure { margin-top: 3.5rem; }
+.latency { margin: 1.5rem 0; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.latency caption { text-align: left; margin-bottom: .65rem; color: var(--muted); }
+.latency th, .latency td { padding: .45rem .8rem; border-bottom: 1px solid var(--rule); text-align: right; }
+.latency th:first-child { padding-left: 0; text-align: left; }
 .reserve-figure { border-top: 1px solid var(--rule); margin-top: 2.5rem; padding-top: 1.2rem; }
 .reserve-figure figcaption { display: flex; justify-content: space-between; gap: .75rem; font-size: .95rem; font-weight: 650; }
 .reserve-figure figcaption .mono { font-size: .88rem; }
@@ -174,7 +179,6 @@ p.kicker { margin-bottom: 1rem; color: var(--accent); }
 .metrics small { font: 550 .83rem/1 var(--mono); letter-spacing: 0; white-space: nowrap; }
 .metrics dt { color: var(--muted); }
 .measure-note { max-width: 59rem; color: var(--muted); font-size: .94rem; }
-.measure-note .text-link { white-space: nowrap; }
 .install-head .button { margin-top: 1.5rem; margin-right: 1rem; }
 .install-head .text-link { margin-top: 1rem; display: inline-block; }
 .instructions h3 { font-size: 1.45rem; }

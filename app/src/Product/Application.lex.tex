@@ -9,5 +9,9 @@ definition{
   name: capacityController, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
   body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "Contract::application", title := "vRAM capacity controller", text := "The Prism text application runs its registered dispatch entry with no ambient host capabilities. Build verification replays the acceptance vectors before publication.", evidence := (cons "app/src/Contract.lex.tex" (cons "automation/verified-model.mjs" (nil String)))})
 }
+definition{
+  name: linuxInterfaces, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
+  body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "ResidentPolicy::span", title := "Installed Linux interfaces", text := "The kernel package serves native swap. The host package provides QEMU guest memory and the optional NBD server. Select the interface before installing.", evidence := (cons "README.md" (cons "host/kernel/packaging/vram-kernel.service" (cons "host/vram-machine" (cons "host/vram_host.c" (nil String)))))})
+}
 \end{semanticmodule}
 \end{lexlean}

@@ -539,3 +539,9 @@ Feature: capacity
     Given a host with a decimal, octal or hexadecimal mem parameter
     When the native planner resolves the operating system bound
     Then equivalent byte limits give the same swap area size
+
+  @VR-38 @open
+  Scenario: Choose the package for the Linux memory interface
+    Given the release includes a DKMS driver and a workstation package
+    When an operator follows the default host swap installation
+    Then the download and service commands select the kernel driver while the guest and advanced NBD instructions identify the host package

@@ -132,5 +132,37 @@ definition{
   name: trustBoundary, parameters: [], result: Foundation.Product.V1.Model::EvidenceLink,
   body: (record Foundation.Product.V1.Model::EvidenceLink {subject := "projection port and host storage", title := "Trusted local administration", text := "The host controls the guest mappings and backing files. The optional projection port serves a trusted guest that owns the operand. Deployment-specific risk decisions belong to the operator.", evidence := (cons "host/packaging/USAGE.md" (cons "SECURITY.md" (nil String)))})
 }
+definition{
+  name: assetSwapDevice, parameters: [], result: Foundation.Sec::Asset,
+  body: (record Foundation.Sec::Asset {index := 3, componentIndex := 9})
+}
+definition{
+  name: descriptionSwapDevice, parameters: [], result: Production.ThreatModel::ModeledAsset,
+  body: (record Production.ThreatModel::ModeledAsset {asset := "Product.Security::assetSwapDevice", name := "Active swap device", text := "Pages on the registered kernel block device."})
+}
+definition{
+  name: threatSwapOwnership, parameters: [], result: Foundation.Sec::Threat,
+  body: (record Foundation.Sec::Threat {index := 3})
+}
+definition{
+  name: descriptionSwapOwnership, parameters: [], result: Production.ThreatModel::ModeledThreat,
+  body: (record Production.ThreatModel::ModeledThreat {threat := "Product.Security::threatSwapOwnership", name := "Swap device ownership", text := "Formatting an occupied device could destroy live swap data.", category := (ctor Production.ThreatModel::Stride.tampering)})
+}
+definition{
+  name: riskSwapOwnership, parameters: [], result: Foundation.Sec::Risk,
+  body: (record Foundation.Sec::Risk {index := 3, assetIndex := 3, threatIndex := 3, likelihood := (ctor Foundation.Sec::Likelihood.medium), impact := (ctor Foundation.Sec::Impact.major)})
+}
+definition{
+  name: controlSwapOwnership, parameters: [], result: Foundation.Sec::ApplicationSecurityControl,
+  body: (record Foundation.Sec::ApplicationSecurityControl {index := 3, riskIndex := 3})
+}
+definition{
+  name: evidenceSwapOwnership, parameters: [], result: Production.ThreatModel::ModeledControl,
+  body: (record Production.ThreatModel::ModeledControl {control := "Product.Security::controlSwapOwnership", name := "Swap device ownership", text := "Require a fresh module load and match the device node to the registered disk before formatting.", evidence := (cons (record Production.ThreatModel::Evidence {kind := (ctor Production.ThreatModel::EvidenceKind.gate), reference := "host/kernel/packaging/start-kernel-swap"}) (nil Production.ThreatModel::Evidence))})
+}
+definition{
+  name: mappingSwapOwnership, parameters: [], result: Production.ThreatModel::ThreatMapping,
+  body: (record Production.ThreatModel::ThreatMapping {threat := "Product.Security::threatSwapOwnership", controls := (cons "Product.Security::controlSwapOwnership" (nil String))})
+}
 \end{semanticmodule}
 \end{lexlean}

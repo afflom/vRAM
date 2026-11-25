@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory() as directory:
             ["dpkg-shlibdeps", "-O", "-e" + str(root / "usr/lib/vram/vram-ram-file")],
             cwd=build_dir, text=True).strip().removeprefix("shlibs:Depends=")
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.6.8\nArchitecture: amd64\n"
+        "Package: vram-host\nVersion: 0.6.9\nArchitecture: amd64\n"
         f"Maintainer: vRAM maintainers <noreply@github.com>\nDepends: {shlibs}, systemd, kmod, python3\nRecommends: fuse3, qemu-system-x86\n"
         "Description: Verdant tensor-backed Linux swap and virtual machine system RAM\n"
         "Homepage: https://afflom.github.io/vRAM/\n")

@@ -33,7 +33,7 @@ definition{
 
 definition{
   name: featureSwap, parameters: [], result: Foundation.Arch::Feature,
-  body: (record Foundation.Arch::Feature {statement := "Expose a Verdant swap device to a directly booted Linux system.", calls := (cons "HostPolicy::autoSize" (nil String)), acceptance := (cons "HostPolicy::sizeFromAvailable" (nil String))})
+  body: (record Foundation.Arch::Feature {statement := "Opt into userspace NBD swap with vram-host for the wider representation set.", calls := (cons "HostPolicy::autoSize" (nil String)), acceptance := (cons "HostPolicy::sizeFromAvailable" (nil String))})
 }
 
 definition{
@@ -62,6 +62,14 @@ definition{
 }
 definition{
   name: journeyNativeOperator, parameters: [], result: Foundation.Arch::Journey,
+  body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderOperator", steps := (cons "Product.Features::featureKernelSwap" (nil String))})
+}
+definition{
+  name: featureKernelSwap, parameters: [], result: Foundation.Arch::Feature,
+  body: (record Foundation.Arch::Feature {statement := "Activate the resident DKMS driver for host swap and check the capacity listed by Linux.", calls := (cons "ResidentPolicy::nativeSizeAction" (cons "ResidentPolicy::foldStep" (nil String))), acceptance := (cons "ResidentPolicy::coveredCeiling" (cons "ResidentPolicy::fitsDevice" (cons "ResidentPolicy::foldMismatch" (nil String))))})
+}
+definition{
+  name: journeyNbdOperator, parameters: [], result: Foundation.Arch::Journey,
   body: (record Foundation.Arch::Journey {actor := "Product.Architecture::stakeholderOperator", steps := (cons "Product.Features::featureSwap" (nil String))})
 }
 \end{semanticmodule}

@@ -1,5 +1,7 @@
 # Using vRAM on Linux
 
+For low-latency swap on a directly booted host, install the dedicated kernel driver. This guide covers the QEMU launcher and optional userspace NBD server included in `vram-host`. [Native driver installation](https://afflom.github.io/vRAM/#install)
+
 ## Virtualized Linux workstation
 
 The `vram-machine` command uses stock QEMU, Linux FUSE and the Verdant page store. Install `qemu-system-x86` and `fuse3` alongside the package. Use an existing bootable VM image and the firmware settings it expects. The command runs in the foreground and owns its private runtime directory.
@@ -37,7 +39,7 @@ Rates measure calls to the Verdant store for 64-page sequential requests during 
 
 ## Directly booted Linux swap
 
-The package installs an amd64 server and a systemd service template. The swap service is enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.
+For advanced NBD swap, the host package installs an amd64 userspace server and a systemd service template. The swap service is enabled explicitly. Use a Linux kernel with NBD, swap and 4 KiB pages. Choose an unused whole NBD device. An occupied device fails attachment.
 
 1. Check whether Linux zswap is active with `cat /sys/module/zswap/parameters/enabled`. vRAM can start when this reads N or the parameter is absent. If you choose to switch from zswap, use your distribution's boot configuration to set `zswap.enabled=0` and reboot. Existing ordinary swap devices can stay enabled.
 2. Start vRAM with `sudo systemctl enable --now vram@nbd0.service`. This loads NBD, attaches the Verdant store and activates swap at priority 100. The service reports readiness after swapon succeeds.

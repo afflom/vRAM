@@ -4,17 +4,36 @@
 
 [Product and downloads](https://afflom.github.io/vRAM/) · [Prism facets](https://afflom.github.io/vRAM/facets.html) · [Inspect the executable model](https://afflom.github.io/vRAM/runtime/#facet-heading) · [Brand guide](docs/brand.md) · [Publishing and verification](docs/product-presentation.md)
 
-vRAM supplies System RAM to a virtualized Linux operating system. The packaged `vram-machine` launcher boots an existing VM disk on Verdant-backed memory with stock QEMU and can plug an additional DIMM while applications run. Linux sees the memory in `/proc/meminfo` under `MemTotal`. The separate `vram-host` service supplies volatile swap to a directly booted Linux system. Both use the same Verdant Engine 2.20.0 store and Prism representation policy.
+vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest. For host workloads, install `vram-kernel-dkms` and check `SwapTotal`. For a VM, install `vram-host` and use `vram-machine` to add guest `MemTotal`. The host package also includes an advanced NBD backend.
 
-On a write, the store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
+On the VM and NBD paths, the userspace store measures candidate representations, including fills, sparse exceptions, packed fields, selectors, corrected selectors and tiled tensor programs. It admits tensor candidates after exact reconstruction. High-entropy pages can select the literal representation in the same store. On a read, the store reconstructs the original bytes. Linux and QEMU implement their respective fault and I/O interfaces. [Runtime source](device/src) · [Prism models and export evidence](device/proof) · [Verdant Engine](https://github.com/afflom/verdant-engine/releases)
 
 ## Install on a Linux computer
 
-Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.8_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+### Low-latency swap for directly booted Linux
+
+The amd64 DKMS package builds the Verdant resident swap driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.5_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install ./vram-host_0.6.8_amd64.deb qemu-system-x86 fuse3
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.5_amd64.deb
+sudo systemctl enable --now vram-kernel.service
+swapon --show
+```
+
+The service reads the system-memory maximum from SMBIOS and sizes vRAM to cover the gap above Linux’s existing `MemTotal + SwapTotal`. It accounts for the swap header and checks the activated KiB in `/proc/swaps`. Run `sudo /usr/lib/vram/kernel-plan` to preview the current calculation. The planner honors the amd64 address limit, a simple kernel `mem=` limit and an optional lower `VRAM_OS_MAX_MIB`. One device supports up to 16 TiB minus 1 MiB. The service journal reports any remaining shortfall.
+
+If firmware does not report the board maximum, the default is 64 MiB. Set `VRAM_PLATFORM_MAX_MIB` to the documented system maximum or set `VRAM_KERNEL_SIZE_MIB` to an explicit device size in `/etc/default/vram`. A covered target skips activation. Upgrading the kernel package keeps active swap online. The new module loads at the next boot or when you explicitly restart the service. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal.
+
+The packaged service has been exercised in a 2 GiB Linux VM with a 1 TiB firmware target, including swap activation, reclaim and readback. A fresh 1 TiB device uses a 4 MiB directory root. A first nonzero write to a 2 MiB region adds a 4 KiB directory leaf, retained until unload. Uniform pages fit in their entries, exact repeated halves use 32 to 2,048 bytes, and independent pages can need a full 4 KiB frame. Linux frees the payload when it releases the swap slot. Its own swap metadata also consumes memory. The amount of additional application data the host can hold depends on the pages stored. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
+
+### QEMU guest memory
+
+Download the Ubuntu 24.04 amd64 package and its checksum. Run the following commands from the download directory. The local build below uses your distribution's libfuse3 ABI. [Linux package](https://afflom.github.io/vRAM/downloads/vram-host_0.6.9_amd64.deb) · [SHA256SUMS](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+
+```sh
+sha256sum --ignore-missing -c SHA256SUMS
+sudo apt install ./vram-host_0.6.9_amd64.deb qemu-system-x86 fuse3
 ```
 
 ### Size a virtualized workstation to its configured maximum
@@ -89,23 +108,6 @@ A native store trial wrote and restored 1 GiB of unique pseudorandom pages with 
 
 In 0.4.1, sparse edits to dense pages reuse the same base read for fitting and exact reconstruction. Median write time on the 128 MiB edited workload fell from 176.7 to 70.2 ms across six paired runs. The deliberately colliding four-base control rose from 43.2 to 45.4 ms. A failed literal write preserves the previous page and releases any newly allocated empty group. [Workloads, read counts and failure tests](docs/device-verification.md#file-backed-admission-and-write-rollback-in-041)
 
-### Low-latency swap for directly booted Linux
-
-The amd64 DKMS package builds the Verdant resident swap driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.4_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
-
-```sh
-sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.4_amd64.deb
-sudo systemctl enable --now vram-kernel.service
-swapon --show
-```
-
-The service reads the system-memory maximum from SMBIOS and sizes vRAM to cover the gap above Linux’s existing `MemTotal + SwapTotal`. It accounts for the swap header and checks the activated KiB in `/proc/swaps`. Run `sudo /usr/lib/vram/kernel-plan` to preview the current calculation. The planner honors the amd64 address limit, a simple kernel `mem=` limit and an optional lower `VRAM_OS_MAX_MIB`. One device supports up to 16 TiB minus 1 MiB. The service journal reports any remaining shortfall.
-
-If firmware does not report the board maximum, the default is 64 MiB. Set `VRAM_PLATFORM_MAX_MIB` to the documented system maximum or set `VRAM_KERNEL_SIZE_MIB` to an explicit device size in `/etc/default/vram`. A covered target skips activation. Upgrading the kernel package keeps active swap online. The new module loads at the next boot or when you explicitly restart the service. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal.
-
-The packaged service has been exercised in a 2 GiB Linux VM with a 1 TiB firmware target, including swap activation, reclaim and readback. A fresh 1 TiB device uses a 4 MiB directory root. A first nonzero write to a 2 MiB region adds a 4 KiB directory leaf, retained until unload. Uniform pages fit in their entries, exact repeated halves use 32 to 2,048 bytes, and independent pages can need a full 4 KiB frame. Linux frees the payload when it releases the swap slot. Its own swap metadata also consumes memory. The amount of additional application data the host can hold depends on the pages stored. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
-
 ### NBD swap with the full Verdant representation set
 
 The package installs a service and configuration. If you upgraded a running instance, use `sudo systemctl restart vram@nbd0.service` to drain its pages and load the updated binary. Choose an unused whole NBD device on a Linux kernel with 4 KiB pages and swap support. Check `/sys/module/zswap/parameters/enabled` first. If it reads Y, choose whether to switch off zswap using your distribution's `zswap.enabled=0` boot option. vRAM leaves the system-wide setting and existing swap devices under your control.
@@ -121,7 +123,7 @@ Linux accounts for this capacity under `SwapTotal`. Both literal and modeled pag
 
 On a Debian 13 amd64 VM, the installed service backed an in-memory SQLite database running under a 40 MiB cgroup limit. SQLite verified all 20,480 rows (80 MiB of payloads) after updates and passed its integrity check. The test requires Linux to swap pages out and back in during the workload. The service drained on stop and automatically reactivated after reboot. [Installed-package test](measurements/debian-installed.json)
 
-To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.8_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
+To build the package locally, install a C compiler, Python 3.11+, Rust, `pkg-config`, `libfuse3-dev` and `dpkg-dev`, then run `make -C host LDFLAGS=-static` and `python3 host/package.py vram-host_0.6.9_amd64.deb`. Other systemd-based Linux distributions can build the binary with `make -C host`, run `sudo make -C host install-service` and then `sudo systemctl daemon-reload` before enabling the instance. The standalone server also supports `vram-host run /dev/nbd0 auto` on compatible Linux systems. The original `attach` and `detach` commands remain available for callers that manage swapon and swapoff themselves. With `attach`, wait for `blockdev --getsize64 /dev/nbd0` to report the requested byte capacity before calling `swapon`.
 
 ## How dense pages interact
 

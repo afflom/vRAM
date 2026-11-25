@@ -10,13 +10,13 @@ Write the name **vRAM**, with a lowercase v. Preserve the executable names `vram
 ## Product messaging
 
 ### Headline
-System RAM for virtualized Linux.
+Linux host swap. QEMU guest RAM.
 
 ### Short description
-vRAM supplies System RAM to a Linux workstation running on QEMU/KVM. Verdant Engine stores its memory pages, and Prism guides how each page is represented and reconstructed.
+vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest. Verdant Engine and Prism govern page representation and recovery.
 
 ### Release and installation copy
-Use `vram-machine` to plan a workstation’s RAM target, qualify its backing storage, and boot an existing VM disk. Linux applications see the provisioned memory in the guest’s `MemTotal`. For directly booted Linux, describe the separate `vram-host` service as volatile swap and point readers to `SwapTotal`. [Install and use vRAM](../README.md#install-on-a-linux-computer)
+Use `vram-machine` to plan a workstation’s RAM target, qualify its backing storage, and boot an existing VM disk. Linux applications see the provisioned memory in the guest’s `MemTotal`. Lead the host installation with `vram-kernel-dkms` and `swapon --show`. Linux accounts for its usable swap in `SwapTotal`. Present the userspace NBD server in `vram-host` as an advanced swap option. [Install and use vRAM](../README.md#install-on-a-linux-computer)
 
 Describe capacity in terms of the configured guest ceiling, firmware maximum and reserved backing. Pair each latency, throughput or storage claim with the workload, units and measurement. A store readback rate and an application benchmark answer different questions. [Device verification and measurements](device-verification.md)
 
@@ -64,4 +64,4 @@ The mark and wordmark are original vector paths. The layered-plane illustration 
 inkscape docs/brand/social-preview.svg --export-filename=site/assets/social-preview.png
 ```
 
-![vRAM share card with the headline “System RAM for virtualized Linux” beside stacked green memory planes](../site/assets/social-preview.png)
+![vRAM share card with the headline “Linux host swap. QEMU guest RAM.” beside stacked green memory planes](../site/assets/social-preview.png)

@@ -27,7 +27,7 @@ definition{
 
 definition{
   name: obligationLicense, parameters: [], result: Foundation.Product.V1.Model::Obligation,
-  body: (record Foundation.Product.V1.Model::Obligation {standard := "SPDX", subject := "Licensing", text := "Distribute the repository software under the included MIT or Apache-2.0 terms and preserve third-party notices.", evidence := (cons "LICENSE" (cons "LICENSE-APACHE" (cons "LICENSE-MIT" (nil String))))})
+  body: (record Foundation.Product.V1.Model::Obligation {standard := "SPDX", subject := "Licensing", text := "Preserve MIT or Apache-2.0 notices for the userspace code and GPL-2.0 notices for the kernel module.", evidence := (cons "LICENSE" (cons "LICENSE-APACHE" (cons "LICENSE-MIT" (cons "host/kernel/vram_fill.c" (cons "host/kernel/package.sh" (nil String))))))})
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -5,21 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#062e27">
-  <title>vRAM · System RAM in software</title>
-  <meta name="description" content="Boot a Linux workstation on Verdant-backed system memory. Plan, reserve and verify the configured RAM target with vRAM.">
+  <title>vRAM · Linux host swap. QEMU guest RAM.</title>
+  <meta name="description" content="vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest.">
   <link rel="canonical" href="https://afflom.github.io/vRAM/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="vRAM">
-  <meta property="og:title" content="vRAM · System RAM in software">
-  <meta property="og:description" content="A Verdant-backed memory device for Linux workstations running on QEMU and KVM.">
+  <meta property="og:title" content="vRAM · Linux host swap. QEMU guest RAM.">
+  <meta property="og:description" content="vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest.">
   <meta property="og:url" content="https://afflom.github.io/vRAM/">
   <meta property="og:image" content="https://afflom.github.io/vRAM/assets/social-preview.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="vRAM identity with a stack of green memory planes">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="vRAM · System RAM in software">
-  <meta name="twitter:description" content="A Verdant-backed memory device for Linux workstations running on QEMU and KVM.">
+  <meta name="twitter:title" content="vRAM · Linux host swap. QEMU guest RAM.">
+  <meta name="twitter:description" content="vRAM provides kernel-backed swap for a Linux host and system RAM for a QEMU guest.">
   <meta name="twitter:image" content="https://afflom.github.io/vRAM/assets/social-preview.png">
   <meta name="twitter:image:alt" content="vRAM identity with a stack of green memory planes">
   <link rel="icon" href="assets/favicon.ico" sizes="any">
@@ -54,9 +54,9 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="edition"><span>vRAM 0.6.8</span><span>Linux amd64</span></p>
-          <h1 id="hero-title">System RAM,<br><em>in software.</em></h1>
-          <p class="hero-intro">Boot your Linux workstation on a Verdant-backed memory device. vRAM reserves the configured capacity and serves each page through QEMU.</p>
+          <p class="edition"><span>vRAM 0.6.9</span><span>Linux amd64</span></p>
+          <h1 id="hero-title">Linux host swap.<br><em>QEMU guest RAM.</em></h1>
+          <p class="hero-intro">Use the native kernel driver for low-latency swap on Linux. For a virtualized workstation, provision guest RAM through QEMU and the Verdant page store.</p>
           <div class="actions">
             <a class="button primary" href="#install">Install vRAM</a>
             <a class="hero-secondary" href="facets.html">Explore the model</a>
@@ -70,26 +70,31 @@
       <div class="overview-head">
         <p class="kicker">Memory interfaces</p>
         <h2 id="overview-title">How Linux sees vRAM</h2>
-        <p>One Verdant page store serves two Linux interfaces. Where you run your workload determines how the kernel accounts for the capacity.</p>
+        <p>Linux accounts for native swap and guest memory separately. Choose the interface your workload uses.</p>
       </div>
       <div class="interfaces">
+        <article>
+          <div class="interface-title"><h3>Directly booted Linux</h3><code>SwapTotal</code></div>
+          <p>Install <code>vram-kernel-dkms</code>. Linux sends swap pages directly to the resident driver and reports the active capacity in <code>/proc/swaps</code>.</p>
+          <a class="text-link" href="#install">Native swap guide</a>
+        </article>
         <article>
           <div class="interface-title"><h3>Virtualized workstation</h3><code>MemTotal</code></div>
           <p>Boot an existing VM disk with <code>vram-machine</code>. The guest sees system RAM at boot and can online a reserved DIMM while applications run.</p>
           <a class="text-link" href="https://github.com/afflom/vRAM/blob/main/host/packaging/USAGE.md#size-a-virtualized-workstation-to-its-configured-maximum">Workstation guide</a>
-        </article>
-        <article>
-          <div class="interface-title"><h3>Directly booted Linux</h3><code>SwapTotal</code></div>
-          <p>Enable the optional <code>vram-host</code> service to add volatile swap through a Linux NBD device. The native kernel reports the additional capacity as swap.</p>
-          <a class="text-link" href="https://github.com/afflom/vRAM/blob/main/host/packaging/USAGE.md#directly-booted-linux-swap">Native swap guide</a>
         </article>
       </div>
     </section>
 
     <section id="verification" class="measurement" aria-labelledby="measure-title">
       <div class="wrap">
-        <p class="kicker">Capacity qualification</p>
-        <h2 id="measure-title">A full reserve, measured.</h2>
+        <p class="kicker">Native host swap</p>
+        <h2 id="measure-title">Page latency</h2>
+        <p class="section-intro">The release test times one 4 KiB page at a time through the kernel driver and zram-zstd on the same guest. Writes use patterned or dense pages. Reads visit the pages in shuffled order.</p>
+        <!-- native-latency-table -->
+        <p class="measure-note"><a class="text-link" href="https://afflom.github.io/vRAM/downloads/kernel-fill.json">Kernel latency, throughput and reclaim measurements</a></p>
+        <p class="kicker guest-measure">QEMU guest memory qualification</p>
+        <h2>Full-reserve readback</h2>
         <p class="section-intro">A local 0.6.0 qualification wrote and read back every byte of a configured 4 GiB target. A 1.5 GiB per-file limit split the reserve across three files.</p>
         <figure class="reserve-figure">
           <figcaption><span>Backing allocation</span><span class="mono">4 GiB + 4 KiB</span></figcaption>
@@ -113,21 +118,21 @@
       <div class="install-head">
         <p class="kicker">Ubuntu 24.04 · amd64</p>
         <h2 id="install-title">Install vRAM</h2>
-        <p>Download the Debian package and its checksum file into the same directory. Verify the package before installing.</p>
-        <a class="button solid" href="downloads/vram-host_0.6.8_amd64.deb">Download vRAM 0.6.8</a>
-        <a class="text-link" href="downloads/SHA256SUMS" download>Download checksum</a>
+        <p>For native host swap, download the kernel package and its checksums. Install matching headers so DKMS can build the driver for your kernel.</p>
+        <a class="button solid" href="downloads/vram-kernel-dkms_0.1.5_amd64.deb">Download kernel driver 0.1.5</a>
+        <a class="text-link" href="downloads/SHA256SUMS" download>Download checksums</a>
       </div>
       <div class="instructions">
-        <h3>Install the package</h3>
+        <h3>Enable native host swap</h3>
         <pre tabindex="0"><code>sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install ./vram-host_0.6.8_amd64.deb qemu-system-x86 fuse3</code></pre>
-        <details><summary>Install low-latency host swap</summary>
-          <p>The service sizes swap from the firmware maximum and the RAM and swap Linux already exposes. The driver allocates directory pages as regions receive data. <a href="downloads/vram-kernel-dkms_0.1.4_amd64.deb">Download the amd64 DKMS package</a>.</p>
-          <pre tabindex="0"><code>sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.4_amd64.deb
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.5_amd64.deb
 sudo systemctl enable --now vram-kernel.service
 swapon --show</code></pre>
-        </details>
+        <p>The service sizes the device from the reported hardware and OS limits and the RAM and swap already available.</p>
+        <h3>Install QEMU guest memory</h3>
+        <p><a href="downloads/vram-host_0.6.9_amd64.deb">Download the host package 0.6.9</a> and the checksums alongside it.</p>
+        <pre tabindex="0"><code>sha256sum --ignore-missing -c SHA256SUMS
+sudo apt install ./vram-host_0.6.9_amd64.deb qemu-system-x86 fuse3</code></pre>
         <h3>Plan the workstation</h3>
         <p>Use your domain XML to read the configured guest limit. vRAM uses the lower of that limit and the platform maximum.</p>
         <pre tabindex="0"><code>vram-machine capacity --domain-xml workstation.xml</code></pre>
@@ -141,6 +146,9 @@ swapon --show</code></pre>
           <pre tabindex="0"><code>vram-machine run --state "$XDG_RUNTIME_DIR/workstation" \
   --domain-xml workstation.xml -- \
   -accel kvm -drive file=workstation.qcow2,format=qcow2</code></pre>
+        </details>
+        <details><summary>Advanced host swap through NBD</summary>
+          <p>The optional userspace server in <code>vram-host</code> supports additional page representations, including reuse and sparse differences. <a href="https://github.com/afflom/vRAM/blob/main/host/packaging/USAGE.md#directly-booted-linux-swap">NBD setup and activation</a></p>
         </details>
       </div>
     </section>

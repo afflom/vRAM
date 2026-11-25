@@ -240,5 +240,21 @@ definition{
   name: transitionRunning, parameters: [], result: Foundation.Arch::UmlTransition,
   body: (record Foundation.Arch::UmlTransition {view := "Product.Design::viewAdmission", order := 2, source := "Product.Design::stateReserved", target := "Product.Design::stateRunning", trigger := "Product.Design::processLaunch"})
 }
+definition{
+  name: partHost, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentHost"})
+}
+definition{
+  name: partResident, parameters: [], result: Foundation.Arch::UmlComponent,
+  body: (record Foundation.Arch::UmlComponent {view := "Product.Design::viewTopology", component := "Product.Architecture::componentResident"})
+}
+definition{
+  name: connectorHostResident, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeHostResident"})
+}
+definition{
+  name: connectorHostNbd, parameters: [], result: Foundation.Arch::UmlConnector,
+  body: (record Foundation.Arch::UmlConnector {view := "Product.Design::viewTopology", edge := "Product.Architecture::edgeHostNbd"})
+}
 \end{semanticmodule}
 \end{lexlean}

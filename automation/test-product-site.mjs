@@ -57,6 +57,14 @@ try {
   }
   await navigate('./');
   assert.equal(await evaluate('document.querySelector(".hero-art img").naturalWidth'), 1536);
+  const packages = (await (await fetch(new URL('app.json', base))).json()).packages;
+  assert.equal(await evaluate('document.querySelector("#install .button").getAttribute("href")'),
+               packages['vram-kernel-dkms'].path, 'primary install selects the kernel package');
+  const commands = await evaluate('Array.from(document.querySelectorAll("#install pre"), e => e.textContent)');
+  assert.ok(commands[0].includes(packages['vram-kernel-dkms'].path.split('/').pop()) &&
+            commands[0].includes('systemctl enable --now vram-kernel.service'));
+  assert.ok(commands[1].includes(packages['vram-host'].path.split('/').pop()) &&
+            commands[1].includes('qemu-system-x86 fuse3'));
   await evaluate('theme.value="dark"; theme.dispatchEvent(new Event("change"))');
   await call('Emulation.setDeviceMetricsOverride', {width: 375, height: 812, deviceScaleFactor: 1, mobile: true});
   await call('Network.enable', {});

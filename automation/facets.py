@@ -194,7 +194,7 @@ def check_release(records, application):
     system = next(r["fields"] for r in records if r["kind"].endswith("::SystemModel"))
     identity = "sha256:" + hashlib.sha256(application.encode()).hexdigest()
     require(system["applicationProfile"]["applicationModelDigest"] == identity, "stale application model digest")
-    adapter_sources = {"linux": "host/package.py", "pages": ".github/workflows/device.yml",
+    adapter_sources = {"linux": "host/package.py", "linux-kernel": "host/kernel/package.sh", "pages": ".github/workflows/device.yml",
                        "browser": "automation/package-lock.json"}
     for target in system["targets"]:
         path = ROOT / adapter_sources[target["id"]]
@@ -208,6 +208,7 @@ def check_release(records, application):
     artifacts = {r["id"] for r in system["artifacts"]}
     manifests = [r["fields"] for r in records if r["kind"].endswith("::SystemManifest")]
     require({r["targetId"] for r in manifests} == targets, "release targets lack manifests")
+    require({r["artifactId"] for r in manifests} == artifacts, "release artifacts lack manifests")
     for manifest in manifests:
         require(manifest["productId"] == system["product"]["id"] and
                 manifest["productVersion"] == system["product"]["version"] and
