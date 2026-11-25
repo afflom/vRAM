@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import stat
 import statistics
+import struct
 import subprocess
 import sys
 import tempfile
@@ -131,12 +132,25 @@ with tempfile.TemporaryDirectory() as tmp:
     if args.kernel_fill:
         # Use a separate boot so directory allocation cannot affect the latency comparison.
         large = command.copy()
-        large[large.index("-m") + 1] = "6144"
+        large[large.index("-m") + 1] = "2048"
+        # Present a physical memory array through firmware. The packaged planner
+        # must discover its limit through sysfs with all size overrides absent.
+        array = path / "array16.bin"
+        array.write_bytes(struct.pack("<BBHBBBIHHQ", 16, 23, 0x1000, 3, 3, 6,
+                                      1 << 30, 0xfffe, 1, 0) + b"\0\0")
+        large.extend(["-smbios", f"file={array}"])
         large[large.index("-append") + 1] += " -- geometry"
-        geometry_rows = re.findall(r"^KERNEL_GEOMETRY (.+)$", boot(large), re.M)
+        large_log = boot(large)
+        geometry_rows = re.findall(r"^KERNEL_GEOMETRY (.+)$", large_log, re.M)
         if len(geometry_rows) != 1:
             sys.exit("Missing sparse device geometry evidence")
         geometry = json.loads(geometry_rows[0])
+        native, = re.findall(r"^KERNEL_NATIVE (.+)$", large_log, re.M)
+        restored, = re.findall(r"^KERNEL_RECLAIM (.+)$", large_log, re.M)
+        if "platform 1048576 MiB (SMBIOS type 16)" not in large_log:
+            sys.exit("Missing firmware-discovered TiB activation\n" + large_log[-2400:])
+        geometry["native_capacity"] = json.loads(native)
+        geometry["swap_reclaim"] = json.loads(restored)
     if args.trace_output:
         batches = json.loads(trace_file.read_bytes())
 

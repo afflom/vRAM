@@ -104,7 +104,7 @@ The service reads the system-memory maximum from SMBIOS and sizes vRAM to cover 
 
 If firmware does not report the board maximum, the default is 64 MiB. Set `VRAM_PLATFORM_MAX_MIB` to the documented system maximum or set `VRAM_KERNEL_SIZE_MIB` to an explicit device size in `/etc/default/vram`. A covered target skips activation. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal.
 
-A fresh 1 TiB device uses a 4 MiB directory root. A first nonzero write to a 2 MiB region adds a 4 KiB directory leaf, retained until unload. Uniform pages fit in their entries, exact repeated halves use 32 to 2,048 bytes, and independent pages can need a full 4 KiB frame. Linux frees the payload when it releases the swap slot. Its own swap metadata also consumes memory. The amount of additional application data the host can hold depends on the pages stored. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
+The packaged service has been exercised in a 2 GiB Linux VM with a 1 TiB firmware target, including swap activation, reclaim and readback. A fresh 1 TiB device uses a 4 MiB directory root. A first nonzero write to a 2 MiB region adds a 4 KiB directory leaf, retained until unload. Uniform pages fit in their entries, exact repeated halves use 32 to 2,048 bytes, and independent pages can need a full 4 KiB frame. Linux frees the payload when it releases the swap slot. Its own swap metadata also consumes memory. The amount of additional application data the host can hold depends on the pages stored. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
 
 ### NBD swap with the full Verdant representation set
 

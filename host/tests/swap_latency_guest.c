@@ -62,6 +62,47 @@ static void run_python(const char *script) {
     if (waitpid(workload, &status, 0) != workload || status) fail("benchmark");
 }
 
+static void activate_and_reclaim(int from_firmware) {
+    int status;
+    if (unlink("/dev/vramfill0") || syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload fill");
+    if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) fail("activation devtmpfs");
+    pid_t activation = fork();
+    if (activation < 0) fail("fork activation");
+    if (!activation) {
+        const char *mounts[] = {"/dev", "/sys", "/proc"};
+        for (size_t i = 0; i < 3; i++) {
+            char target[64];
+            snprintf(target, sizeof(target), "/kernel-system%s", mounts[i]);
+            if (mkdir(target, 0755) || mount(mounts[i], target, NULL, MS_BIND, NULL)) fail(target);
+        }
+        struct sysinfo info;
+        char limit[32];
+        if (sysinfo(&info)) fail("guest memory totals");
+        unsigned long long covered = ((unsigned long long)info.totalram + info.totalswap) * info.mem_unit / 1024;
+        unsigned long long target = from_firmware ? 1ULL << 20 : (covered - 4) / 1024 + 96;
+        snprintf(limit, sizeof(limit), "%llu", target);
+        if (chroot("/kernel-system") || chdir("/") || setenv("PATH", "/bin:/sbin", 1) ||
+            (!from_firmware && setenv("VRAM_PLATFORM_MAX_MIB", limit, 1))) fail("activation root");
+        if (mkdir("/run", 0755) || mkdir("/run/vram-kernel", 0700)) fail("planner state");
+        printf("KERNEL_NATIVE {\"covered_kib\":%llu,\"target_mib\":%s}\n", covered, limit);
+        fflush(stdout);
+        execl("/bin/sh", "sh", "-ec",
+              "if VRAM_PLATFORM_MAX_MIB=1 /usr/lib/vram/kernel-plan --prepare; then exit 1; "
+              "else test $? -eq 1; fi; read -r size < /run/vram-kernel/size; test \"$size\" = 0; "
+              "/usr/lib/vram/kernel-plan --prepare; "
+              "exec /usr/lib/vram/start-kernel-swap /run/vram-kernel/size", NULL);
+        fail("exec packaged activation");
+    }
+    if (waitpid(activation, &status, 0) != activation || status) fail("packaged activation");
+    pid_t reclaim = fork();
+    if (reclaim < 0) fail("fork reclaim");
+    if (!reclaim) {
+        execl("/kernel-reclaim", "kernel-reclaim", NULL);
+        fail("exec reclaim");
+    }
+    if (waitpid(reclaim, &status, 0) != reclaim || status) fail("kernel swap reclaim");
+}
+
 int main(int argc, char **argv) {
     if (getpid() != 1 || ioperm(0xf4, 4, 1)) return 2;
     if (mount("sysfs", "/sys", "sysfs", 0, NULL) || mount("proc", "/proc", "proc", 0, NULL))
@@ -70,7 +111,7 @@ int main(int argc, char **argv) {
         load("/kernel-fill.ko", "capacity_mib=1048576");
         block_node("/sys/block/vramfill0/dev", "/dev/vramfill0");
         run_python("/swap_fill.py");
-        if (syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload after geometry test");
+        activate_and_reclaim(1);
         finish(0);
     }
     load("/lz4_compress.ko", "");
@@ -123,45 +164,7 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
     run_python("/workload.py");
-    int status;
-    if (fill) {
-        if (unlink("/dev/vramfill0") || syscall(SYS_delete_module, "vram_fill", O_NONBLOCK)) fail("unload fill");
-        if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL)) fail("activation devtmpfs");
-        pid_t activation = fork();
-        if (activation < 0) fail("fork activation");
-        if (!activation) {
-            const char *mounts[] = {"/dev", "/sys", "/proc"};
-            for (size_t i = 0; i < 3; i++) {
-                char target[64];
-                snprintf(target, sizeof(target), "/kernel-system%s", mounts[i]);
-                if (mkdir(target, 0755) || mount(mounts[i], target, NULL, MS_BIND, NULL)) fail(target);
-            }
-            struct sysinfo info;
-            char limit[32];
-            if (sysinfo(&info)) fail("guest memory totals");
-            unsigned long long covered = ((unsigned long long)info.totalram + info.totalswap) * info.mem_unit / 1024;
-            snprintf(limit, sizeof(limit), "%llu", (covered - 4) / 1024 + 96);
-            if (chroot("/kernel-system") || chdir("/") || setenv("PATH", "/bin:/sbin", 1) ||
-                setenv("VRAM_PLATFORM_MAX_MIB", limit, 1)) fail("activation root");
-            if (mkdir("/run", 0755) || mkdir("/run/vram-kernel", 0700)) fail("planner state");
-            printf("KERNEL_NATIVE {\"covered_kib\":%llu,\"target_mib\":%s}\n", covered, limit);
-            fflush(stdout);
-            execl("/bin/sh", "sh", "-ec",
-                  "if VRAM_PLATFORM_MAX_MIB=1 /usr/lib/vram/kernel-plan --prepare; then exit 1; "
-                  "else test $? -eq 1; fi; read -r size < /run/vram-kernel/size; test \"$size\" = 0; "
-                  "/usr/lib/vram/kernel-plan --prepare; "
-                  "exec /usr/lib/vram/start-kernel-swap /run/vram-kernel/size", NULL);
-            fail("exec packaged activation");
-        }
-        if (waitpid(activation, &status, 0) != activation || status) fail("packaged activation");
-        pid_t reclaim = fork();
-        if (reclaim < 0) fail("fork reclaim");
-        if (!reclaim) {
-            execl("/kernel-reclaim", "kernel-reclaim", NULL);
-            fail("exec reclaim");
-        }
-        if (waitpid(reclaim, &status, 0) != reclaim || status) fail("kernel swap reclaim");
-    }
+    if (fill) activate_and_reclaim(0);
     if (access("/store-clock", F_OK) == 0) {
         const unsigned port = 0x505;
         int fd = open("/path-samples.json", O_RDONLY);

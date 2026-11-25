@@ -80,21 +80,25 @@ if (literal) {
     receipt[fill ? 'fill_at_most_literal_p50' : 'literal_at_most_nbd_p50'] = comparison;
 }
 if (fill) {
-    const reclaim = receipt.kernel_reclaim;
-    const native = receipt.native_capacity;
-    if (!Number.isSafeInteger(native?.covered_kib) || native.covered_kib <= 0 ||
-        !Number.isSafeInteger(native.target_mib) || native.target_mib <= 0 ||
-        reclaim?.active_swap_kib !== reclaim?.capacity_mib * 1024 - 4 ||
-        native.covered_kib + reclaim.active_swap_kib < native.target_mib * 1024 ||
-        native.covered_kib + reclaim.active_swap_kib >= (native.target_mib + 1) * 1024)
-        throw Error('Native swap activation differs from the host deficit');
-    if (reclaim?.capacity_mib !== 96 || reclaim.verified_bytes !== 24 * 1024 * 1024 ||
-        !Number.isInteger(reclaim.evicted_pages) || reclaim.evicted_pages < 5376 || reclaim.evicted_pages > 6144 ||
-        !Number.isInteger(reclaim.literal_pages_under_pressure) || reclaim.literal_pages_under_pressure < 1536 ||
-        reclaim.literal_pages_under_pressure > 6145 || reclaim.literal_pages_after_drain !== 1 ||
-        !Number.isInteger(reclaim.repeated_bytes_under_pressure) || reclaim.repeated_bytes_under_pressure < 768 * 64 ||
-        reclaim.repeated_bytes_under_pressure > 1536 * 64 || reclaim.repeated_bytes_after_drain !== 0)
-        throw Error('Invalid swap reclaim or slot release evidence');
+    function verifyActivation(native, reclaim) {
+        if (!Number.isSafeInteger(reclaim?.capacity_mib) || reclaim.capacity_mib <= 0)
+            throw Error('Invalid native swap area size');
+        if (!Number.isSafeInteger(native?.covered_kib) || native.covered_kib <= 0 ||
+            !Number.isSafeInteger(native.target_mib) || native.target_mib <= 0 ||
+            reclaim?.active_swap_kib !== reclaim?.capacity_mib * 1024 - 4 ||
+            native.covered_kib + reclaim.active_swap_kib < native.target_mib * 1024 ||
+            native.covered_kib + reclaim.active_swap_kib >= (native.target_mib + 1) * 1024)
+            throw Error('Native swap activation differs from the host deficit');
+        if (reclaim.verified_bytes !== 24 * 1024 * 1024 ||
+            !Number.isInteger(reclaim.evicted_pages) || reclaim.evicted_pages < 5376 || reclaim.evicted_pages > 6144 ||
+            !Number.isInteger(reclaim.literal_pages_under_pressure) || reclaim.literal_pages_under_pressure < 1536 ||
+            reclaim.literal_pages_under_pressure > 6145 || reclaim.literal_pages_after_drain !== 1 ||
+            !Number.isInteger(reclaim.repeated_bytes_under_pressure) || reclaim.repeated_bytes_under_pressure < 768 * 64 ||
+            reclaim.repeated_bytes_under_pressure > 1536 * 64 || reclaim.repeated_bytes_after_drain !== 0)
+            throw Error('Invalid swap reclaim or slot release evidence');
+    }
+    verifyActivation(receipt.native_capacity, receipt.kernel_reclaim);
+    if (receipt.kernel_reclaim.capacity_mib !== 96) throw Error('Expected 96 MiB service activation');
     const ranges = receipt.range_throughput;
     if (!Array.isArray(ranges) || ranges.length !== 18) throw Error('Incomplete range throughput evidence');
     for (const pages of [1, 16, 64]) {
@@ -120,6 +124,11 @@ if (fill) {
         geometry.directory_bytes !== geometry.empty_directory_bytes + (32768 - 64) * page ||
         geometry.literal_pages !== 16384 || geometry.literal_pages_after_release !== 0)
         throw Error('Invalid sparse device geometry evidence');
+    if (geometry.native_capacity?.target_mib !== 2 ** 20 ||
+        geometry.native_capacity.covered_kib > 2 * 1024 ** 2 ||
+        geometry.native_capacity.covered_kib < 1024 ** 2)
+        throw Error('Invalid TiB firmware activation evidence');
+    verifyActivation(geometry.native_capacity, geometry.swap_reclaim);
     const expected = [
         ...[0, 1, 2].map(i => ['mixed' + i, 6 * 2048 + 384, 3 * 2048 + 320, []]),
         ['all_literal', slots, slots, ['literal']],

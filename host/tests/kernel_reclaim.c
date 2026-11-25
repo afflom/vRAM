@@ -66,7 +66,7 @@ int main(void)
 	uint64_t size;
 	int fd = open(device, O_RDONLY);
 	unsigned char want[PAGE], resident[PAGES];
-	if (fd < 0 || ioctl(fd, BLKGETSIZE64, &size) || size != (96U << 20)) fail("capacity");
+	if (fd < 0 || ioctl(fd, BLKGETSIZE64, &size) || !size || size % (1U << 20)) fail("capacity");
 	close(fd);
 
 	if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", 0, NULL)) fail("cgroup2");
@@ -102,8 +102,8 @@ int main(void)
 	long final = counter("/sys/module/vram_fill/parameters/literal_pages");
 	long final_blocks = counter("/sys/module/vram_fill/parameters/repeated_bytes");
 	if (final != 1 || final_blocks) fail("retired literals still resident");
-	printf("KERNEL_RECLAIM {\"capacity_mib\":96,\"active_swap_kib\":%lu,\"verified_bytes\":%u,\"evicted_pages\":%u,"
+	printf("KERNEL_RECLAIM {\"capacity_mib\":%llu,\"active_swap_kib\":%lu,\"verified_bytes\":%u,\"evicted_pages\":%u,"
 	       "\"literal_pages_under_pressure\":%ld,\"literal_pages_after_drain\":%ld,\"repeated_bytes_under_pressure\":%ld,\"repeated_bytes_after_drain\":%ld}\n",
-	       active, PAGES * PAGE, PAGES - present, peak, final, blocks, final_blocks);
+	       (unsigned long long)(size >> 20), active, PAGES * PAGE, PAGES - present, peak, final, blocks, final_blocks);
 	return 0;
 }

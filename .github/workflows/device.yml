@@ -208,7 +208,7 @@ jobs:
       - name: Assemble the product site from the verified model and tested package
         run: |
           python3 automation/product_site.py --package dist/vram-host_*.deb --out product-public
-          cp dist/mixed-file-range.json dist/kernel-previous.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
+          cp dist/linux-dimm.json dist/mixed-file-range.json dist/kernel-previous.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
           cmp dist/vram-kernel-dkms_*.deb product-public/downloads/vram-kernel-dkms_*.deb
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
           (cd product-public/downloads && sha256sum -c SHA256SUMS)

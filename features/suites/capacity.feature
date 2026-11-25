@@ -527,3 +527,9 @@ Feature: capacity
     Given a workstation configured to boot at its admitted maximum
     When the operator requests a qualified launch
     Then a failed rate floor prevents boot and a passing readback hands the same open reserves to the guest memory server
+
+  @VR-68 @open
+  Scenario: Activate the firmware target without a configured size
+    Given a Linux guest with two GiB of installed memory and a one TiB SMBIOS array maximum
+    When the packaged service discovers the hardware and activates swap
+    Then Linux exposes the uncovered capacity and anonymous pages survive reclaim and swapoff
