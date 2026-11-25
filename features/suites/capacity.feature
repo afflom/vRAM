@@ -533,3 +533,9 @@ Feature: capacity
     Given a Linux guest with two GiB of installed memory and a one TiB SMBIOS array maximum
     When the packaged service discovers the hardware and activates swap
     Then Linux exposes the uncovered capacity and anonymous pages survive reclaim and swapoff
+
+  @VR-68 @open
+  Scenario: Interpret the numeric base of the Linux memory limit
+    Given a host with a decimal, octal or hexadecimal mem parameter
+    When the native planner resolves the operating system bound
+    Then equivalent byte limits give the same swap area size

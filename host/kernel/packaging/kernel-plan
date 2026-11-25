@@ -32,10 +32,13 @@ def architecture_limit(cpuinfo, cmdline):
         five = "la57" in flags[1].split() and "no5lvl" not in options
         bounds.append(1 << ((52 if five else 46) - 20))
     for option in options:
-        limit = re.fullmatch(r"mem=(\d+)([KMGTPE]?)", option, re.I)
+        limit = re.fullmatch(r"mem=(0x[0-9a-f]+|0[0-7]*|[1-9][0-9]*)([KMGTPE]?)", option, re.I)
         if limit:
-            shift = " KMGTPE".index(limit[2].upper() or " ") * 10
-            mib = (int(limit[1]) << shift) >> 20
+            digits, suffix = limit.groups()
+            # Linux memparse accepts C-style octal as well as hex and decimal.
+            base = 8 if digits.startswith("0") and not digits.lower().startswith("0x") else 0
+            shift = 10 * ("KMGTPE".index(suffix.upper()) + 1) if suffix else 0
+            mib = (int(digits, base) << shift) >> 20
             if mib:
                 bounds.append(mib)
     return min(bounds) if bounds else None
@@ -56,18 +59,16 @@ def plan(env, memory, firmware, actions, arch_limit=None):
     os_limit = positive(env["VRAM_OS_MAX_MIB"], "VRAM_OS_MAX_MIB") if "VRAM_OS_MAX_MIB" in env else None
     if arch_limit is not None:
         os_limit = min(arch_limit, os_limit) if os_limit else arch_limit
-    target = min(platform, os_limit) if platform and os_limit else platform
+    bounds = [limit for limit in (platform, os_limit) if limit is not None]
+    target = min(bounds) if bounds else None
     covered = memory["MemTotal"] + memory["SwapTotal"]
     gap = max(0, (target or 0) * 1024 - covered)
     needed = (gap + PAGE_KIB + 1023) // 1024 if gap else 0
-    action = actions[(bool(target) << 2) | ((gap == 0) << 1) | (needed > DEVICE_MAX_MIB)]
+    action = actions[(bool(platform) << 2) | ((gap == 0) << 1) | (needed > DEVICE_MAX_MIB)]
     if action == 0:
         # Retain the previous default only when firmware cannot establish a maximum.
         # A supplied OS cap still bounds this fallback.
-        size = 64
-        if os_limit:
-            gap = max(0, os_limit * 1024 - covered)
-            size = min(size, (gap + PAGE_KIB + 1023) // 1024 if gap else 0)
+        size = min(64, needed) if os_limit else 64
         return size, f"platform maximum unknown, fallback {size} MiB"
     if action == 1:
         size = 0

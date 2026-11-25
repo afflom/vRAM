@@ -60,12 +60,16 @@ downloads = out / "downloads"
 downloads.mkdir()
 shutil.copy2(package, downloads / package.name)
 digest = hashlib.sha256(package.read_bytes()).hexdigest()
-kernel_name = "vram-kernel-dkms_0.1.3_amd64.deb"
+dkms = (root / "host/kernel/dkms.conf").read_text()
+kernel_version, = re.findall(r'^PACKAGE_VERSION="([^"]+)"$', dkms, re.M)
+kernel_name = f"vram-kernel-dkms_{kernel_version}_amd64.deb"
 kernel_package = package.parent / kernel_name
 if kernel_package.is_file():
     shutil.copy2(kernel_package, downloads / kernel_name)
 else:
     subprocess.run(["bash", root / "host/kernel/package.sh", downloads / kernel_name], check=True)
+if subprocess.check_output(["dpkg-deb", "-f", downloads / kernel_name, "Version"], text=True).strip() != kernel_version:
+    raise ValueError("kernel package version differs from DKMS source")
 kernel_digest = hashlib.sha256((downloads / kernel_name).read_bytes()).hexdigest()
 (downloads / "SHA256SUMS").write_text(f"{digest}  {package.name}\n{kernel_digest}  {kernel_name}\n")
 with ZipFile(out / "assets/brand-kit.zip", "w", ZIP_DEFLATED) as archive:

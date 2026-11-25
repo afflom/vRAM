@@ -26,6 +26,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert architecture(four + " la57", "") == 1 << 28
     assert architecture(four + " la57", "no5lvl") == 1 << 26
     assert architecture(four, "quiet mem=8G -- mem=1G") == 8192
+    for value in ("8G", "010G", "0x8G", "0X2000m", "8589934592"):
+        assert architecture(four, f"quiet mem={value}") == 8192, value
+    assert architecture(four, "mem=010G mem=0x4G -- mem=1G") == 4096
     assert architecture("", "") is None
 
     def size(mem_kib, swap_kib=0, **env):

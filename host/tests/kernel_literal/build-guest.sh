@@ -5,8 +5,9 @@ out=$(realpath -m "${1:?expected output directory}")
 src=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$out/debs"
 package=$(realpath "${2:?expected kernel DKMS package}")
+version=$(dpkg-deb -f "$package" Version)
 dpkg-deb -x "$package" "$out/installed"
-cp "$out/installed/usr/src/vram-fill-0.1.3/"{page_io.h,literal_policy.h} "$out/"
+cp "$out/installed/usr/src/vram-fill-$version/"{page_io.h,literal_policy.h} "$out/"
 cp "$src/pack-planner.py" "$src/Kbuild" "$src/vram_literal.c" "$src/vram_segments.c" "$out/"
 while read -r filename sha256 snapshot; do
     pkg="$out/debs/$filename"
@@ -18,7 +19,7 @@ linux-headers-6.12.117+deb13-amd64_6.12.117-1_amd64.deb e6b8a30d6c834fad8e5bd83d
 linux-headers-6.12.117+deb13-common_6.12.117-1_all.deb ac1203a8778a01e09c0ef94d87a3607672c0fc3d5369540c3f1580269b277611 8fd6b99a61f8d65d4d95898b0bc47271b1dab5cb
 linux-kbuild-6.12.117+deb13_6.12.117-1_amd64.deb 821ae105a5e2d04c68ddc1a446b8b3554cb4e4581bf009c4165f94612047e3eb f8a567d17aeb0ebca11b0e70a47589769f963d8e
 PACKAGES
-docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 sh -ec '
+docker run --rm -e VRAM_DKMS_VERSION="$version" -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 sh -ec '
     apt-get update -qq
     apt-get install -y --no-install-recommends build-essential pahole libelf-dev zstd xz-utils openssl
     for pkg in /build/debs/*.deb; do dpkg-deb -x "$pkg" /; done
@@ -26,7 +27,7 @@ docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:tr
     mkdir -p "/lib/modules/$release"
     ln -sfn "/usr/src/linux-headers-$release" "/lib/modules/$release/build"
     apt-get install -y --no-install-recommends /tmp/vram-kernel.deb
-    dkms status -m vram-fill -v 0.1.3 -k "$release" | grep -q ": installed"
+    dkms status -m vram-fill -v "$VRAM_DKMS_VERSION" -k "$release" | grep -q ": installed"
     make -C "/lib/modules/$release/build" M=/build modules
     module=$(find "/lib/modules/$release/updates" -name "vram_fill.ko*" -type f)
     case "$module" in

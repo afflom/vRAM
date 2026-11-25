@@ -97,7 +97,7 @@ jobs:
           persist-credentials: false
           ref: 2e4059a5148e4802f8f0fd2ef76ec2b2a3e123a1
           path: measurements/local/swap-control
-      - name: Check out the preceding DKMS release
+      - name: Check out the eager-directory DKMS control
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -120,9 +120,12 @@ jobs:
           sudo python3 "$prior/host/tests/swap_latency.py" "${guest[@]}" --kernel-literal "$baseline/vram_literal.ko" --kernel-fill "$baseline/vram_fill.ko" --kernel-system "$baseline/kernel-system" --result measurements/local/kernel-previous-raw.json
           node "$prior/automation/swap-latency.mjs" measurements/local/kernel-previous-raw.json measurements/local/kernel-previous.json --kernel-fill
           mkdir -p dist
-          bash host/kernel/package.sh dist/vram-kernel-dkms_0.1.3_amd64.deb
-          python3 host/tests/kernel_plan.py dist/vram-kernel-dkms_0.1.3_amd64.deb
-          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_0.1.3_amd64.deb
+          bash host/kernel/package.sh dist/
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            python3 automation/release-package.py dist/vram-kernel-dkms_*.deb
+          fi
+          python3 host/tests/kernel_plan.py dist/vram-kernel-dkms_*.deb
+          bash host/tests/kernel_literal/build-guest.sh "$RUNNER_TEMP/literal-module" dist/vram-kernel-dkms_*.deb
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --control host/build/vram-host --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --result measurements/local/literal-raw.json
           node automation/swap-latency.mjs measurements/local/literal-raw.json measurements/local/kernel-literal.json --kernel-literal
           sudo python3 host/tests/swap_latency.py "${guest[@]}" --kernel-literal "$RUNNER_TEMP/literal-module/vram_literal.ko" --kernel-fill "$RUNNER_TEMP/literal-module/vram_fill.ko" --kernel-system "$RUNNER_TEMP/literal-module/kernel-system" --result measurements/local/fill-raw.json
@@ -175,6 +178,9 @@ jobs:
           mkdir -p dist
           cp host/build/vram-host measurements/local/receipt.json measurements/local/linux-host.json dist/
           python3 host/package.py dist/
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            python3 automation/release-package.py dist/vram-host_*.deb
+          fi
           dpkg-deb -x dist/vram-host_*.deb "$RUNNER_TEMP/installed"
           mkdir "$RUNNER_TEMP/reserve-a" "$RUNNER_TEMP/reserve-b"
           sudo mount -t tmpfs -o size=64m,mode=1777 tmpfs "$RUNNER_TEMP/reserve-a"
@@ -211,6 +217,9 @@ jobs:
           cp dist/linux-dimm.json dist/mixed-file-range.json dist/kernel-previous.json dist/kernel-fill.json dist/kernel-literal.json dist/swap-latency.json dist/swap-path.json dist/store-clock.json.gz dist/completion-affinity.json dist/previous-swap-path.json dist/previous-store-clock.json.gz product-public/downloads/
           cmp dist/vram-kernel-dkms_*.deb product-public/downloads/vram-kernel-dkms_*.deb
           cmp dist/vram-host_*.deb product-public/downloads/vram-host_*.deb
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            python3 automation/release-package.py product-public/downloads/
+          fi
           (cd product-public/downloads && sha256sum -c SHA256SUMS)
           python3 -m http.server 8765 --bind 127.0.0.1 --directory product-public > "$RUNNER_TEMP/product-http.log" 2>&1 &
           trap 'kill $!' EXIT
@@ -234,5 +243,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Check that this queued deployment still matches main
+        id: revision
+        run: |
+          remote=$(git ls-remote --exit-code "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main)
+          if [[ ${remote%%[[:space:]]*} == "$GITHUB_SHA" ]]; then echo "current=true" >> "$GITHUB_OUTPUT"; fi
       - id: deployment
+        if: steps.revision.outputs.current == 'true'
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

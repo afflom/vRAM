@@ -91,18 +91,18 @@ In 0.4.1, sparse edits to dense pages reuse the same base read for fitting and e
 
 ### Low-latency swap for directly booted Linux
 
-The amd64 DKMS package builds the Verdant resident swap driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.3_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
+The amd64 DKMS package builds the Verdant resident swap driver for your installed kernel. The service formats a fresh volatile block device and activates it as Linux swap. Linux 6.12 on Debian amd64 is the guest-tested kernel series. Install matching headers first. Systems enforcing Secure Boot require a trusted module-signing key through the distribution's DKMS setup. [Kernel package](https://afflom.github.io/vRAM/downloads/vram-kernel-dkms_0.1.4_amd64.deb) · [Checksum](https://afflom.github.io/vRAM/downloads/SHA256SUMS)
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.3_amd64.deb
+sudo apt install "linux-headers-$(uname -r)" ./vram-kernel-dkms_0.1.4_amd64.deb
 sudo systemctl enable --now vram-kernel.service
 swapon --show
 ```
 
 The service reads the system-memory maximum from SMBIOS and sizes vRAM to cover the gap above Linux’s existing `MemTotal + SwapTotal`. It accounts for the swap header and checks the activated KiB in `/proc/swaps`. Run `sudo /usr/lib/vram/kernel-plan` to preview the current calculation. The planner honors the amd64 address limit, a simple kernel `mem=` limit and an optional lower `VRAM_OS_MAX_MIB`. One device supports up to 16 TiB minus 1 MiB. The service journal reports any remaining shortfall.
 
-If firmware does not report the board maximum, the default is 64 MiB. Set `VRAM_PLATFORM_MAX_MIB` to the documented system maximum or set `VRAM_KERNEL_SIZE_MIB` to an explicit device size in `/etc/default/vram`. A covered target skips activation. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal.
+If firmware does not report the board maximum, the default is 64 MiB. Set `VRAM_PLATFORM_MAX_MIB` to the documented system maximum or set `VRAM_KERNEL_SIZE_MIB` to an explicit device size in `/etc/default/vram`. A covered target skips activation. Upgrading the kernel package keeps active swap online. The new module loads at the next boot or when you explicitly restart the service. Stop with `sudo systemctl disable --now vram-kernel.service` to drain swap before removal.
 
 The packaged service has been exercised in a 2 GiB Linux VM with a 1 TiB firmware target, including swap activation, reclaim and readback. A fresh 1 TiB device uses a 4 MiB directory root. A first nonzero write to a 2 MiB region adds a 4 KiB directory leaf, retained until unload. Uniform pages fit in their entries, exact repeated halves use 32 to 2,048 bytes, and independent pages can need a full 4 KiB frame. Linux frees the payload when it releases the swap slot. Its own swap metadata also consumes memory. The amount of additional application data the host can hold depends on the pages stored. [Latency, throughput and swap recovery](https://afflom.github.io/vRAM/downloads/kernel-fill.json)
 
