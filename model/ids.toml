@@ -420,7 +420,7 @@ theorems = ["ResidentPolicy.fillBelowLock", "ResidentPolicy.packedFillBelowFrame
 id = "VR-64"
 level = "open"
 suite = "capacity"
-statement = "The shipped amd64 store charges one machine word per page while retaining byte-exact concurrent access and Linux swap-slot release"
+statement = "The amd64 store uses a machine-word descriptor for each page of a populated directory region while retaining byte-exact concurrent access and Linux swap-slot release"
 
 [[id]]
 id = "VR-65"
@@ -434,3 +434,23 @@ id = "VR-66"
 level = "open"
 suite = "capacity"
 statement = "Linux swap reconstructs folded pages across allocation classes and reports the retained block bytes alongside literal frames"
+
+[[id]]
+id = "VR-67"
+level = "build"
+suite = "capacity"
+statement = "Native automatic sizing selects the compatibility size for an unknown ceiling, skips an already covered target and bounds an uncovered deficit to one device"
+theorems = ["ResidentPolicy.unknownCeiling", "ResidentPolicy.coveredCeiling", "ResidentPolicy.fitsDevice", "ResidentPolicy.exceedsDevice"]
+
+[[id]]
+id = "VR-68"
+level = "open"
+suite = "capacity"
+statement = "The native service activates the uncovered logical capacity and a sparse kernel directory charges only its root and materialized leaves"
+
+[[id]]
+id = "VR-69"
+level = "build"
+suite = "capacity"
+statement = "An absent directory leaf needs allocation only for a write carrying a block or a nonzero fill"
+theorems = ["ResidentPolicy.readAbsent", "ResidentPolicy.zeroAbsent", "ResidentPolicy.blockNeedsLeaf", "ResidentPolicy.fillNeedsLeaf"]

@@ -84,5 +84,21 @@ definition{
   name: foldedCharge, parameters: [directory : Nat, literals : Nat, blocks : Nat], result: Nat,
   body: ((charged directory literals) + blocks), executable: true
 }
+definition{
+  name: nativeSizeAction, parameters: [known : Bool, covered : Bool, excess : Bool], result: Nat,
+  body: (if known then (if covered then 1 else (if excess then 3 else 2)) else 0), executable: true
+}
+theorem{ name: unknownCeiling, parameters: [covered : Bool, excess : Bool], statement: ((nativeSizeAction false covered excess) = 0), proof: reflexivity{} }
+theorem{ name: coveredCeiling, parameters: [excess : Bool], statement: ((nativeSizeAction true true excess) = 1), proof: reflexivity{} }
+theorem{ name: fitsDevice, parameters: [], statement: ((nativeSizeAction true false false) = 2), proof: reflexivity{} }
+theorem{ name: exceedsDevice, parameters: [], statement: ((nativeSizeAction true false true) = 3), proof: reflexivity{} }
+definition{
+  name: needsLeaf, parameters: [write : Bool, block : Bool, fill : Bool], result: Bool,
+  body: (write && (block || fill)), executable: true
+}
+theorem{ name: readAbsent, parameters: [block : Bool, fill : Bool], statement: ((needsLeaf false block fill) = false), proof: reflexivity{} }
+theorem{ name: zeroAbsent, parameters: [], statement: ((needsLeaf true false false) = false), proof: reflexivity{} }
+theorem{ name: blockNeedsLeaf, parameters: [fill : Bool], statement: ((needsLeaf true true fill) = true), proof: reflexivity{} }
+theorem{ name: fillNeedsLeaf, parameters: [], statement: ((needsLeaf true false true) = true), proof: reflexivity{} }
 \end{semanticmodule}
 \end{lexlean}

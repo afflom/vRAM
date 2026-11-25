@@ -12,7 +12,8 @@ from unittest.mock import patch
 
 host = Path(__file__).resolve().parents[1]
 machine = runpy.run_path(str(host / "vram-machine"))
-read_dmi = machine["dmi_capacity"]
+firmware = machine["load_firmware"]()
+read_dmi = firmware["dmi_capacity"]
 mib = 1 << 20
 
 
@@ -39,19 +40,20 @@ with tempfile.TemporaryDirectory() as folder:
     dmi.write_bytes(legacy + large + end)
     boot.write_text("boot-one")
     with patch.dict(globals_, DMI_TABLE=dmi, BOOT_ID=boot, FIRMWARE_RECORD=record):
-        machine["publish_platform"]()
+        firmware["publish_platform"]()
         assert record.stat().st_mode & 0o777 == 0o644
         assert json.loads(record.read_bytes()) == {"platform_max_mib": (4 << 20) + 512, "boot_id": "boot-one"}
         with patch.object(Path, "read_bytes", side_effect=PermissionError):
-            assert machine["firmware_capacity"]() == ((4 << 20) + 512, "SMBIOS type 16 (boot record)")
+            assert firmware["firmware_capacity"]() == ((4 << 20) + 512, "SMBIOS type 16 (boot record)")
             boot.write_text("boot-two")
-            assert machine["firmware_capacity"]() == (None, None)
+            assert firmware["firmware_capacity"]() == (None, None)
     cli = root / "bin/vram-machine"
     cli.parent.mkdir()
     cli.write_bytes((host / "vram-machine").read_bytes())
     cli.chmod(0o755)
     helper = root / "lib/vram/vram-ram-file"
     helper.parent.mkdir(parents=True)
+    helper.with_name("vram_firmware.py").symlink_to(host / "vram_firmware.py")
     helper.symlink_to(host / "build/vram-ram-file")
     for n in [1, 3, 1 << 20, 3 << 20, ((1 << 63) - 4097) // mib]:
         for delta in (-1, 0, 1):
@@ -118,4 +120,10 @@ with tempfile.TemporaryDirectory() as folder:
         r = json.loads(probe.stdout)
         assert r["verdict"] == verdict and r["verified_bytes"] == 4 * mib
         assert r["file_writes"] == 1024 and r["file_reads"] == 16
+    failed_launch = subprocess.run([cli, "run", *pool, "--state", state, "--min-read-mib-s", str(10**15)],
+                                   preexec_fn=limit_file, capture_output=True, text=True)
+    assert failed_launch.returncode == 1 and not state.exists()
+    receipt, = [line.removeprefix("VRAM_QUALIFICATION ") for line in failed_launch.stderr.splitlines()
+                if line.startswith("VRAM_QUALIFICATION ")]
+    assert json.loads(receipt)["verdict"] == "budget" and "VRAM_CAPACITY " not in failed_launch.stderr
 print("Capacity planner passed boundary, firmware, XML and pre-allocation refusal checks.")

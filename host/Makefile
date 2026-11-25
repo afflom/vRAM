@@ -28,6 +28,7 @@ install:
 	install -Dm644 packaging/io.github.afflom.vRAM.metainfo.xml $(DESTDIR)$(PREFIX)/share/metainfo/io.github.afflom.vRAM.metainfo.xml
 	install -Dm644 projection.h $(DESTDIR)$(PREFIX)/include/vram/projection.h
 	install -Dm755 build/vram-ram-file $(DESTDIR)$(PREFIX)/lib/vram/vram-ram-file
+	install -Dm644 vram_firmware.py $(DESTDIR)$(PREFIX)/lib/vram/vram_firmware.py
 	install -Dm755 vram-machine $(DESTDIR)$(PREFIX)/bin/vram-machine
 	install -Dm755 build/vram-host $(DESTDIR)$(PREFIX)/sbin/vram-host
 

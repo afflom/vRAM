@@ -75,88 +75,10 @@ MAX_OFFSET = (1 << 63) - 1
 HELPER = Path(__file__).resolve().parents[1] / "lib/vram/vram-ram-file"
 
 
-def dmi_capacity(table):
-    """Sum SMBIOS type 16 system-memory arrays, in whole MiB."""
-    offset = total = 0
-    seen = set()
-    while offset + 4 <= len(table):
-        kind, length = table[offset:offset + 2]
-        if length < 4 or offset + length > len(table):
-            return None
-        record = table[offset:offset + length]
-        end = table.find(b"\x00\x00", offset + length)
-        if end < 0:
-            return None
-        offset = end + 2
-        if kind == 127:
-            return total // MIB or None
-        if kind != 16:
-            continue
-        if length < 15:
-            return None
-        if record[5] in (1, 2):  # Other or unknown use cannot establish a complete total.
-            return None
-        if record[5] != 3:
-            continue
-        handle = record[2:4]
-        if handle in seen:
-            return None
-        seen.add(handle)
-        kib = int.from_bytes(record[7:11], "little")
-        if kib == 0x80000000:
-            if length < 23:
-                return None
-            size = int.from_bytes(record[15:23], "little")
-        elif kib < 0x80000000:
-            size = kib * 1024
-        else:
-            return None
-        if not size:
-            return None
-        total += size
-    return None
-
-
-DMI_TABLE = Path("/sys/firmware/dmi/tables/DMI")
-FIRMWARE_RECORD = Path("/run/vram-platform/capacity.json")
-BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
-
-
-def publish_platform():
-    # systemd creates the root-owned runtime directory. Publish only the
-    # aggregate capacity, atomically, so VM users never need the raw table.
-    total = dmi_capacity(DMI_TABLE.read_bytes())
-    if not total:
-        FIRMWARE_RECORD.unlink(missing_ok=True)
-        return
-    data = json.dumps(dict(boot_id=BOOT_ID.read_text().strip(), platform_max_mib=total))
-    with tempfile.NamedTemporaryFile(mode="w", dir=FIRMWARE_RECORD.parent, delete=False) as tmp:
-        name = Path(tmp.name)
-        try:
-            tmp.write(data)
-            tmp.flush()
-            os.fchmod(tmp.fileno(), 0o644)
-            name.replace(FIRMWARE_RECORD)
-        finally:
-            name.unlink(missing_ok=True)
-
-
-def firmware_capacity():
-    try:
-        return dmi_capacity(DMI_TABLE.read_bytes()), "SMBIOS type 16"
-    except FileNotFoundError:
-        return None, None
-    except PermissionError:
-        pass
-    try:
-        cached = json.loads(FIRMWARE_RECORD.read_text())
-        if isinstance(cached, dict) and cached.get("boot_id") == BOOT_ID.read_text().strip():
-            bound = cached.get("platform_max_mib")
-            if type(bound) is int and 0 < bound < 1 << 64:
-                return bound, "SMBIOS type 16 (boot record)"
-    except (FileNotFoundError, PermissionError, ValueError):
-        pass
-    return None, None
+def load_firmware():
+    from runpy import run_path
+    installed = HELPER.with_name("vram_firmware.py")
+    return run_path(str(installed if installed.exists() else Path(__file__).with_name("vram_firmware.py")))
 
 
 def domain_limit(path):
@@ -252,7 +174,7 @@ def capacity(args):
     platform = args.platform_max_mib
     source = "configuration" if platform is not None else None
     if platform is None:
-        platform, source = firmware_capacity()
+        platform, source = load_firmware()["firmware_capacity"]()
         if platform is None:
             source = None
     guest = domain_limit(args.domain_xml) if args.domain_xml is not None else args.guest_max_mib
@@ -359,27 +281,45 @@ def open_reserves(args, pools, required):
         yield fds, actual
 
 
-def qualify(args):
-    if min(args.min_read_mib_s, args.min_write_mib_s) < 0:
-        raise ValueError("minimum rates must be nonnegative")
-    plan = capacity(args)
-    target = full_target(plan)
-    with open_reserves(args, plan["backing_pools"], plan["required_backing_bytes"]) as (fds, actual):
-        run = subprocess.run([HELPER, "--qualify", str(target), *map(str, fds)], pass_fds=fds, stdout=subprocess.PIPE)
-        if run.returncode:
-            raise RuntimeError(f"full-capacity qualification failed (status {run.returncode})")
-    result = json.loads(run.stdout)
+def check_reserves(args, target, fds, actual, plan, pending=()):
+    with subprocess.Popen([HELPER, "--qualify", str(target), *map(str, fds)], pass_fds=fds,
+                          start_new_session=True, stdout=subprocess.PIPE) as probe:
+        try:
+            while True:
+                if pending:
+                    raise InterruptedError("qualification interrupted")
+                try:
+                    output, _ = probe.communicate(timeout=1)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        finally:
+            if probe.poll() is None:
+                probe.kill()
+        if probe.returncode:
+            raise RuntimeError(f"full-capacity qualification failed (status {probe.returncode})")
+    result = json.loads(output)
     if result["verified_bytes"] != target * MIB:
         raise RuntimeError("failed readback")
     passed = True
     for op, floor in (("read", args.min_read_mib_s), ("write", args.min_write_mib_s)):
         ns = result[op + "_ns"]
+        if type(ns) is not int or ns <= 0:
+            raise RuntimeError(f"invalid {op} service time")
         result[op + "_mib_s"] = target * 10**9 / ns
         result["min_" + op + "_mib_s"] = floor
         passed &= target * 10**9 >= floor * ns
     result.update(capacity=plan, reserved=actual, verdict="complete" if passed else "budget")
+    return result
+
+
+def qualify(args):
+    plan = capacity(args)
+    target = full_target(plan)
+    with open_reserves(args, plan["backing_pools"], plan["required_backing_bytes"]) as (fds, actual):
+        result = check_reserves(args, target, fds, actual, plan)
     print(json.dumps(result, indent=2))
-    return 0 if passed else 1
+    return 0 if result["verdict"] == "complete" else 1
 
 
 def run(args):
@@ -424,6 +364,11 @@ def run(args):
     try:
         mount.mkdir(mode=0o700)
         with open_reserves(args, pools, total * MIB + 4096) as (fds, actual):
+            if args.qualify or args.min_read_mib_s or args.min_write_mib_s:
+                result = check_reserves(args, total, fds, actual, plan, pending)
+                print("VRAM_QUALIFICATION " + json.dumps(result), file=sys.stderr, flush=True)
+                if result["verdict"] != "complete" or pending:
+                    return 1
             server = subprocess.Popen([HELPER, str(args.ram_mib), str(args.add_mib),
                                        *map(str, fds), mount], pass_fds=fds, start_new_session=True)
         print("VRAM_CAPACITY " + json.dumps(dict(total_mib=total, boot_mib=args.ram_mib,
@@ -513,16 +458,20 @@ def main():
     sizing_options(inspect)
     probe = commands.add_parser("qualify", help="reserve, write and verify the entire configured target")
     sizing_options(probe)
-    probe.add_argument("--min-read-mib-s", type=int, default=0)
-    probe.add_argument("--min-write-mib-s", type=int, default=0)
+    launch.add_argument("--qualify", action="store_true", help="verify every reserved page before starting QEMU")
+    for command in (probe, launch):
+        command.add_argument("--min-read-mib-s", type=int, default=0, help="required verified read rate")
+        command.add_argument("--min-write-mib-s", type=int, default=0, help="required verified write rate")
     launch.add_argument("--qemu", default="qemu-system-x86_64")
     launch.add_argument("options", nargs=argparse.REMAINDER, help="QEMU guest, disk and accelerator options after --")
     add = commands.add_parser("grow", help="plug the reserved DIMM into the running VM")
     add.add_argument("--state", type=Path, required=True)
     args = parser.parse_args()
     try:
+        if args.command in ("qualify", "run") and min(args.min_read_mib_s, args.min_write_mib_s) < 0:
+            raise ValueError("minimum rates must be nonnegative")
         if args.command == "publish-platform":
-            publish_platform()
+            load_firmware()["publish_platform"]()
             return 0
         if args.command == "capacity":
             print(json.dumps(capacity(args), indent=2))

@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory() as folder:
         add(outer, "manage.py", here/"dimm_manager.py")
         add(outer, "vmlinuz", args.kernel)
         add(outer, "guest.gz", tmp/"guest.gz")
+        add(outer, "usr/lib/vram/vram_firmware.py", tmp/"pkg/usr/lib/vram/vram_firmware.py")
         add(outer, "usr/bin/vram-machine", tmp/"pkg/usr/bin/vram-machine", 0o755)
         add_linked(outer, tmp/"pkg/usr/lib/vram/vram-ram-file", "usr/lib/vram/vram-ram-file")
         outer["dev/fuse"] = (stat.S_IFCHR | 0o666, b"", 10, 229)
@@ -93,13 +94,17 @@ with tempfile.TemporaryDirectory() as folder:
             or not store["file_base_writes"] or not store["file_base_reads"]
             or guest["verified_on_dimm_bytes"] < 1 << 20):
         raise RuntimeError("missing Linux or Verdant memory traffic")
+    qualified = row("VRAM_QUALIFICATION")
     live = row("VRAM_CAPACITY")
+    if (qualified["verdict"] != "complete" or qualified["verified_bytes"] != 320 << 20
+            or qualified["reserved"] != live["reserved"]):
+        raise RuntimeError("installed launcher did not qualify the live full target")
     if (live["total_mib"] != 320 or live["boot_mib"] != 192 or live["dimm_mib"] != 128 or
             sum(x["bytes"] for x in live["reserved"]) != (320 << 20) + 4096 or
             sum(x["files"] for x in live["reserved"]) != 2):
         raise RuntimeError("actual capacity reservation differs from target")
     result = dict(capacity_admission=live, guest=guest, store=store, dimm_mib=128, initial_mib=192,
-                  sizing="max", capacity_plan=row("CAPACITY_PLAN"), platform_max_mib=512, guest_max_mib=320,
+                  sizing="max", launch_qualification=qualified, capacity_plan=row("CAPACITY_PLAN"), platform_max_mib=512, guest_max_mib=320,
                   acceleration="KVM on emulated AMD SVM" if args.svm_modules else (cmd[-1].upper() if args.native else "nested TCG"),
                   qemu=subprocess.check_output([args.qemu, "--version"], text=True).splitlines()[0],
                   kernel=args.kernel.name, package_sha256=digest)

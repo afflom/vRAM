@@ -18,7 +18,7 @@ def exercise(cli, state, qemu, bios, kernel, initrd, accelerator):
             or plan["feasible_mib"] != 320):
         raise ValueError("installed launcher did not plan both backing files")
     print("CAPACITY_PLAN " + json.dumps(plan), flush=True)
-    command = [cli, "run", "--qemu", qemu, "--state", state, *sizing,
+    command = [cli, "run", "--qualify", "--qemu", qemu, "--state", state, *sizing,
                "--add-mib", "128", "--projection", "--", "-accel", accelerator, *(["-L", bios] if bios else []),
                "-kernel", kernel, "-initrd", initrd, "-append",
                "console=ttyS0 quiet nokaslr nmi_watchdog=0 rdinit=/init memhp_default_state=online panic=-1",

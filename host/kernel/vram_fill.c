@@ -18,7 +18,9 @@ MODULE_PARM_DESC(capacity_mib, "Logical block capacity in MiB");
 static unsigned long slot_count;
 /* A frame address has twelve zero low bits. An inline fill uses bits 0..7.
  * Bit 8 serializes this slot independently in every representation. */
-static unsigned long *directory;
+#define SLOTS_PER_LEAF (PAGE_SIZE / sizeof(unsigned long))
+static unsigned long **directory;
+static unsigned long leaf_count;
 
 static unsigned long lock_slot(unsigned long *slot)
 {
@@ -46,13 +48,13 @@ static struct gendisk *disk;
 static int major;
 static atomic_long_t retained = ATOMIC_LONG_INIT(0);
 static atomic_long_t block_bytes = ATOMIC_LONG_INIT(0);
-static unsigned long directory_bytes;
+static atomic_long_t directory_bytes = ATOMIC_LONG_INIT(0);
 static char policy[] = VRAM_HOLO;
 module_param_string(policy, policy, sizeof(policy), 0444);
 
 static int get_directory(char *buf, const struct kernel_param *kp)
 {
-	return sysfs_emit(buf, "%lu\n", directory_bytes);
+	return sysfs_emit(buf, "%ld\n", atomic_long_read(&directory_bytes));
 }
 
 static int get_literals(char *buf, const struct kernel_param *kp)
@@ -247,15 +249,49 @@ static void transfer(unsigned long word, unsigned int size, struct bio *bio,
 	}
 }
 
+/* Leaves stay installed until disk teardown. Readers can retain their slot
+ * address after the acquire, including during concurrent first writes. */
+static unsigned long *find_slot(unsigned long index, bool create)
+{
+	unsigned long **entry = &directory[index / SLOTS_PER_LEAF];
+	unsigned long *leaf = smp_load_acquire(entry);
+
+	if (!leaf && create) {
+		unsigned long *fresh = (unsigned long *)get_zeroed_page(
+			GFP_NOIO | __GFP_NORETRY | __GFP_NOWARN);
+
+		if (fresh) {
+			leaf = cmpxchg(entry, NULL, fresh);
+			if (leaf) {
+				free_page((unsigned long)fresh);
+			} else {
+				leaf = fresh;
+				atomic_long_add(PAGE_SIZE, &directory_bytes);
+			}
+		} else {
+			leaf = smp_load_acquire(entry);
+		}
+	}
+	return leaf ? &leaf[index % SLOTS_PER_LEAF] : NULL;
+}
+
 static bool transfer_page(struct bio *bio, struct bvec_iter page, unsigned int action)
 {
-	unsigned long *slot = &directory[page.bi_sector / SECTORS_PER_SLOT];
+	unsigned long *slot;
+	bool create;
 	unsigned long flags, old, spare = 0;
 	unsigned int size = 0, previous;
 	u8 value = 0;
 
 	if (action == 2 && !inline_fill[uniform_page(bio, page, &value)])
 		size = folded_size(bio, page);
+	create = needs_leaf[((action == 2) << 2) | ((size != 0) << 1) | (value != 0)];
+	slot = find_slot(page.bi_sector / SECTORS_PER_SLOT, create);
+	if (!slot) {
+		if (action == 1)
+			transfer(0, 0, bio, page, true);
+		return !create;
+	}
 
 	/* A speculative class check avoids taking the slot lock across the
 	 * allocation decision. Only dereference a payload after rechecking it
@@ -344,7 +380,9 @@ static void release_swap_slot(struct block_device *bdev, unsigned long index)
 
 	if (index >= slot_count)
 		return;
-	slot = &directory[index];
+	slot = find_slot(index, false);
+	if (!slot)
+		return;
 	flags = lock_slot(slot);
 	previous = READ_ONCE(*slot);
 	replace_payload(slot, 0);
@@ -370,13 +408,14 @@ static int __init fill_init(void)
 #endif
 	int rc;
 
-	BUILD_BUG_ON(PAGE_SIZE != SLOT || sizeof(*directory) != VRAM_SLOT_BYTES);
+	BUILD_BUG_ON(PAGE_SIZE != SLOT || sizeof(unsigned long) != VRAM_SLOT_BYTES);
 	BUILD_BUG_ON(VRAM_SLOT_LOCK != BIT(FOLD_SHIFT - 1) || SLOT != BIT(PAGE_ORDER));
 	if (!capacity_mib || capacity_mib > UINT_MAX / (SZ_1M / SLOT))
 		return -EINVAL;
 	slot_count = capacity_mib * (SZ_1M / SLOT);
-	directory_bytes = PAGE_ALIGN(array_size(slot_count, sizeof(*directory)));
-	directory = vzalloc(directory_bytes);
+	leaf_count = DIV_ROUND_UP(slot_count, SLOTS_PER_LEAF);
+	atomic_long_set(&directory_bytes, PAGE_ALIGN(array_size(leaf_count, sizeof(*directory))));
+	directory = vzalloc(atomic_long_read(&directory_bytes));
 	if (!directory)
 		return -ENOMEM;
 	major = register_blkdev(0, "vramfill");
@@ -424,8 +463,15 @@ static void __exit fill_exit(void)
 	del_gendisk(disk);
 	put_disk(disk);
 	unregister_blkdev(major, "vramfill");
-	for (i = 0; i < slot_count; i++)
-		free_payload(directory[i]);
+	for (i = 0; i < leaf_count; i++) {
+		unsigned long j;
+
+		if (!directory[i])
+			continue;
+		for (j = 0; j < SLOTS_PER_LEAF; j++)
+			free_payload(directory[i][j]);
+		free_page((unsigned long)directory[i]);
+	}
 	vfree(directory);
 }
 

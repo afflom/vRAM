@@ -179,6 +179,7 @@ def geometry():
     fd = os.open("/dev/vramfill0", os.O_RDWR | os.O_DIRECT | os.O_EXCL)
     try:
         size = os.lseek(fd, 0, os.SEEK_END)
+        empty = int(parameter("directory_bytes"))
         assert size == capacity and int(parameter("literal_pages")) == 0
         with mmap.mmap(-1, PAGE) as buf:
             for i, offset in enumerate(offsets):
@@ -198,7 +199,7 @@ def geometry():
                 assert os.pwrite(fd, buf, offset) == PAGE
         final = int(parameter("literal_pages"))
         assert final == 0
-        print("KERNEL_GEOMETRY", json.dumps(dict(capacity_bytes=size, directory_bytes=int(parameter("directory_bytes")),
+        print("KERNEL_GEOMETRY", json.dumps(dict(capacity_bytes=size, empty_directory_bytes=empty, directory_bytes=int(parameter("directory_bytes")),
               verified_bytes=verified, last_offset=offsets[-1], literal_pages=retained,
               literal_pages_after_release=final)), flush=True)
     finally:

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysinfo.h>
 #include <sys/io.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
@@ -135,9 +136,21 @@ int main(int argc, char **argv) {
                 snprintf(target, sizeof(target), "/kernel-system%s", mounts[i]);
                 if (mkdir(target, 0755) || mount(mounts[i], target, NULL, MS_BIND, NULL)) fail(target);
             }
+            struct sysinfo info;
+            char limit[32];
+            if (sysinfo(&info)) fail("guest memory totals");
+            unsigned long long covered = ((unsigned long long)info.totalram + info.totalswap) * info.mem_unit / 1024;
+            snprintf(limit, sizeof(limit), "%llu", (covered - 4) / 1024 + 96);
             if (chroot("/kernel-system") || chdir("/") || setenv("PATH", "/bin:/sbin", 1) ||
-                setenv("VRAM_KERNEL_SIZE_MIB", "96", 1)) fail("activation root");
-            execl("/usr/lib/vram/start-kernel-swap", "start-kernel-swap", NULL);
+                setenv("VRAM_PLATFORM_MAX_MIB", limit, 1)) fail("activation root");
+            if (mkdir("/run", 0755) || mkdir("/run/vram-kernel", 0700)) fail("planner state");
+            printf("KERNEL_NATIVE {\"covered_kib\":%llu,\"target_mib\":%s}\n", covered, limit);
+            fflush(stdout);
+            execl("/bin/sh", "sh", "-ec",
+                  "if VRAM_PLATFORM_MAX_MIB=1 /usr/lib/vram/kernel-plan --prepare; then exit 1; "
+                  "else test $? -eq 1; fi; read -r size < /run/vram-kernel/size; test \"$size\" = 0; "
+                  "/usr/lib/vram/kernel-plan --prepare; "
+                  "exec /usr/lib/vram/start-kernel-swap /run/vram-kernel/size", NULL);
             fail("exec packaged activation");
         }
         if (waitpid(activation, &status, 0) != activation || status) fail("packaged activation");

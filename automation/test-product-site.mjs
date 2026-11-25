@@ -82,7 +82,7 @@ try {
   await until(() => evaluate('document.getElementById("facet-record").value === "Product.Security::assetPages"'), 'archived security records');
   assert.ok(await evaluate('document.getElementById("facet-fields").textContent.includes("componentIndex")'));
   await evaluate('replay.click()');
-  await until(() => evaluate('acceptance.textContent === "130 of 130 acceptance vectors passed."'), 'acceptance replay');
+  await until(() => evaluate('acceptance.textContent === "140 of 140 acceptance vectors passed."'), 'acceptance replay');
   console.log(await evaluate('acceptance.textContent'));
   socket.close();
 } finally {

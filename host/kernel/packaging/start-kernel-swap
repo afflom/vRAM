@@ -1,7 +1,13 @@
 #!/bin/sh
 set -eu
 # Only format a device this invocation created. An existing module may own live data.
-modprobe --first-time vram_fill "capacity_mib=${VRAM_KERNEL_SIZE_MIB:?}"
+if [ "$#" -eq 1 ]; then
+    read -r size < "$1"
+else
+    size=$(/usr/lib/vram/kernel-plan)
+fi
+[ "$size" -gt 0 ] || exit 0
+modprobe --first-time vram_fill "capacity_mib=$size"
 trap 'modprobe -r vram_fill' EXIT
 # Verify the device node belongs to the newly registered kernel disk.
 node=/dev/vramfill0
@@ -15,4 +21,13 @@ dev=$(cat /sys/block/vramfill0/dev)
 test "$(stat -Lc '%t:%T' "$node")" = "$(printf '%x:%x' "${dev%:*}" "${dev#*:}")"
 mkswap "$node"
 swapon "$node"
-trap - EXIT
+expected=$((size * 1024 - 4))
+while read -r path kind active used priority; do
+    if [ "$path" = "$node" ] && [ "$active" = "$expected" ]; then
+        trap - EXIT
+        exit 0
+    fi
+done < /proc/swaps
+echo "vRAM: Linux did not expose the expected $expected KiB on $node" >&2
+swapoff "$node"
+exit 1

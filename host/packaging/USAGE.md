@@ -31,6 +31,8 @@ To measure this configuration before boot, run the following command while the b
 vram-machine qualify --domain-xml workstation.xml --min-read-mib-s 100 --min-write-mib-s 50
 ```
 
+With `vram-machine run --qualify`, the launcher verifies every page in the boot and hot-plug reserves before passing those same open files to the memory server. Both rate options also apply to `run` and enable qualification. If a floor is missed, the launcher releases the reservation and exits before starting QEMU.
+
 Rates measure calls to the Verdant store for 64-page sequential requests during this run. The receipt also gives the slowest observed request in each direction. Guest scheduling, changes in storage load, and other access patterns affect application performance.
 
 ## Directly booted Linux swap

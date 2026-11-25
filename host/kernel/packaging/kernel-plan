@@ -1,0 +1,124 @@
+#!/usr/bin/python3 -I
+"""Select the native swap area size before loading the module."""
+import os
+from pathlib import Path
+import re
+import sys
+
+HERE = Path(__file__).resolve().parent
+# The driver uses a 32-bit slot index and a 4 KiB page on amd64.
+DEVICE_MAX_MIB = ((1 << 32) - 1) // 256
+PAGE_KIB = 4
+
+
+def positive(text, name):
+    if not text.isascii() or not text.isdecimal() or not 0 < int(text) < 1 << 64:
+        raise ValueError(f"{name} must be a positive u64 MiB value")
+    return int(text)
+
+
+def architecture_limit(cpuinfo, cmdline):
+    # The Linux amd64 direct map addresses up to 46 or 52 physical bits.
+    # CPU capability supplies an upper bound when the active paging mode is unknown.
+    bounds = []
+    physical = re.search(r"^address sizes\s*:\s*(\d+) bits physical", cpuinfo, re.M)
+    if physical and 20 <= int(physical[1]) <= 64:
+        bounds.append(1 << (int(physical[1]) - 20))
+    flags = re.search(r"^flags\s*:\s*(.*)$", cpuinfo, re.M)
+    options = cmdline.split()
+    if "--" in options:
+        options = options[:options.index("--")]
+    if flags:
+        five = "la57" in flags[1].split() and "no5lvl" not in options
+        bounds.append(1 << ((52 if five else 46) - 20))
+    for option in options:
+        limit = re.fullmatch(r"mem=(\d+)([KMGTPE]?)", option, re.I)
+        if limit:
+            shift = " KMGTPE".index(limit[2].upper() or " ") * 10
+            mib = (int(limit[1]) << shift) >> 20
+            if mib:
+                bounds.append(mib)
+    return min(bounds) if bounds else None
+
+
+def plan(env, memory, firmware, actions, arch_limit=None):
+    requested = env.get("VRAM_KERNEL_SIZE_MIB", "auto")
+    if requested != "auto":
+        size = positive(requested, "VRAM_KERNEL_SIZE_MIB")
+        if size > DEVICE_MAX_MIB:
+            raise ValueError(f"requested {size} MiB exceeds the {DEVICE_MAX_MIB} MiB device maximum")
+        return size, f"explicit size {size} MiB"
+    if "VRAM_PLATFORM_MAX_MIB" in env:
+        platform = positive(env["VRAM_PLATFORM_MAX_MIB"], "VRAM_PLATFORM_MAX_MIB")
+        source = "configuration"
+    else:
+        platform, source = firmware()
+    os_limit = positive(env["VRAM_OS_MAX_MIB"], "VRAM_OS_MAX_MIB") if "VRAM_OS_MAX_MIB" in env else None
+    if arch_limit is not None:
+        os_limit = min(arch_limit, os_limit) if os_limit else arch_limit
+    target = min(platform, os_limit) if platform and os_limit else platform
+    covered = memory["MemTotal"] + memory["SwapTotal"]
+    gap = max(0, (target or 0) * 1024 - covered)
+    needed = (gap + PAGE_KIB + 1023) // 1024 if gap else 0
+    action = actions[(bool(target) << 2) | ((gap == 0) << 1) | (needed > DEVICE_MAX_MIB)]
+    if action == 0:
+        # Retain the previous default only when firmware cannot establish a maximum.
+        # A supplied OS cap still bounds this fallback.
+        size = 64
+        if os_limit:
+            gap = max(0, os_limit * 1024 - covered)
+            size = min(size, (gap + PAGE_KIB + 1023) // 1024 if gap else 0)
+        return size, f"platform maximum unknown, fallback {size} MiB"
+    if action == 1:
+        size = 0
+    elif action == 2:
+        size = needed
+    elif action == 3:
+        size = DEVICE_MAX_MIB
+    else:
+        raise ValueError("invalid Prism sizing action")
+    remaining = max(0, gap - max(0, size * 1024 - PAGE_KIB))
+    return size, (f"platform {platform} MiB ({source}), target {target} MiB, "
+                  f"MemTotal + SwapTotal {covered} KiB, device {size} MiB, shortfall {remaining} KiB")
+
+
+def main():
+    from runpy import run_path
+
+    def firmware():
+        # Both packages ship the same boot-scoped SMBIOS reader.
+        return run_path(str(HERE / "kernel-firmware.py"))["firmware_capacity"]()
+
+    memory = {}
+    for line in Path("/proc/meminfo").read_text().splitlines():
+        name, _, value = line.partition(":")
+        if name in ("MemTotal", "SwapTotal", "MemAvailable"):
+            amount, unit = value.split()
+            if unit != "kB":
+                raise ValueError(f"unknown /proc/meminfo unit {unit}")
+            memory[name] = int(amount)
+    arch_limit = architecture_limit(Path("/proc/cpuinfo").read_text(), Path("/proc/cmdline").read_text())
+    size, reason = plan(os.environ, memory, firmware, (HERE / "kernel-size.policy").read_bytes(), arch_limit)
+    # Linux 6.x allocates at least one swap_map byte per usable swap page.
+    # Avoid attempting a known-unaffordable activation on a large firmware target.
+    minimum = max(0, size * 256 - 1)
+    if minimum > memory["MemAvailable"] * 1024:
+        raise ValueError(f"{size} MiB needs at least {minimum} bytes for the Linux swap map, "
+                         f"MemAvailable is {memory['MemAvailable']} KiB")
+    print(f"vRAM: {reason}", file=sys.stderr)
+    if len(sys.argv) == 1:
+        print(size)
+        return 0
+    if sys.argv[1:] != ["--prepare"]:
+        raise ValueError("expected --prepare or no arguments")
+    Path("/run/vram-kernel/size").write_text(f"{size}\n")
+    # systemd ExecCondition skips both activation and shutdown on a covered host.
+    return 0 if size else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, KeyError, IndexError) as err:
+        print(f"vRAM capacity probe failed: {err}", file=sys.stderr)
+        sys.exit(255)

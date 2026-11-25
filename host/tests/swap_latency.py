@@ -193,6 +193,10 @@ if args.kernel_fill:
     if len(pressure) != 1:
         sys.exit("Missing kernel reclaim evidence")
     result["kernel_reclaim"] = json.loads(pressure[0])
+    native = re.findall(r"^KERNEL_NATIVE (.+)$", log, re.M)
+    if len(native) != 1:
+        sys.exit("Missing automatic sizing evidence")
+    result["native_capacity"] = json.loads(native[0])
     result["kernel_geometry"] = geometry
     result["range_throughput"] = [json.loads(row) for row in re.findall(r"^KERNEL_RANGE (.+)$", log, re.M)]
     result["fill_store"] = [json.loads(row) for row in re.findall(r"^FILL_STORE (.+)$", log, re.M)]

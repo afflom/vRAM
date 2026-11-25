@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory() as directory:
         ("../site/assets/mark.svg", "usr/share/icons/hicolor/scalable/apps/io.github.afflom.vRAM.svg", 0o644),
         ("packaging/io.github.afflom.vRAM.metainfo.xml", "usr/share/metainfo/io.github.afflom.vRAM.metainfo.xml", 0o644),
         ("projection.h", "usr/include/vram/projection.h", 0o644),
+        ("vram_firmware.py", "usr/lib/vram/vram_firmware.py", 0o644),
         ("vram-machine", "usr/bin/vram-machine", 0o755),
         ("build/vram-host", "usr/sbin/vram-host", 0o755),
         ("packaging/vram-platform.service", "usr/lib/systemd/system/vram-platform.service", 0o644),
@@ -44,7 +45,7 @@ with tempfile.TemporaryDirectory() as directory:
             ["dpkg-shlibdeps", "-O", "-e" + str(root / "usr/lib/vram/vram-ram-file")],
             cwd=build_dir, text=True).strip().removeprefix("shlibs:Depends=")
     (meta / "control").write_text(
-        "Package: vram-host\nVersion: 0.6.7\nArchitecture: amd64\n"
+        "Package: vram-host\nVersion: 0.6.8\nArchitecture: amd64\n"
         f"Maintainer: vRAM maintainers <noreply@github.com>\nDepends: {shlibs}, systemd, kmod, python3\nRecommends: fuse3, qemu-system-x86\n"
         "Description: Verdant tensor-backed Linux swap and virtual machine system RAM\n"
         "Homepage: https://afflom.github.io/vRAM/\n")

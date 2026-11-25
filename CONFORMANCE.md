@@ -83,9 +83,12 @@ The three honesty levels (R2):
 | `VR-61` | `build` | A resident transfer admits only a supported operation on an aligned nonempty whole-page span inside the device | `ResidentPolicy.readSpan`, `ResidentPolicy.writeSpan`, `ResidentPolicy.incompleteSpan`, `ResidentPolicy.outsideSpan`, `ResidentPolicy.unsupportedSpan` |
 | `VR-62` | `open` | The packaged kernel store restores Linux swap under reclaim, releases retired literal slots and measures verified direct range throughput alongside zram |  |
 | `VR-63` | `build` | Holding a packed slot lock keeps fill bytes below the first frame and leaves aligned literals distinguishable; releasing the lock recovers the payload | `ResidentPolicy.fillBelowLock`, `ResidentPolicy.packedFillBelowFrame`, `ResidentPolicy.packedLiteralAboveFill`, `ResidentPolicy.unlockSlotPayload` |
-| `VR-64` | `open` | The shipped amd64 store charges one machine word per page while retaining byte-exact concurrent access and Linux swap-slot release |  |
+| `VR-64` | `open` | The amd64 store uses a machine-word descriptor for each page of a populated directory region while retaining byte-exact concurrent access and Linux swap-slot release |  |
 | `VR-65` | `build` | The resident fold retains the current prefix on mismatch, halves an exact page and stops at the smallest kernel block class | `ResidentPolicy.foldMismatch`, `ResidentPolicy.exactFoldOneOrder`, `ResidentPolicy.foldPage`, `ResidentPolicy.foldFloor` |
 | `VR-66` | `open` | Linux swap reconstructs folded pages across allocation classes and reports the retained block bytes alongside literal frames |  |
+| `VR-67` | `build` | Native automatic sizing selects the compatibility size for an unknown ceiling, skips an already covered target and bounds an uncovered deficit to one device | `ResidentPolicy.unknownCeiling`, `ResidentPolicy.coveredCeiling`, `ResidentPolicy.fitsDevice`, `ResidentPolicy.exceedsDevice` |
+| `VR-68` | `open` | The native service activates the uncovered logical capacity and a sparse kernel directory charges only its root and materialized leaves |  |
+| `VR-69` | `build` | An absent directory leaf needs allocation only for a write carrying a block or a nonzero fill | `ResidentPolicy.readAbsent`, `ResidentPolicy.zeroAbsent`, `ResidentPolicy.blockNeedsLeaf`, `ResidentPolicy.fillNeedsLeaf` |
 
 ## Cited authorities
 

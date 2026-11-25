@@ -6,8 +6,8 @@ src=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$out/debs"
 package=$(realpath "${2:?expected kernel DKMS package}")
 dpkg-deb -x "$package" "$out/installed"
-cp "$out/installed/usr/src/vram-fill-0.1.2/"{page_io.h,literal_policy.h} "$out/"
-cp "$src/Kbuild" "$src/vram_literal.c" "$src/vram_segments.c" "$out/"
+cp "$out/installed/usr/src/vram-fill-0.1.3/"{page_io.h,literal_policy.h} "$out/"
+cp "$src/pack-planner.py" "$src/Kbuild" "$src/vram_literal.c" "$src/vram_segments.c" "$out/"
 while read -r filename sha256 snapshot; do
     pkg="$out/debs/$filename"
     curl --retry 3 -fsSL "https://deb.debian.org/debian/pool/main/l/linux/$filename" -o "$pkg" ||
@@ -26,7 +26,7 @@ docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:tr
     mkdir -p "/lib/modules/$release"
     ln -sfn "/usr/src/linux-headers-$release" "/lib/modules/$release/build"
     apt-get install -y --no-install-recommends /tmp/vram-kernel.deb
-    dkms status -m vram-fill -v 0.1.2 -k "$release" | grep -q ": installed"
+    dkms status -m vram-fill -v 0.1.3 -k "$release" | grep -q ": installed"
     make -C "/lib/modules/$release/build" M=/build modules
     module=$(find "/lib/modules/$release/updates" -name "vram_fill.ko*" -type f)
     case "$module" in
@@ -38,7 +38,7 @@ docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:tr
     esac
     root=/build/kernel-system
     mkdir -p "$root/bin" "$root/sbin" "$root/usr/lib/vram" "$root/lib/modules/$release/updates"
-    for tool in dash cat stat sleep modprobe mkswap swapon; do
+    for tool in dash cat stat sleep modprobe mkswap swapon swapoff; do
         binary=$(command -v "$tool")
         cp -L "$binary" "$root/bin/$tool"
         ldd "$binary" | awk "/=> \\// {print \$3}" | while read -r lib; do
@@ -47,7 +47,8 @@ docker run --rm -v "$out:/build" -v "$package:/tmp/vram-kernel.deb:ro" debian:tr
     done
     cp -L /lib64/ld-linux-x86-64.so.2 --parents "$root"
     cp "$root/bin/dash" "$root/bin/sh"
-    cp /usr/lib/vram/start-kernel-swap "$root/usr/lib/vram/"
+    cp /usr/lib/vram/start-kernel-swap /usr/lib/vram/kernel-* "$root/usr/lib/vram/"
+    /usr/bin/python3 -I /build/pack-planner.py "$root"
     cp /build/vram_fill.ko "$root/lib/modules/$release/updates/"
     depmod -b "$root" "$release"
 '

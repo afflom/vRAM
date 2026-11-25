@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {verifiedModel} from './verified-model.mjs';
 
-const [header] = process.argv.slice(2);
+const [header, sizePolicy] = process.argv.slice(2);
 if (!header) throw Error('Expected output header path');
 const source = path => readFileSync(new URL(path, import.meta.url));
 const imported = source('../app/src/Main.lex.tex');
@@ -47,4 +47,17 @@ for (let order = 5; order <= 12; order++) {
     }
     folds.push('{' + row.join(', ') + '}');
 }
-writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\n#define VRAM_SLOT_LOCK ${await layout(0)}UL\n#define VRAM_SLOT_BYTES ${await layout(1)}\nstatic const u8 fold_order[8][2] = {${folds.join(', ')}};\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 resident_action[24] = {${await actions(78)}};\nstatic const u8 literal_action[24] = {${await actions(76)}};\n`);
+async function booleanActions(tag, valid) {
+    const actions = [];
+    for (let shape = 0; shape < 8; shape++) {
+        const packet = Uint8Array.of(tag, shape >> 2, (shape >> 1) & 1, shape & 1);
+        const reply = new TextDecoder().decode(await model.dispatch(packet));
+        if (!valid.test(reply)) throw Error('Invalid resident policy response for tag ' + tag);
+        actions.push(Number(reply));
+    }
+    return actions;
+}
+writeFileSync(header, `/* Generated from the verified Prism model. */\n#define VRAM_HOLO "${address}"\n#define VRAM_SLOT_LOCK ${await layout(0)}UL\n#define VRAM_SLOT_BYTES ${await layout(1)}\nstatic const u8 needs_leaf[8] = {${(await booleanActions(82, /^[01]$/)).join(', ')}};\nstatic const u8 fold_order[8][2] = {${folds.join(', ')}};\nstatic const u8 inline_fill[2] = {${fills.join(', ')}};\nstatic const u8 resident_action[24] = {${await actions(78)}};\nstatic const u8 literal_action[24] = {${await actions(76)}};\n`);
+
+if (sizePolicy)
+    writeFileSync(sizePolicy, Uint8Array.from(await booleanActions(81, /^0000[0-3]$/)));

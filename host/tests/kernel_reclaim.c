@@ -40,8 +40,29 @@ static void expected(unsigned i, unsigned char *page)
 	if (i % 2) memcpy(page + PAGE - sizeof(i), &i, sizeof(i));
 }
 
+static unsigned long active_swap_kib(void)
+{
+	FILE *f = fopen("/proc/swaps", "r");
+	char line[512], path[256];
+	unsigned long kib;
+	struct stat wanted, active;
+
+	if (stat(device, &wanted)) fail(device);
+	if (!f) fail("read /proc/swaps");
+	while (fgets(line, sizeof(line), f)) {
+		if (sscanf(line, "%255s %*s %lu", path, &kib) == 2 &&
+		    !stat(path, &active) && S_ISBLK(active.st_mode) && active.st_rdev == wanted.st_rdev) {
+			fclose(f);
+			return kib;
+		}
+	}
+	fail("vRAM missing from /proc/swaps");
+	return 0;
+}
+
 int main(void)
 {
+	unsigned long active = active_swap_kib();
 	uint64_t size;
 	int fd = open(device, O_RDONLY);
 	unsigned char want[PAGE], resident[PAGES];
@@ -81,8 +102,8 @@ int main(void)
 	long final = counter("/sys/module/vram_fill/parameters/literal_pages");
 	long final_blocks = counter("/sys/module/vram_fill/parameters/repeated_bytes");
 	if (final != 1 || final_blocks) fail("retired literals still resident");
-	printf("KERNEL_RECLAIM {\"capacity_mib\":96,\"verified_bytes\":%u,\"evicted_pages\":%u,"
+	printf("KERNEL_RECLAIM {\"capacity_mib\":96,\"active_swap_kib\":%lu,\"verified_bytes\":%u,\"evicted_pages\":%u,"
 	       "\"literal_pages_under_pressure\":%ld,\"literal_pages_after_drain\":%ld,\"repeated_bytes_under_pressure\":%ld,\"repeated_bytes_after_drain\":%ld}\n",
-	       PAGES * PAGE, PAGES - present, peak, final, blocks, final_blocks);
+	       active, PAGES * PAGE, PAGES - present, peak, final, blocks, final_blocks);
 	return 0;
 }

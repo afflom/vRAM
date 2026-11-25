@@ -482,9 +482,9 @@ Feature: capacity
 
   @VR-64 @open
   Scenario: Recover packed entries after concurrent replacement
-    Given a packaged device with one directory word per logical page
+    Given a packaged device with one word per descriptor in each populated directory region
     When fills and literal frames replace each other under direct IO and swap reclaim
-    Then all bytes are recovered and the measured directory charge agrees with the slot count
+    Then all bytes are recovered and the measured directory charge agrees with the allocated directory geometry
 
   @VR-65 @build
   Scenario: Reduce an exactly repeated prefix
@@ -497,3 +497,33 @@ Feature: capacity
     Given a page written through the installed swap device
     When exact repetitions and near misses overwrite one another
     Then every byte reads back and retired payload disappears from the store charge
+
+  @VR-67 @build
+  Scenario: Size a native swap area from the observed host
+    Given the host ceiling, current coverage and per-device bound
+    When the native planner selects an action
+    Then unknown, covered, fitting and capped targets receive their respective actions
+
+  @VR-68 @open
+  Scenario: Recover pages from an automatically sized device
+    Given a host with a known capacity deficit
+    When the packaged service activates swap and Linux evicts anonymous pages
+    Then the usable swap size covers the deficit and every evicted byte is recovered
+
+  @VR-68 @open
+  Scenario: Populate distant pages of a sparse directory
+    Given a fresh one TiB logical device
+    When independent data and fills are scattered up to the last page
+    Then readback succeeds and directory charge grows only for groups that received nonzero data
+
+  @VR-69 @build
+  Scenario: Preserve an untouched group without allocating a leaf
+    Given an absent group of resident page descriptors
+    When the adapter observes the operation and the exact representation
+    Then a read or zero fill needs no leaf and a nonzero write needs one
+
+  @VR-36 @open
+  Scenario: Launch on the same reserves that passed full qualification
+    Given a workstation configured to boot at its admitted maximum
+    When the operator requests a qualified launch
+    Then a failed rate floor prevents boot and a passing readback hands the same open reserves to the guest memory server

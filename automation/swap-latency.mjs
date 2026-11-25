@@ -81,6 +81,13 @@ if (literal) {
 }
 if (fill) {
     const reclaim = receipt.kernel_reclaim;
+    const native = receipt.native_capacity;
+    if (!Number.isSafeInteger(native?.covered_kib) || native.covered_kib <= 0 ||
+        !Number.isSafeInteger(native.target_mib) || native.target_mib <= 0 ||
+        reclaim?.active_swap_kib !== reclaim?.capacity_mib * 1024 - 4 ||
+        native.covered_kib + reclaim.active_swap_kib < native.target_mib * 1024 ||
+        native.covered_kib + reclaim.active_swap_kib >= (native.target_mib + 1) * 1024)
+        throw Error('Native swap activation differs from the host deficit');
     if (reclaim?.capacity_mib !== 96 || reclaim.verified_bytes !== 24 * 1024 * 1024 ||
         !Number.isInteger(reclaim.evicted_pages) || reclaim.evicted_pages < 5376 || reclaim.evicted_pages > 6144 ||
         !Number.isInteger(reclaim.literal_pages_under_pressure) || reclaim.literal_pages_under_pressure < 1536 ||
@@ -103,11 +110,14 @@ if (fill) {
     const slots = 16384;
     const width = new TextDecoder().decode(await model.dispatch(Uint8Array.of(79, 1)));
     if (!/^\d{5}$/.test(width) || !Number(width)) throw Error('Invalid Prism slot width');
-    const directoryBytes = Math.ceil(slots * Number(width) / receipt.page_bytes) * receipt.page_bytes;
+    const page = receipt.page_bytes;
+    const leafSlots = page / Number(width);
+    const rootBytes = capacity => Math.ceil(Math.ceil(capacity / page / leafSlots) * Number(width) / page) * page;
     const geometry = receipt.kernel_geometry;
     if (geometry?.capacity_bytes !== 2 ** 40 || geometry.verified_bytes !== 32768 * receipt.page_bytes ||
         geometry.last_offset !== geometry.capacity_bytes - receipt.page_bytes ||
-        geometry.directory_bytes !== geometry.capacity_bytes / receipt.page_bytes * Number(width) ||
+        geometry.empty_directory_bytes !== rootBytes(geometry.capacity_bytes) ||
+        geometry.directory_bytes !== geometry.empty_directory_bytes + (32768 - 64) * page ||
         geometry.literal_pages !== 16384 || geometry.literal_pages_after_release !== 0)
         throw Error('Invalid sparse device geometry evidence');
     const expected = [
@@ -120,6 +130,8 @@ if (fill) {
     if (!Array.isArray(rows) || rows.length !== expected.length) throw Error('Incomplete Fill allocation evidence');
     for (const [i, [stage, written, literals, kinds]] of expected.entries()) {
         const row = rows[i];
+        const groups = i < 3 ? 27 : slots / leafSlots;
+        const directoryBytes = rootBytes(slots * page) + groups * page;
         const directory = row.directory_bytes;
         if (row.stage !== stage || row.literal_pages !== literals || row.written_pages !== written ||
             directory !== directoryBytes || row.repeated_bytes !== (i < 3 ? 3 * 2048 * 64 : 0) ||
